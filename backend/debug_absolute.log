@@ -1,0 +1,46 @@
+New websocket connection: 3ecd0a64-e743-4f90-a24a-e74357348fe7
+Websocket accepted
+Current chats: ['3ecd0a64-e743-4f90-a24a-e74357348fe7']
+Chat status: created
+Processing initial message
+Processing message for 3ecd0a64-e743-4f90-a24a-e74357348fe7: List files in current directory
+Sent analyzing status
+Processing message for 3ecd0a64-e743-4f90-a24a-e74357348fe7: List files in parent directory
+Sent analyzing status
+Processing message for 3ecd0a64-e743-4f90-a24a-e74357348fe7: List files in parent directory
+Sent analyzing status
+New websocket connection: 1410e088-24f6-4baf-a650-5e60396dbe3d
+Websocket accepted
+Current chats: ['1410e088-24f6-4baf-a650-5e60396dbe3d']
+Chat status: created
+Processing initial message
+Processing message for 1410e088-24f6-4baf-a650-5e60396dbe3d: 给我返回一个视频，主题是："如何治愈原生家庭"
+Sent analyzing status
+New websocket connection: 714fa53a-59c0-4f97-b1b4-680ccc665e53
+Websocket accepted
+Current chats: ['1410e088-24f6-4baf-a650-5e60396dbe3d', '714fa53a-59c0-4f97-b1b4-680ccc665e53']
+Chat status: created
+Processing initial message
+Processing message for 714fa53a-59c0-4f97-b1b4-680ccc665e53: 刚刚的脚本不满足诉求，改一下脚本来fix bug
+Sent analyzing status
+New websocket connection: 4818a3f9-68e0-48b8-8238-b4689d2f257f
+Websocket accepted
+Current chats: ['1410e088-24f6-4baf-a650-5e60396dbe3d', '714fa53a-59c0-4f97-b1b4-680ccc665e53', '4818a3f9-68e0-48b8-8238-b4689d2f257f']
+Chat status: created
+Processing initial message
+Processing message for 4818a3f9-68e0-48b8-8238-b4689d2f257f: 给我返回一个视频，主题是："如何治愈原生家庭"
+Sent analyzing status
+New websocket connection: cff660b5-c2f4-485c-9ebe-3547c9a9952a
+Websocket accepted
+Current chats: ['cff660b5-c2f4-485c-9ebe-3547c9a9952a']
+Chat status: created
+Processing initial message
+Processing message for cff660b5-c2f4-485c-9ebe-3547c9a9952a: 给我返回一个视频，主题是："如何治愈原生家庭"
+Sent analyzing status
+New websocket connection: 7adb579c-5e64-4cc2-9286-ebcf3a772793
+Websocket accepted
+Current chats: ['cff660b5-c2f4-485c-9ebe-3547c9a9952a', '7adb579c-5e64-4cc2-9286-ebcf3a772793']
+Chat status: created
+Processing initial message
+Processing message for 7adb579c-5e64-4cc2-9286-ebcf3a772793: topic = "如何治愈原生家庭"，我不希望这个字段变成写死的字段，改成从外部传参进去
+Sent analyzing status
