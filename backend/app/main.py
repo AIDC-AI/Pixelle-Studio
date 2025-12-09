@@ -76,7 +76,6 @@ async def process_and_execute(websocket: WebSocket, chat_id: str, user_message: 
             f.write("Sent analyzing status\n")
         
         # Fetch tools using the stored config
-        import pdb; pdb.set_trace()
         chat_config = chats[chat_id].get("mcp_config")
         # Use global cache if chat specific config is missing (fallback)
         config_to_use = chat_config or mcp_config_cache or MCPServerConfig(servers=[])
