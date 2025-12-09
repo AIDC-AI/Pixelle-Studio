@@ -13,6 +13,13 @@ from app.execution.runner import run_script
 from app.mcp_aggregator import MCPAggregator, MCPServerConfig
 from app.tool_search.selector import select_tools
 
+# Import self-evaluation modules
+from app.context.context_manager import ContextManager
+from app.orchestrator.execution_orchestrator import ExecutionOrchestrator, ExecutionConfig
+
+# Import logger
+from app.utils.logger import log
+
 app = FastAPI()
 
 # CORS
@@ -34,6 +41,18 @@ mcp_config_cache = None
 
 # Initialize Aggregator
 mcp_aggregator = MCPAggregator()
+
+# Initialize Context Manager and Orchestrator (NEW)
+context_manager = ContextManager()
+execution_config = ExecutionConfig(
+    max_iterations=3,
+    enable_error_evaluation=True,
+    enable_result_validation=True
+)
+orchestrator = ExecutionOrchestrator(
+    context_manager=context_manager,
+    config=execution_config
+)
 
 class ChatRequest(BaseModel):
     message: str
@@ -64,93 +83,90 @@ async def create_chat(request: ChatRequest):
 async def process_and_execute(websocket: WebSocket, chat_id: str, user_message: str):
     """
     Process a user message: select tools, generate script, and execute it.
+    Now uses ExecutionOrchestrator for self-evaluation loop.
     """
     try:
-        with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
-            f.write(f"Processing message for {chat_id}: {user_message}\n")
-        # 1. Notify start
-        await websocket.send_json({"type": "status", "content": "Analyzing request..."})
-        await websocket.send_json({"type": "status", "content": "Analyzing request..."})
-        with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
-            f.write("Sent analyzing status\n")
+        log.info(f"Processing message for {chat_id}: {user_message}")
+        
+        # === Stage 1: Analyze and select tools ===
+        await websocket.send_json({"type": "status", "content": "Analyzing request and selecting tools..."})
+        
+        log.debug("Sent analyzing status")
         
         # Fetch tools using the stored config
         chat_config = chats[chat_id].get("mcp_config")
-        # Use global cache if chat specific config is missing (fallback)
         config_to_use = chat_config or mcp_config_cache or MCPServerConfig(servers=[])
         
         all_tools = await mcp_aggregator.fetch_tools(config_to_use)
-        
-        # Select tools
         selected_tools = select_tools(user_message, all_tools)
-        chats[chat_id]["tools"] = selected_tools # Store for reference
+        chats[chat_id]["tools"] = selected_tools
         
-        # 2. Generate Script
-        script_content = await generate_workflow_script(user_message, selected_tools)
+        # === Stage 2: Execute with self-evaluation (NEW) ===
+        execution_context = await orchestrator.execute_with_self_evaluation(
+            websocket=websocket,
+            chat_id=chat_id,
+            user_message=user_message,
+            selected_tools=selected_tools
+        )
         
-        # Save script to file
-        # Use a directory outside of 'backend' to prevent uvicorn auto-reload
-        script_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../scripts"))
-        os.makedirs(script_dir, exist_ok=True)
-        script_path = os.path.join(script_dir, f"{chat_id}_{uuid.uuid4().hex[:8]}.py") # Unique script per turn
-        
-        with open(script_path, "w") as f:
-            f.write(script_content)
-            
-        # Store latest script
-        scripts[chat_id] = script_path
-        
-        await websocket.send_json({"type": "script", "content": script_content})
-        
-        # 3. Execute Script
-        await websocket.send_json({"type": "status", "content": "Executing workflow..."})
-        
-        # Run script and stream logs
-        async for log in run_script(script_path, cwd=os.path.dirname(script_path)):
-            await websocket.send_json(log)
-            
-        await websocket.send_json({"type": "status", "content": "Turn complete"})
+        # === Stage 3: Send final result ===
+        if execution_context.status == "success":
+            latest_iter = execution_context.get_latest_iteration()
+            await websocket.send_json({
+                "type": "final_result",
+                "status": "success",
+                "total_iterations": len(execution_context.iterations),
+                "result": latest_iter.execution_result if latest_iter else None
+            })
+        else:
+            await websocket.send_json({
+                "type": "final_result",
+                "status": "failed",
+                "total_iterations": len(execution_context.iterations),
+                "error": "Maximum iterations reached or unrecoverable error"
+            })
 
+    except WebSocketDisconnect:
+        # Client went away; stop processing quietly
+        log.info(f"WebSocket disconnected while processing chat {chat_id}")
+        return
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        await websocket.send_json({"type": "error", "content": str(e)})
+        log.error(f"Error processing message for chat {chat_id}: {e}", exc_info=True)
+        try:
+            await websocket.send_json({"type": "error", "content": str(e)})
+        except Exception:
+            # If the socket is already closed, just exit
+            pass
 
 @app.websocket("/ws/chat/{chat_id}")
 async def websocket_endpoint(websocket: WebSocket, chat_id: str):
-    with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
-        f.write(f"New websocket connection: {chat_id}\n")
+    log.info(f"New websocket connection: {chat_id}")
     await websocket.accept()
-    with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
-        f.write("Websocket accepted\n")
+    log.debug("Websocket accepted")
     
-    with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
-        f.write(f"Current chats: {list(chats.keys())}\n")
+    log.debug(f"Current chats: {list(chats.keys())}")
     
     if chat_id not in chats:
-        with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
-            f.write(f"Chat not found: {chat_id}\n")
+        log.warning(f"Chat not found: {chat_id}")
         await websocket.close(code=4004, reason="Chat not found")
         return
 
     try:
         # Process initial message if it exists and hasn't been processed
         status = chats[chat_id].get("status")
-        with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
-            f.write(f"Chat status: {status}\n")
+        log.debug(f"Chat status: {status}")
             
         if status == "created":
-            with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
-                f.write("Processing initial message\n")
+            log.info("Processing initial message")
             initial_message = chats[chat_id]["messages"][0]["content"]
             chats[chat_id]["status"] = "active"
             await process_and_execute(websocket, chat_id, initial_message)
         
         # Loop for subsequent messages
         while True:
-            print("Waiting for next message")
+            log.debug("Waiting for next message")
             data = await websocket.receive_json()
-            print(f"Received message: {data}")
+            log.debug(f"Received message: {data}")
             
             if data.get("type") == "message":
                 user_message = data.get("content")
@@ -161,11 +177,15 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
                     await process_and_execute(websocket, chat_id, user_message)
             
     except WebSocketDisconnect:
-        print(f"Client disconnected: {chat_id}")
+        log.info(f"[WebSocket] Client disconnected: {chat_id}")
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        await websocket.send_json({"type": "error", "content": str(e)})
+        log.error(f"[WebSocket] Error in chat {chat_id}: {e}", exc_info=True)
+        try:
+            await websocket.send_json({"type": "error", "content": str(e)})
+        except:
+            # If we can't send, client already disconnected
+            log.error(f"[WebSocket] Failed to send error, client disconnected: {e}")
 
 @app.post("/api/tools")
 async def get_tools(config: Optional[MCPServerConfig] = None):
@@ -173,8 +193,18 @@ async def get_tools(config: Optional[MCPServerConfig] = None):
     Fetch tools from all configured servers + default tools.
     """
     if config:
-        print(f"Fetching tools with config: {len(config.servers)} servers")
+        log.info(f"Fetching tools with config: {len(config.servers)} servers")
         return await mcp_aggregator.fetch_tools(config)
     
     # Return default tools if no config
     return mcp_aggregator._get_default_tools()
+
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "self_evaluation": "enabled",
+        "max_iterations": execution_config.max_iterations
+    }

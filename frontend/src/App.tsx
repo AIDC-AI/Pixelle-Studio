@@ -5,9 +5,10 @@ import { MCPConfigModal } from './components/MCPConfigModal';
 import { mcpServerAPI, type MCPServerConfig } from './mcpConfig';
 
 interface Message {
-  type: 'user' | 'system' | 'log' | 'script' | 'result' | 'error';
+  type: 'user' | 'system' | 'log' | 'script' | 'result' | 'error' | 'iteration' | 'evaluation' | 'advice';
   content: any;
   timestamp: number;
+  iteration?: number;
 }
 
 function App() {
@@ -47,17 +48,63 @@ function App() {
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
 
-        if (data.type === 'script') {
+        if (data.type === 'iteration_start') {
+          setMessages(prev => [...prev, { 
+            type: 'iteration', 
+            content: `🔄 Starting iteration ${data.iteration}/${data.max_iterations}`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          }]);
+        } else if (data.type === 'iteration_end') {
+          const statusEmoji = data.status === 'success' ? '✅' : data.status === 'failed' ? '❌' : '🔁';
+          setMessages(prev => [...prev, { 
+            type: 'iteration', 
+            content: `${statusEmoji} Iteration ${data.iteration} ${data.status}`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          }]);
+        } else if (data.type === 'script') {
           setCurrentScript(data.content);
-          setMessages(prev => [...prev, { type: 'system', content: 'Generated Workflow Script', timestamp: Date.now() }]);
+          setMessages(prev => [...prev, { 
+            type: 'system', 
+            content: `📝 Generated script (iteration ${data.iteration})`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          }]);
         } else if (data.type === 'log') {
-          // Append log to the last message if it's a log container, or create new
-          // For simplicity, just add as message
-          setMessages(prev => [...prev, { type: 'log', content: `[${data.stream || 'LOG'}] ${data.content}`, timestamp: Date.now() }]);
-        } else if (data.type === 'result') {
-          setMessages(prev => [...prev, { type: 'result', content: data.content, timestamp: Date.now() }]);
+          setMessages(prev => [...prev, { 
+            type: 'log', 
+            content: `[${data.stream || 'LOG'}] ${data.content}`, 
+            timestamp: Date.now() 
+          }]);
+        } else if (data.type === 'evaluation_result') {
+          const emoji = data.meets_requirement ? '✅' : '⚠️';
+          setMessages(prev => [...prev, { 
+            type: 'evaluation', 
+            content: `${emoji} Evaluation (iteration ${data.iteration}): ${data.meets_requirement ? 'PASS' : 'FAIL'} (confidence: ${(data.confidence_score * 100).toFixed(0)}%)\nReason: ${data.reason}`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          }]);
+        } else if (data.type === 'revision_advice') {
+          setMessages(prev => [...prev, { 
+            type: 'advice', 
+            content: `💡 Revision advice (iteration ${data.iteration}):\n${data.advice.advice || JSON.stringify(data.advice, null, 2)}`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          }]);
+        } else if (data.type === 'final_result') {
+          // 最终结果 - 现在才关闭连接
+          const emoji = data.status === 'success' ? '🎉' : '❌';
+          setMessages(prev => [...prev, { 
+            type: 'result', 
+            content: `${emoji} Final result (${data.total_iterations} iterations): ${data.status}\n${data.result ? JSON.stringify(data.result, null, 2) : data.error || ''}`, 
+            timestamp: Date.now() 
+          }]);
           setIsProcessing(false);
           ws.close();
+        } else if (data.type === 'result') {
+          // 兼容旧的 result 消息（如果有的话）
+          setMessages(prev => [...prev, { type: 'result', content: data.content, timestamp: Date.now() }]);
         } else if (data.type === 'error') {
           setMessages(prev => [...prev, { type: 'error', content: data.content, timestamp: Date.now() }]);
           setIsProcessing(false);
@@ -105,11 +152,14 @@ function App() {
               <div key={idx} className={`message ${msg.type}`}>
                 {msg.type === 'user' && <div>{msg.content}</div>}
                 {msg.type === 'system' && <div><em>{msg.content}</em></div>}
+                {msg.type === 'iteration' && <div><strong>{msg.content}</strong></div>}
                 {msg.type === 'log' && <div className="log-entry">{msg.content}</div>}
+                {msg.type === 'evaluation' && <div style={{ background: '#f0f8ff', padding: '8px', borderRadius: '4px' }}><pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{msg.content}</pre></div>}
+                {msg.type === 'advice' && <div style={{ background: '#fffacd', padding: '8px', borderRadius: '4px' }}><pre style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{msg.content}</pre></div>}
                 {msg.type === 'result' && (
                   <div>
                     <strong>Result:</strong>
-                    <pre>{JSON.stringify(msg.content, null, 2)}</pre>
+                    <pre>{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2)}</pre>
                   </div>
                 )}
                 {msg.type === 'error' && <div style={{ color: 'red' }}>Error: {msg.content}</div>}
