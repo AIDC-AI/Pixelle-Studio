@@ -44,6 +44,7 @@ class ChatResponse(BaseModel):
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def create_chat(request: ChatRequest):
+    print(f"Creating chat with request: {request}")
     global mcp_config_cache
     
     # Update cache if provided
@@ -66,15 +67,16 @@ async def process_and_execute(websocket: WebSocket, chat_id: str, user_message: 
     Process a user message: select tools, generate script, and execute it.
     """
     try:
-        with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
+        with open("/tmp/debug_absolute.log", "a") as f:
             f.write(f"Processing message for {chat_id}: {user_message}\n")
         # 1. Notify start
         await websocket.send_json({"type": "status", "content": "Analyzing request..."})
         await websocket.send_json({"type": "status", "content": "Analyzing request..."})
-        with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
+        with open("/tmp/debug_absolute.log", "a") as f:
             f.write("Sent analyzing status\n")
         
         # Fetch tools using the stored config
+        import pdb; pdb.set_trace()
         chat_config = chats[chat_id].get("mcp_config")
         # Use global cache if chat specific config is missing (fallback)
         config_to_use = chat_config or mcp_config_cache or MCPServerConfig(servers=[])
@@ -118,17 +120,17 @@ async def process_and_execute(websocket: WebSocket, chat_id: str, user_message: 
 
 @app.websocket("/ws/chat/{chat_id}")
 async def websocket_endpoint(websocket: WebSocket, chat_id: str):
-    with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
+    with open("/tmp/debug_absolute.log", "a") as f:
         f.write(f"New websocket connection: {chat_id}\n")
     await websocket.accept()
-    with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
+    with open("/tmp/debug_absolute.log", "a") as f:
         f.write("Websocket accepted\n")
     
-    with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
+    with open("/tmp/debug_absolute.log", "a") as f:
         f.write(f"Current chats: {list(chats.keys())}\n")
     
     if chat_id not in chats:
-        with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
+        with open("/tmp/debug_absolute.log", "a") as f:
             f.write(f"Chat not found: {chat_id}\n")
         await websocket.close(code=4004, reason="Chat not found")
         return
@@ -136,11 +138,11 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
     try:
         # Process initial message if it exists and hasn't been processed
         status = chats[chat_id].get("status")
-        with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
+        with open("/tmp/debug_absolute.log", "a") as f:
             f.write(f"Chat status: {status}\n")
             
         if status == "created":
-            with open("/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/debug_absolute.log", "a") as f:
+            with open("/tmp/debug_absolute.log", "a") as f:
                 f.write("Processing initial message\n")
             initial_message = chats[chat_id]["messages"][0]["content"]
             chats[chat_id]["status"] = "active"

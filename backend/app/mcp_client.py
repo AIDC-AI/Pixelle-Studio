@@ -7,13 +7,14 @@ from typing import Dict, Any, Optional
 # Format: { "tool_name": { "url": "...", "type": "sse" } }
 _TOOL_SERVER_MAP: Dict[str, Dict[str, str]] = {}
 
-def register_tool_server(tool_name: str, url: str, server_type: str = "sse"):
+def register_tool_server(tool_name: str, url: str, server_type: str = "sse", headers: dict = None):
     """
     Register a server configuration for a specific tool.
     """
     _TOOL_SERVER_MAP[tool_name] = {
         "url": url,
-        "type": server_type
+        "type": server_type,
+        "headers": headers
     }
     # print(f"[MCP Client] Registered tool '{tool_name}' to {server_type} server: {url}")
 
@@ -42,13 +43,14 @@ async def _call_real_tool(tool_name: str, args: dict, config: dict) -> Any:
     from mcp.client.sse import sse_client
     
     url = config["url"]
+    headers = config.get("headers", None)
     # Ensure NO_PROXY for localhost
     os.environ["NO_PROXY"] = os.environ.get("NO_PROXY", "") + ",127.0.0.1,localhost"
     
     print(f"[MCP Client] Calling real tool '{tool_name}' on {url}...")
     
     try:
-        async with sse_client(url) as (read, write):
+        async with sse_client(url, headers=headers) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 

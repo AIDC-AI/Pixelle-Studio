@@ -19,6 +19,7 @@ export function MCPConfigModal({ isOpen, onClose, onSave }: MCPConfigModalProps)
     const [isAdding, setIsAdding] = useState(false);
     const [serverTools, setServerTools] = useState<Record<string, Tool[]>>({});
     const [loadingTools, setLoadingTools] = useState<Record<string, boolean>>({});
+    const [headersText, setHeadersText] = useState<string>('');
 
     // Fetch tools for each enabled server
     useEffect(() => {
@@ -59,6 +60,7 @@ export function MCPConfigModal({ isOpen, onClose, onSave }: MCPConfigModalProps)
 
     const handleAddServer = () => {
         setIsAdding(true);
+        setHeadersText('');
         setEditingServer({
             name: '',
             type: 'http',
@@ -70,10 +72,22 @@ export function MCPConfigModal({ isOpen, onClose, onSave }: MCPConfigModalProps)
     const handleSaveServer = () => {
         if (!editingServer || !editingServer.name) return;
 
-        const newServer = mcpServerAPI.addServer(editingServer as Omit<MCPServer, 'id'>);
+        // 保存时解析 headers
+        let serverToSave = { ...editingServer };
+        if (headersText.trim()) {
+            try {
+                serverToSave.headers = JSON.parse(headersText);
+            } catch {
+                alert('Headers JSON format is invalid. Please check and try again.');
+                return;
+            }
+        }
+
+        const newServer = mcpServerAPI.addServer(serverToSave as Omit<MCPServer, 'id'>);
         setConfig({ servers: [...config.servers, newServer] });
         setEditingServer(null);
         setIsAdding(false);
+        setHeadersText('');
     };
 
     const handleDeleteServer = (id: string) => {
@@ -203,7 +217,38 @@ export function MCPConfigModal({ isOpen, onClose, onSave }: MCPConfigModalProps)
                                     />
                                 </div>
                             )}
-
+                            {/* Headers 输入框 - 适用于 HTTP 和 SSE 类型 */}
+                            {(editingServer.type === 'http' || editingServer.type === 'sse') && (
+                                <div className="form-group">
+                                    <label>Headers (JSON format)</label>
+                                    <textarea
+                                        value={headersText}
+                                        onChange={(e) => setHeadersText(e.target.value)}
+                                        onBlur={(e) => {
+                                            // 失去焦点时尝试格式化 JSON
+                                            try {
+                                                if (e.target.value.trim()) {
+                                                    const headers = JSON.parse(e.target.value);
+                                                    setHeadersText(JSON.stringify(headers, null, 2));
+                                                }
+                                            } catch {
+                                                // JSON 格式不正确，保持原样
+                                            }
+                                        }}
+                                        placeholder='{"Authorization": "Bearer sk-xxx"}'
+                                        rows={3}
+                                        style={{ 
+                                            width: '100%', 
+                                            fontFamily: 'monospace',
+                                            fontSize: '0.9em',
+                                            resize: 'vertical'
+                                        }}
+                                    />
+                                    <small style={{ color: '#888', fontSize: '0.8em' }}>
+                                        Enter headers as JSON object, e.g. {`{"Authorization": "Bearer token"}`}
+                                    </small>
+                                </div>
+                            )}
                             {editingServer.type === 'sse' && (
                                 <div className="form-group">
                                     <label>SSE URL</label>
