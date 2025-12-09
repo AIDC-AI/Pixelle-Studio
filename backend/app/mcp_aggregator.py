@@ -11,6 +11,7 @@ class MCPServer(BaseModel):
     type: str  # 'sse', 'stdio', 'http'
     config: Dict[str, Any]
     enabled: bool
+    headers: dict | None = None
 
 class MCPServerConfig(BaseModel):
     servers: List[MCPServer]
@@ -71,7 +72,8 @@ class MCPAggregator:
         try:
             # Configure sse_client with timeout and no proxy if possible (though sse_client might not expose all httpx options directly)
             # We rely on environment variables for proxy settings if needed.
-            async with sse_client(url) as (read, write):
+            print(f"[MCPAggregator] Headers: {server.headers}")
+            async with sse_client(url, headers=server.headers) as (read, write):
                 print(f"[MCPAggregator] SSE connection established to {url}")
                 async with ClientSession(read, write) as session:
                     print(f"[MCPAggregator] Initializing session with {url}")

@@ -25,7 +25,8 @@ async def generate_workflow_script(user_prompt: str, tools: list) -> str:
         if 'server_url' in t:
             tool_server_map[t['name']] = {
                 "url": t['server_url'],
-                "type": t.get('server_type', 'sse')
+                "type": t.get('server_type', 'sse'),
+                "headers": t.get('server_headers', None)
             }
     
     system_prompt = """
@@ -101,7 +102,7 @@ if __name__ == "__main__":
     if tool_server_map:
         server_config_code = "from app.mcp_client import register_tool_server\n\n"
         for tool_name, config in tool_server_map.items():
-            server_config_code += f"register_tool_server('{tool_name}', '{config['url']}', '{config['type']}')\n"
+            server_config_code += f"register_tool_server('{tool_name}', '{config['url']}', '{config['type']}', {config['headers']})\n"
         server_config_code += "\n"
 
     # Assemble final script

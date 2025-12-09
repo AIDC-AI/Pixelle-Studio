@@ -16,6 +16,7 @@ export interface MCPServer {
         headers?: Record<string, string>;
     };
     enabled: boolean;
+    headers?: Record<string, string>;
 }
 
 export interface MCPServerConfig {

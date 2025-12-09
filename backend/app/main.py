@@ -58,29 +58,37 @@ class ChatRequest(BaseModel):
     message: str
     mcp_config: Optional[MCPServerConfig] = None  # Frontend sends this
 
+
 class ChatResponse(BaseModel):
     chat_id: str
 
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def create_chat(request: ChatRequest):
+    print(f"Creating chat with request: {request}")
     global mcp_config_cache
-    
+
     # Update cache if provided
     if request.mcp_config:
         mcp_config_cache = request.mcp_config
-    
+
     # Store mcp_config in the chat session for later use
     # We don't fetch tools here anymore, we do it in the WebSocket connection
-    
+
     chat_id = str(uuid.uuid4())
     chats[chat_id] = {
-        "messages": [{"role": "user", "content": request.message}],
+        "messages": [{
+            "role": "user",
+            "content": request.message
+        }],
         "mcp_config": request.mcp_config,  # Store config
         "status": "created"
     }
     return {"chat_id": chat_id}
 
-async def process_and_execute(websocket: WebSocket, chat_id: str, user_message: str):
+
+async def process_and_execute(websocket: WebSocket, chat_id: str,
+                              user_message: str):
     """
     Process a user message: select tools, generate script, and execute it.
     Now uses ExecutionOrchestrator for self-evaluation loop.
@@ -138,6 +146,7 @@ async def process_and_execute(websocket: WebSocket, chat_id: str, user_message: 
             # If the socket is already closed, just exit
             pass
 
+
 @app.websocket("/ws/chat/{chat_id}")
 async def websocket_endpoint(websocket: WebSocket, chat_id: str):
     log.info(f"New websocket connection: {chat_id}")
@@ -161,7 +170,7 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
             initial_message = chats[chat_id]["messages"][0]["content"]
             chats[chat_id]["status"] = "active"
             await process_and_execute(websocket, chat_id, initial_message)
-        
+
         # Loop for subsequent messages
         while True:
             log.debug("Waiting for next message")
@@ -172,10 +181,13 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
                 user_message = data.get("content")
                 if user_message:
                     # Add to history
-                    chats[chat_id]["messages"].append({"role": "user", "content": user_message})
+                    chats[chat_id]["messages"].append({
+                        "role": "user",
+                        "content": user_message
+                    })
                     # Process
                     await process_and_execute(websocket, chat_id, user_message)
-            
+
     except WebSocketDisconnect:
         log.info(f"[WebSocket] Client disconnected: {chat_id}")
     except Exception as e:
@@ -187,6 +199,7 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
             # If we can't send, client already disconnected
             log.error(f"[WebSocket] Failed to send error, client disconnected: {e}")
 
+
 @app.post("/api/tools")
 async def get_tools(config: Optional[MCPServerConfig] = None):
     """
@@ -195,7 +208,7 @@ async def get_tools(config: Optional[MCPServerConfig] = None):
     if config:
         log.info(f"Fetching tools with config: {len(config.servers)} servers")
         return await mcp_aggregator.fetch_tools(config)
-    
+
     # Return default tools if no config
     return mcp_aggregator._get_default_tools()
 
