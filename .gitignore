@@ -9,3 +9,9 @@ wheels/
 # Virtual environments
 .venv
 scripts
+
+# Logs
+.backend/app/logs/
+
+# Storage
+.backend/app/storage/
