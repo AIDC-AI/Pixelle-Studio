@@ -81,8 +81,8 @@ Only return the Python code block. Do not include markdown formatting like ```py
             
         generated_code = generated_code.strip()
         
-    except Exception as e:
-        print(f"LLM generation failed: {e}")
+    except Exception as e:        
+        print(f"LLM generation failed,request message: {llm_kwargs}, error: {e}")
         # Fallback to a simple error script
         return f"""
 import asyncio

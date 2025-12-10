@@ -12,7 +12,7 @@ from app.llm_adapter import generate_workflow_script
 from app.execution.runner import run_script
 from app.mcp_aggregator import MCPAggregator, MCPServerConfig
 from app.tool_search.selector import select_tools
-
+from app.tool_search.search_agent import SearchAgent
 app = FastAPI()
 
 # CORS
@@ -98,7 +98,15 @@ async def process_and_execute(websocket: WebSocket, chat_id: str,
         all_tools = await mcp_aggregator.fetch_tools(config_to_use)
 
         # Select tools
-        selected_tools = select_tools(user_message, all_tools)
+        await websocket.send_json({
+            "type": "status",
+            "content": "Selecting tools..."
+        })
+        selected_tools = await select_tools(user_message, all_tools)
+        await websocket.send_json({
+            "type": "status",
+            "content": "finished selecting tools,tools selected: " + json.dumps([tool['name'] for tool in selected_tools], ensure_ascii=False)
+        })
         chats[chat_id]["tools"] = selected_tools  # Store for reference
 
         # 2. Generate Script
@@ -209,7 +217,13 @@ async def get_tools(config: Optional[MCPServerConfig] = None):
     """
     if config:
         print(f"Fetching tools with config: {len(config.servers)} servers")
-        return await mcp_aggregator.fetch_tools(config)
-
+        tools = await mcp_aggregator.fetch_tools_by_server(config)
+        #for debug, save the tools to a file
+        # if not os.path.exists("./logs"):
+        #     os.makedirs("./logs", exist_ok=True)
+        # with open("./logs/config_tools.json", "w") as f:
+        #     json.dump(tools, f, indent=4, ensure_ascii=False)
+        SearchAgent.instance.embedding_tools(config=config,tools=tools)
+        return [tool for server_tools in tools for tool in server_tools]
     # Return default tools if no config
     return mcp_aggregator._get_default_tools()
