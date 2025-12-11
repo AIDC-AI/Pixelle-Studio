@@ -56,8 +56,8 @@ class SearchAgent:
         model_path = os.getenv("EMODEL_PATH", "Qwen3-Embedding-0.6B")
         self.qwen3_embedding = Qwen3Embedding(model_path, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         print(f"SearchAgent:load embedding model {model_path} successfully")
-        self.embedding_db_file = os.path.join(current_dir, "db", "embedding_data.json")
-        self.tools_embedding_info: EmbeddingDatas = self.load_embedding_data(self.embedding_db_file)
+        self.embedding_db_dir = os.path.join(current_dir, "db")
+        self.tools_embedding_info: EmbeddingDatas = self.load_embedding_data(self.embedding_db_dir)
         print(f"SearchAgent:load embedding data successfully,tool size:{len(self.tools_embedding_info.embedding_indexs)}")
 
         self._locker = threading.Lock()
@@ -121,7 +121,7 @@ class SearchAgent:
                         #for debug,print the selected tool name,server name,score,step id,estimated tool description
                         print("------------------------------------------SELECTED TOOL---------------------------------------------------")
                         print(f"SearchAgent:selected tool name: {tool['name']},server name: {server_name},score: {score},step id: {i}")
-                        print(f"SearchAgent:estimated tool description: {estimated_desc}")
+                        print(f"SearchAgent:estimated tool description: {res_list[i]}")
                         print(f"SearchAgent:configured tool description: {tool['description']}")
                         print("------------------------------------------SELECTED TOOL---------------------------------------------------")
         return selected_tools

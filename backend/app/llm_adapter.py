@@ -1,33 +1,30 @@
 import os
 import json
 from openai import AsyncOpenAI
-
+from app.mcp_aggregator import MCPServerConfig
 # LLM Configuration
 LLM_BASE_URL = "https://REDACTED_BASE_URL_HOST/v1"
 LLM_API_KEY = "REDACTED_API_KEY"
 LLM_MODEL = "gemini-3-pro-preview"
 
-async def generate_workflow_script(user_prompt: str, tools: list) -> str:
+
+async def generate_workflow_script(user_prompt: str, tools: list, config_to_use: MCPServerConfig = None) -> str:
     """
     Generates a Python script based on the user prompt and available tools.
     """
     client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
-    
+
     from app.tool_search.selector import format_tools_for_llm
-    
+
     # Format tools for OpenAI function calling
     formatted_tools = format_tools_for_llm(tools) if tools else []
-    
+    headers = config_to_use.servers[0].headers if config_to_use else None
     # Extract server configuration for injection into script
     tool_server_map = {}
     for t in tools:
         if 'server_url' in t:
-            tool_server_map[t['name']] = {
-                "url": t['server_url'],
-                "type": t.get('server_type', 'sse'),
-                "headers": t.get('server_headers', None)
-            }
-    
+            tool_server_map[t['name']] = {"url": t['server_url'], "type": t.get('server_type', 'sse'), "headers": headers}
+
     system_prompt = """
 You are an expert Python developer who generates workflow scripts.
 Your goal is to write a Python script that orchestrates a workflow based on the user's request.
@@ -38,11 +35,12 @@ RULES:
 1. The script MUST define an `async def main():` function.
 2. The script MUST use `from app.mcp_client import call_tool, upload_result`.
 3. The script MUST use `await call_tool('tool_name', {'arg': 'value'})` for all tool calls.
-4. The script MUST return a dictionary with "status" and "summary" keys at the end of `main()`.
-5. Do NOT import `mcp` or `fastmcp` directly. Use the provided `call_tool` wrapper.
-6. Handle data dependencies between tools (output of one tool as input to next).
-7. Use `print()` to log progress steps.
-8. Return JSON-serializable result.
+4. The script MUST use `await upload_result(result)` to upload the result of the tool call.
+5. The script MUST return a dictionary with "status" and "summary" keys at the end of `main()`.
+6. Do NOT import `mcp` or `fastmcp` directly. Use the provided `call_tool` wrapper.
+7. Handle data dependencies between tools (output of one tool as input to next).
+8. Use `print()` to log progress steps.
+9. Return JSON-serializable result.
 """
 
     user_message = f"""

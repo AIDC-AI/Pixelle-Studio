@@ -110,8 +110,9 @@ async def process_and_execute(websocket: WebSocket, chat_id: str,
         chats[chat_id]["tools"] = selected_tools  # Store for reference
 
         # 2. Generate Script
+        #TODO(lingyue.ly) select tools only have one list level,can not mapping to the multiple server configs
         script_content = await generate_workflow_script(
-            user_message, selected_tools)
+            user_message, selected_tools,config_to_use)
 
         # Save script to file
         # Use a directory outside of 'backend' to prevent uvicorn auto-reload
@@ -223,7 +224,7 @@ async def get_tools(config: Optional[MCPServerConfig] = None):
         #     os.makedirs("./logs", exist_ok=True)
         # with open("./logs/config_tools.json", "w") as f:
         #     json.dump(tools, f, indent=4, ensure_ascii=False)
-        SearchAgent.instance.embedding_tools(config=config,tools=tools)
+        await SearchAgent.instance.embedding_tools(config,tools)
         return [tool for server_tools in tools for tool in server_tools]
     # Return default tools if no config
     return mcp_aggregator._get_default_tools()
