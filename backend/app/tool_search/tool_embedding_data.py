@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field,field_validator,field_serializer,ConfigDic
 import numpy as np
 
 
-class ToolEmbeddingData(BaseModel):
+class ToolInfo(BaseModel):
     tool_name: str
     tool_description: str
     #embedding_data: List[float]
@@ -11,7 +11,7 @@ class ToolEmbeddingData(BaseModel):
 
 class EmbeddingDatas(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    embedding_datas: Dict[str, List[ToolEmbeddingData]] = Field(default_factory=dict)
+    tool_infos: Dict[str, List[ToolInfo]] = Field(default_factory=dict)
     embeddings: np.ndarray | None = None
     embedding_indexs: List[str] = Field(default_factory=list)  #the md5 string of the string: "${mcp_server_name}||||${tool_name}".
 
@@ -23,12 +23,11 @@ class EmbeddingDatas(BaseModel):
 
     @field_serializer("embeddings")
     def serialize_embeddings(self, v: np.ndarray | None):
-        assert len(v.shape) ==2,f"embeddings should be a 2D array,but got shape:{v.shape}"
         if v is None:
             return None
+
+        assert len(v.shape) == 2, f"embeddings should be a 2D array,but got shape:{v.shape}"
         embeddings_list = []
         for i in range(v.shape[0]):
             embeddings_list.append(v[i].tolist())
         return embeddings_list
-            
-        

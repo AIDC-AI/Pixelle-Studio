@@ -7,7 +7,7 @@ from app.tool_search.qwen3_embedding import Qwen3Embedding
 import os
 import numpy as np
 from app.mcp_aggregator import MCPServerConfig, MCPServer
-from app.tool_search.tool_embedding_data import ToolEmbeddingData, EmbeddingDatas
+from app.tool_search.tool_embedding_data import ToolInfo, EmbeddingDatas
 import asyncio
 from typing import List
 import threading
@@ -62,18 +62,30 @@ class SearchAgent:
 
         self._locker = threading.Lock()
 
-    def load_embedding_data(self, embedding_db_file: str) -> Dict[str, List[ToolEmbeddingData]]:
+    def load_embedding_data(self, embedding_db_dir: str) -> EmbeddingDatas:
         #tools_embeddings: Dict[str, List[ToolEmbeddingData]] = {}
-        if os.path.exists(embedding_db_file):
-            with open(embedding_db_file, "r") as f:
-                try:
-                    json_data = json.load(f)
-                except Exception as e:
-                    print(f"SearchAgent :load embedding data failed,error: {e}")
-                    return EmbeddingDatas()
-            return EmbeddingDatas(**json_data)
-        else:
+        aggr_embedding_info: EmbeddingDatas = None
+        for file in os.listdir(embedding_db_dir):
+            if file.endswith(".json"):
+                server_name = os.path.basename(file).split(".")[0]
+                with open(os.path.join(embedding_db_dir, file), "r") as f:
+                    try:
+                        json_data = json.load(f)
+                        embedding_info = EmbeddingDatas(**json_data)
+                        if aggr_embedding_info is None:
+                            aggr_embedding_info = embedding_info
+                        else:
+                            aggr_embedding_info.tool_infos.update(embedding_info.tool_infos)
+                            aggr_embedding_info.embeddings = np.concatenate([aggr_embedding_info.embeddings, embedding_info.embeddings], axis=0)
+                            aggr_embedding_info.embedding_indexs.extend(embedding_info.embedding_indexs)
+
+                    except Exception as e:
+                        print(f"SearchAgent :load embedding data from {file} failed,error: {e}")
+                        raise e
+
+        if aggr_embedding_info is None:
             return EmbeddingDatas()
+        return aggr_embedding_info
 
     @profiling
     async def search_tools(self, user_message: str, all_mcp_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -138,16 +150,17 @@ class SearchAgent:
         embeddings_tools_descs: List[str] = []
         for i, server in enumerate(mcp_server_config.servers):
             if server.enabled:
-                tool_names = [tool_info.tool_name for tool_infos in self.tools_embedding_info.embedding_datas.values() for tool_info in tool_infos]
+                tool_names = [tool_info.tool_name for tool_infos in self.tools_embedding_info.tool_infos.values() for tool_info in tool_infos]
                 for ii, tool in enumerate(all_mcp_tools[i]):
-                    if server.name not in self.tools_embedding_info.embedding_datas or tool['name'] not in tool_names:
+                    if server.name not in self.tools_embedding_info.tool_infos or tool['name'] not in tool_names:
                         fixed_description = f"{server.name}:{tool['description']}"
 
                         tool_index = i << 16 | ii
                         embeddings_tools_indexs.append(tool_index)
                         embeddings_tools_descs.append(fixed_description)
-
+        
         if embeddings_tools_descs:
+            changed_server_names: Set[str] = set()
             tools_embeddings = await self._text_embedding(embeddings_tools_descs)
             with self._locker:
                 for i, svc_tool_index in enumerate(embeddings_tools_indexs):
@@ -155,17 +168,27 @@ class SearchAgent:
                     tool_index = svc_tool_index & 0xFFFF
                     server_name = mcp_server_config.servers[server_index].name
                     tool = all_mcp_tools[server_index][tool_index]
-                    tool_embedding = ToolEmbeddingData(tool_name=tool['name'], tool_description=embeddings_tools_descs[i])
-                    if server_name not in self.tools_embedding_info.embedding_datas:
-                        self.tools_embedding_info.embedding_datas[server_name] = []
-                    self.tools_embedding_info.embedding_datas[server_name].append(tool_embedding)
+                    tool_embedding = ToolInfo(tool_name=tool['name'], tool_description=embeddings_tools_descs[i])
+                    if server_name not in self.tools_embedding_info.tool_infos:
+                        self.tools_embedding_info.tool_infos[server_name] = []
+                    self.tools_embedding_info.tool_infos[server_name].append(tool_embedding)
                     self.tools_embedding_info.embedding_indexs.append(self._create_embedding_index(server_name, tool['name']))
+                    changed_server_names.add(server_name)
                 self.tools_embedding_info.embeddings = np.concatenate(
                     [self.tools_embedding_info.embeddings, tools_embeddings],
                     axis=0) if self.tools_embedding_info.embeddings is not None else np.stack(tools_embeddings)
 
-            with open(self.embedding_db_file, "w") as f:
-                json.dump(self.tools_embedding_info.model_dump(), f, indent=4, ensure_ascii=False)
+            for server_name in changed_server_names:
+                #save the embedding data to the file separately
+                server_embedding_indices = self._get_embedding_idx_by_server(server_name)
+                embedding_db_file = os.path.join(self.embedding_db_dir, f"{server_name}.json")
+                server_embeddings = self.tools_embedding_info.embeddings[server_embedding_indices, :]
+                server_embedding_indexs = [self.tools_embedding_info.embedding_indexs[i] for i in server_embedding_indices]
+                sever_embedding_info = EmbeddingDatas(tool_infos={server_name: self.tools_embedding_info.tool_infos[server_name]},
+                                                      embedding_indexs=server_embedding_indexs,
+                                                      embeddings=server_embeddings)
+                with open(embedding_db_file, "w") as f:
+                    json.dump(sever_embedding_info.model_dump(), f, indent=4, ensure_ascii=False)
 
     def _create_embedding_index(self, server_name: str, tool_name: str) -> str:
         return f"{server_name}||||{tool_name}"
@@ -173,6 +196,9 @@ class SearchAgent:
     def _get_tool_names(self, index_str: str) -> Tuple[str, str]:
         server_name, tool_name = index_str.split("||||")
         return server_name, tool_name
+
+    def _get_embedding_idx_by_server(self, server_name: str) -> List[int]:
+        return [i for i, index in enumerate(self.tools_embedding_info.embedding_indexs) if self._get_tool_names(index)[0] == server_name]
 
     @profiling
     async def _text_embedding(self, text: str | List[str]) -> List[List[float]]:
@@ -454,11 +480,11 @@ async def main():
         print(
             f"estimated_tool_desc: {estimated_tool_desc},retrival info:server name: {retrieve_results[i][0][0]},tool name: {retrieve_results[i][0][1]},retrival score: {retrieve_results[i][0][2]}"
         )
-    user_message = "使用钉钉机器人给用户会锦发送一条通知消息，消息内容是:'明天下午4点有会'"
-    select_tools = await search_agent.search_tools(user_message=user_message, all_mcp_tools=flattened_all_mcp_tools)
-    print(f"select tools size: {len(select_tools)}")
-    for tool in select_tools:
-        print(f"select tool name: {tool['name']},tool description: {tool['description']}")
+    # user_message = "使用钉钉机器人给用户会锦发送一条通知消息，消息内容是:'明天下午4点有会'"
+    # select_tools = await search_agent.search_tools(user_message=user_message, all_mcp_tools=flattened_all_mcp_tools)
+    # print(f"select tools size: {len(select_tools)}")
+    # for tool in select_tools:
+    #     print(f"select tool name: {tool['name']},tool description: {tool['description']}")
 
 
 search_agent = SearchAgent()
