@@ -78,7 +78,7 @@ class SearchAgent:
                             aggr_embedding_info.tool_infos.update(embedding_info.tool_infos)
                             aggr_embedding_info.embeddings = np.concatenate([aggr_embedding_info.embeddings, embedding_info.embeddings], axis=0)
                             aggr_embedding_info.embedding_indexs.extend(embedding_info.embedding_indexs)
-
+                        print(f"SearchAgent :load embedding data from {file} successfully,tool size: {len(embedding_info.tool_infos.values())}")
                     except Exception as e:
                         print(f"SearchAgent :load embedding data from {file} failed,error: {e}")
                         raise e
@@ -158,7 +158,7 @@ class SearchAgent:
                         tool_index = i << 16 | ii
                         embeddings_tools_indexs.append(tool_index)
                         embeddings_tools_descs.append(fixed_description)
-        
+
         if embeddings_tools_descs:
             changed_server_names: Set[str] = set()
             tools_embeddings = await self._text_embedding(embeddings_tools_descs)
@@ -189,6 +189,7 @@ class SearchAgent:
                                                       embeddings=server_embeddings)
                 with open(embedding_db_file, "w") as f:
                     json.dump(sever_embedding_info.model_dump(), f, indent=4, ensure_ascii=False)
+                print(f"SearchAgent :save embedding data to {len(changed_server_names)} files of {server_name} successfully")
 
     def _create_embedding_index(self, server_name: str, tool_name: str) -> str:
         return f"{server_name}||||{tool_name}"
