@@ -29,6 +29,9 @@ const MCP_CONFIG_KEY = 'mcp_server_config';
 export const mcpServerAPI = {
     // Load from localStorage
     loadConfig: (): MCPServerConfig => {
+        if (typeof window === 'undefined') {
+            return { servers: [] };
+        }
         const stored = localStorage.getItem(MCP_CONFIG_KEY);
         if (stored) {
             return JSON.parse(stored);
@@ -38,6 +41,7 @@ export const mcpServerAPI = {
 
     // Save to localStorage
     saveConfig: (config: MCPServerConfig): void => {
+        if (typeof window === 'undefined') return;
         localStorage.setItem(MCP_CONFIG_KEY, JSON.stringify(config));
     },
 
