@@ -17,3 +17,5 @@ backend/logs/
 # Storage
 backend/storage/
 .backend/app/storage/
+
+mcp-server-test/.idea/
