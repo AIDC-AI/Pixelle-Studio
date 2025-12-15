@@ -63,7 +63,8 @@ const McpConfigureModal: React.FC<IProps> = (props) => {
         const serverToSave: Partial<MCPServer> = {
             name: values.name,
             type: values.type,
-            config: serverConfig
+            config: serverConfig,
+            enabled: true
         };
         if (!!values.headers && values.headers !== '') {
             serverToSave.headers = JSON.parse(values.headers);
@@ -130,6 +131,8 @@ const McpConfigureModal: React.FC<IProps> = (props) => {
                         rules={[
                             ({ }) => ({
                                 validator(_, value) {
+                                    if (!value || value === '')
+                                        return Promise.resolve();
                                     try {
                                         JSON.parse(value);
                                         return Promise.resolve();
@@ -157,6 +160,20 @@ const McpConfigureModal: React.FC<IProps> = (props) => {
                     <Form.Item<FieldType>
                         label="Headers"
                         name="headers"
+                        rules={[
+                            ({ }) => ({
+                                validator(_, value) {
+                                    if (!value || value === '')
+                                        return Promise.resolve();
+                                    try {
+                                        JSON.parse(value);
+                                        return Promise.resolve();
+                                    } catch (e) {
+                                        return Promise.reject(new Error('Headers JSON format is invalid. Please check and try again!'));
+                                    }
+                                },
+                            })
+                        ]}
                     >
                         <Input.TextArea placeholder='Enter headers as JSON object, e.g. {"Authorization": "Bearer token"}' size="small" allowClear />
                     </Form.Item>
