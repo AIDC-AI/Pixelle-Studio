@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { type MCPServer, mcpServerAPI, type MCPServerConfig } from '../mcpConfig';
+import { type MCPServer, mcpServerAPI, type MCPServerConfig } from '../lib/mcpConfig';
 import './MCPConfigModal.css';
 
 interface Tool {
@@ -237,8 +237,8 @@ export function MCPConfigModal({ isOpen, onClose, onSave }: MCPConfigModalProps)
                                         }}
                                         placeholder='{"Authorization": "Bearer sk-xxx"}'
                                         rows={3}
-                                        style={{ 
-                                            width: '100%', 
+                                        style={{
+                                            width: '100%',
                                             fontFamily: 'monospace',
                                             fontSize: '0.9em',
                                             resize: 'vertical'

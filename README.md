@@ -17,8 +17,8 @@
   - 异步脚本执行引擎
   - LLM 脚本生成（当前为 Mock 实现）
 
-### 前端 (React + TypeScript + Vite)
-- **端口**: 5173
+### 前端 (React + TypeScript + Next.js + Tailwind)
+- **端口**: 3000
 - **核心功能**:
   - 聊天界面用于自然语言交互
   - 工具选择侧边栏
