@@ -67,7 +67,7 @@ const McpServers = () => {
 
     useEffect(() => {
         fetchServerTools()
-    }, [])
+    }, [config.servers])
 
     const columns: TableColumnsType<DataType> = [
         {
