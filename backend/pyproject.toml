@@ -13,4 +13,7 @@ dependencies = [
   "aiofiles",
   "pytest",
   "pytest-asyncio",
+  "aiohttp",
+  "pandas",
+  "openpyxl",
 ]

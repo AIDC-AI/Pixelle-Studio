@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from fastapi import WebSocket
+import aiohttp
+from pathlib import Path
 
 from app.context.models import ExecutionContext, IterationRecord, ErrorInfo
 from app.context.context_manager import ContextManager
@@ -57,7 +59,8 @@ class ExecutionOrchestrator:
         websocket: WebSocket,
         chat_id: str,
         user_message: str,
-        selected_tools: List[Dict[str, Any]]
+        selected_tools: List[Dict[str, Any]],
+        file_urls: List[str] = None
     ) -> ExecutionContext:
         """
         Execute workflow with self-evaluation loop.
@@ -74,6 +77,7 @@ class ExecutionOrchestrator:
             chat_id: Chat session ID
             user_message: User's request
             selected_tools: Tools selected for this request
+            file_urls: File URLs uploaded by user
             
         Returns:
             ExecutionContext with all iterations
@@ -86,7 +90,8 @@ class ExecutionOrchestrator:
             chat_id=chat_id,
             user_message=user_message,
             selected_tools=selected_tools,
-            max_iterations=self.config.max_iterations
+            max_iterations=self.config.max_iterations,
+            file_urls=file_urls or []
         )
         
         if not await self._send_status(websocket, "Starting workflow execution with self-evaluation..."):
@@ -240,12 +245,232 @@ class ExecutionOrchestrator:
         
         return ctx
     
+    async def _get_files_summary(self, file_urls: List[str]) -> Dict[str, Any]:
+        """
+        Get summary information for uploaded files.
+        
+        For Excel files: Get headers and first 3 rows to understand structure
+        For images: Use vision API to understand image content
+        
+        Args:
+            file_urls: List of file URLs
+            
+        Returns:
+            Dictionary mapping file URLs to their summary information
+        """
+        if not file_urls:
+            return {}
+        
+        file_summaries = {}
+        
+        for file_url in file_urls:
+            try:
+                # Determine file type from URL or extension
+                file_path = Path(file_url)
+                file_ext = file_path.suffix.lower()
+                
+                if file_ext in ['.xlsx', '.xls', '.csv']:
+                    # Handle Excel/CSV files
+                    summary = await self._summarize_excel_file(file_url, file_ext)
+                    file_summaries[file_url] = summary
+                    
+                elif file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
+                    # Handle image files
+                    summary = await self._summarize_image_file(file_url)
+                    file_summaries[file_url] = summary
+                    
+                else:
+                    # Unknown file type
+                    file_summaries[file_url] = {
+                        "type": "unknown",
+                        "filename": file_path.name,
+                        "note": "File type not supported for automatic summarization"
+                    }
+                    
+            except Exception as e:
+                file_summaries[file_url] = {
+                    "type": "error",
+                    "error": str(e),
+                    "note": f"Failed to summarize file: {str(e)}"
+                }
+        
+        return file_summaries
+    
+    async def _summarize_excel_file(self, file_url: str, file_ext: str) -> Dict[str, Any]:
+        """
+        Summarize Excel/CSV file by extracting headers and first 3 rows.
+        
+        Args:
+            file_url: File URL (can be local path or remote URL)
+            file_ext: File extension
+            
+        Returns:
+            Dictionary with file structure information
+        """
+        try:
+            import pandas as pd
+            
+            # Check if it's a remote URL or local path
+            if file_url.startswith(('http://', 'https://')):
+                # Remote file - download first
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(file_url) as response:
+                        content = await response.read()
+                        
+                        # Save to temporary file
+                        import tempfile
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+                            tmp_file.write(content)
+                            tmp_path = tmp_file.name
+                        
+                        # Read with pandas
+                        if file_ext == '.csv':
+                            df = pd.read_csv(tmp_path)
+                        else:
+                            df = pd.read_excel(tmp_path)
+                        
+                        # Clean up temp file
+                        os.remove(tmp_path)
+            else:
+                # Local file
+                if file_ext == '.csv':
+                    df = pd.read_csv(file_url)
+                else:
+                    df = pd.read_excel(file_url)
+            
+            # Extract summary information
+            summary = {
+                "type": "excel" if file_ext in ['.xlsx', '.xls'] else "csv",
+                "filename": Path(file_url).name,
+                "shape": {
+                    "rows": len(df),
+                    "columns": len(df.columns)
+                },
+                "columns": df.columns.tolist(),
+                "column_types": {col: str(dtype) for col, dtype in df.dtypes.items()},
+                "preview_rows": df.head(3).to_dict(orient='records'),
+                "sample_data": df.head(3).to_string()
+            }
+            
+            return summary
+            
+        except Exception as e:
+            return {
+                "type": "excel_error",
+                "error": str(e),
+                "note": f"Failed to read Excel/CSV file: {str(e)}"
+            }
+    
+    async def _summarize_image_file(self, file_url: str) -> Dict[str, Any]:
+        """
+        Summarize image file using vision API.
+        
+        Args:
+            file_url: Image file URL (can be local path or remote URL)
+            
+        Returns:
+            Dictionary with image content description
+        """
+        try:
+            from openai import AsyncOpenAI
+            
+            # Use the same LLM configuration
+            client = AsyncOpenAI(
+                api_key="REDACTED_API_KEY",
+                base_url="https://REDACTED_BASE_URL_HOST/v1"
+            )
+            
+            # If it's a local file, we need to convert to base64 or upload
+            # For simplicity, we'll assume the URL is accessible
+            image_url_for_api = file_url
+            
+            # If it's a local file path, convert to base64
+            if not file_url.startswith(('http://', 'https://')):
+                import base64
+                with open(file_url, 'rb') as image_file:
+                    image_data = base64.b64encode(image_file.read()).decode('utf-8')
+                    # Detect image format
+                    file_ext = Path(file_url).suffix.lower()
+                    mime_type = {
+                        '.jpg': 'image/jpeg',
+                        '.jpeg': 'image/jpeg',
+                        '.png': 'image/png',
+                        '.gif': 'image/gif',
+                        '.bmp': 'image/bmp',
+                        '.webp': 'image/webp'
+                    }.get(file_ext, 'image/jpeg')
+                    
+                    image_url_for_api = f"data:{mime_type};base64,{image_data}"
+            
+            # Call vision API
+            response = await client.chat.completions.create(
+                model="gpt-4o",  # Use a vision-capable model
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "请简要描述这张图片的内容，包括主要物体、场景、颜色、构图等关键信息。用中文回答，控制在200字以内。"
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": image_url_for_api
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=500
+            )
+            
+            description = response.choices[0].message.content
+            
+            return {
+                "type": "image",
+                "filename": Path(file_url).name,
+                "description": description,
+                "note": "Image content analyzed by vision API"
+            }
+            
+        except Exception as e:
+            return {
+                "type": "image_error",
+                "error": str(e),
+                "note": f"Failed to analyze image: {str(e)}"
+            }
+    
     async def _generate_or_revise_script(self, ctx: ExecutionContext) -> str:
         """Generate or revise script based on context."""
         from app.llm_adapter import generate_or_revise_script
         
+        # Get file summaries if files are present
+        file_summaries = None
+        if ctx.file_urls:
+            file_summaries = await self._get_files_summary(ctx.file_urls)
+            print(f"[Orchestrator] Generated file summaries for {len(file_summaries)} files")
+        
         # Build context summary
         context_summary = self.context_manager.build_context_summary(ctx)
+        
+        # Append file summaries to context if available
+        if file_summaries:
+            context_summary += "\n\n=== File Summaries ===\n"
+            for file_url, summary in file_summaries.items():
+                context_summary += f"\nFile: {summary.get('filename', file_url)}\n"
+                context_summary += f"Type: {summary.get('type', 'unknown')}\n"
+                
+                if summary.get('type') in ['excel', 'csv']:
+                    context_summary += f"Shape: {summary.get('shape', {}).get('rows', '?')} rows × {summary.get('shape', {}).get('columns', '?')} columns\n"
+                    context_summary += f"Columns: {', '.join(summary.get('columns', []))}\n"
+                    context_summary += f"Preview (first 3 rows):\n{summary.get('sample_data', 'N/A')}\n"
+                elif summary.get('type') == 'image':
+                    context_summary += f"Description: {summary.get('description', 'N/A')}\n"
+                elif summary.get('error'):
+                    context_summary += f"Error: {summary.get('error', 'Unknown error')}\n"
+                
+                context_summary += "\n"
         
         # Get previous iteration (if any)
         previous_iteration = ctx.get_latest_iteration()
@@ -255,7 +480,8 @@ class ExecutionOrchestrator:
             user_message=ctx.user_message,
             tools=ctx.selected_tools,
             context_summary=context_summary,
-            previous_iteration=previous_iteration
+            previous_iteration=previous_iteration,
+            file_urls=ctx.file_urls
         )
         
         return script_content

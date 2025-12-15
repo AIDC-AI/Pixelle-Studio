@@ -36,13 +36,14 @@ export const api = {
         return response.json();
     },
 
-    createChat: async (message: string, mcpConfig?: MCPServerConfig): Promise<ChatResponse> => {
+    createChat: async (message: string, mcpConfig?: MCPServerConfig, fileUrls?: string[]): Promise<ChatResponse> => {
         const res = await fetch(`${API_BASE}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message,
-                mcp_config: mcpConfig  // Send config for tool fetching
+                mcp_config: mcpConfig,  // Send config for tool fetching
+                file_urls: fileUrls || []  // Send file URLs
             }),
         });
         return res.json();

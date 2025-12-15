@@ -18,12 +18,57 @@ function App() {
   const [currentScript, setCurrentScript] = useState<string | null>(null);
   const [showMCPConfig, setShowMCPConfig] = useState(false);
   const [mcpConfig, setMCPConfig] = useState<MCPServerConfig>(mcpServerAPI.loadConfig());
+  const [fileUrls, setFileUrls] = useState<string[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:8001/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Backend now returns full LAN URL
+        const fullUrl = data.url;
+        // Store file URL in state instead of input field
+        setFileUrls(prev => [...prev, fullUrl]);
+        
+        setMessages(prev => [...prev, {
+          type: 'system',
+          content: `✅ File uploaded: ${data.filename} (${(data.size / 1024).toFixed(2)}KB)\nURL: ${fullUrl}`,
+          timestamp: Date.now()
+        }]);
+      } else {
+        throw new Error('Upload failed');
+      }
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, {
+        type: 'error',
+        content: `Failed to upload file: ${err}`,
+        timestamp: Date.now()
+      }]);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,7 +76,9 @@ function App() {
     if (!input.trim() || isProcessing) return;
 
     const userMsg = input;
+    const currentFileUrls = [...fileUrls];
     setInput('');
+    setFileUrls([]); // Clear file URLs after sending
     setIsProcessing(true);
     setCurrentScript(null);
 
@@ -40,7 +87,7 @@ function App() {
 
     try {
       // 1. Create Chat (backend will auto-select tools)
-      const { chat_id } = await api.createChat(userMsg, mcpConfig);
+      const { chat_id } = await api.createChat(userMsg, mcpConfig, currentFileUrls);
 
       // 2. Connect WebSocket
       const ws = new WebSocket(api.getWebSocketUrl(chat_id));
@@ -176,12 +223,46 @@ function App() {
 
           <form className="input-area" onSubmit={handleSubmit}>
             <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Describe your task..."
-              disabled={isProcessing}
+              ref={fileInputRef}
+              type="file"
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
             />
+            <button 
+              type="button" 
+              className="upload-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isProcessing}
+              title="Upload file"
+            >
+              ➕
+            </button>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {fileUrls.length > 0 && (
+                <div className="file-badges">
+                  {fileUrls.map((url, idx) => (
+                    <span key={idx} className="file-badge">
+                      📎 {url.split('/').pop()}
+                      <button
+                        type="button"
+                        className="remove-file-btn"
+                        onClick={() => setFileUrls(prev => prev.filter((_, i) => i !== idx))}
+                        title="Remove file"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Describe your task..."
+                disabled={isProcessing}
+              />
+            </div>
             <button type="submit" disabled={isProcessing}>
               {isProcessing ? 'Processing...' : 'Send'}
             </button>

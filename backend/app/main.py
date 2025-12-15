@@ -1,14 +1,19 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uuid
 import asyncio
 import json
 import os
+import shutil
+import socket
+from pathlib import Path
 
 # Import modules
-from app.llm_adapter import generate_workflow_script
+from app.llm_adapter import generate_workflow_script, check_if_workflow_needed
 from app.execution.runner import run_script
 from app.mcp_aggregator import MCPAggregator, MCPServerConfig
 from app.tool_search.selector import select_tools
@@ -30,6 +35,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create storage directory if it doesn't exist
+STORAGE_DIR = Path(__file__).parent / "storage" / "files"
+STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Get local IP address
+def get_local_ip():
+    """Get the local IP address of this machine."""
+    try:
+        # Create a socket to get the local IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "127.0.0.1"
+
+LOCAL_IP = get_local_ip()
+log.info(f"Local IP address: {LOCAL_IP}")
 
 # In-memory storage
 chats = {}
@@ -57,6 +82,7 @@ orchestrator = ExecutionOrchestrator(
 class ChatRequest(BaseModel):
     message: str
     mcp_config: Optional[MCPServerConfig] = None  # Frontend sends this
+    file_urls: Optional[List[str]] = None  # File URLs uploaded by user
 
 
 class ChatResponse(BaseModel):
@@ -82,6 +108,7 @@ async def create_chat(request: ChatRequest):
             "content": request.message
         }],
         "mcp_config": request.mcp_config,  # Store config
+        "file_urls": request.file_urls or [],  # Store file URLs
         "status": "created"
     }
     return {"chat_id": chat_id}
@@ -90,16 +117,17 @@ async def create_chat(request: ChatRequest):
 async def process_and_execute(websocket: WebSocket, chat_id: str,
                               user_message: str):
     """
-    Process a user message: select tools, generate script, and execute it.
-    Now uses ExecutionOrchestrator for self-evaluation loop.
+    Process a user message: first check if workflow is needed, then execute accordingly.
+    If workflow not needed, directly return answer. Otherwise use ExecutionOrchestrator.
     """
     try:
         log.info(f"Processing message for {chat_id}: {user_message}")
         
-        # === Stage 1: Analyze and select tools ===
-        await websocket.send_json({"type": "status", "content": "Analyzing request and selecting tools..."})
+        # Get file URLs from chat context
+        file_urls = chats[chat_id].get("file_urls", [])
         
-        log.debug("Sent analyzing status")
+        # === Stage 0: Check if workflow is needed ===
+        await websocket.send_json({"type": "status", "content": "Analyzing request..."})
         
         # Fetch tools using the stored config
         chat_config = chats[chat_id].get("mcp_config")
@@ -109,15 +137,48 @@ async def process_and_execute(websocket: WebSocket, chat_id: str,
         selected_tools = select_tools(user_message, all_tools)
         chats[chat_id]["tools"] = selected_tools
         
-        # === Stage 2: Execute with self-evaluation (NEW) ===
+        # Check if workflow is needed
+        workflow_check = await check_if_workflow_needed(user_message, selected_tools, file_urls)
+        log.info(f"Workflow check result: {workflow_check}")
+        
+        if not workflow_check.get("needs_workflow", True):
+            # === Direct answer path ===
+            log.info("Direct answer mode - no workflow needed")
+            await websocket.send_json({
+                "type": "status",
+                "content": f"💡 Reasoning: {workflow_check.get('reasoning', 'Simple query')}"
+            })
+            
+            direct_answer = workflow_check.get("direct_answer", "I understand your question.")
+            await websocket.send_json({
+                "type": "final_result",
+                "status": "success",
+                "total_iterations": 0,
+                "result": {
+                    "answer": direct_answer,
+                    "file_urls": file_urls,
+                    "reasoning": workflow_check.get("reasoning", "")
+                }
+            })
+            return
+        
+        # === Workflow execution path ===
+        log.info("Workflow mode - generating and executing script")
+        await websocket.send_json({
+            "type": "status",
+            "content": f"🔧 {workflow_check.get('reasoning', 'Complex workflow detected - generating script...')}"
+        })
+        
+        # === Stage 1: Execute with self-evaluation ===
         execution_context = await orchestrator.execute_with_self_evaluation(
             websocket=websocket,
             chat_id=chat_id,
             user_message=user_message,
-            selected_tools=selected_tools
+            selected_tools=selected_tools,
+            file_urls=file_urls
         )
         
-        # === Stage 3: Send final result ===
+        # === Stage 2: Send final result ===
         if execution_context.status == "success":
             latest_iter = execution_context.get_latest_iteration()
             await websocket.send_json({
@@ -221,3 +282,57 @@ async def health_check():
         "self_evaluation": "enabled",
         "max_iterations": execution_config.max_iterations
     }
+
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...), request: Request = None):
+    """
+    Upload a file and return a short URL for LAN access.
+    """
+    try:
+        # Generate a unique short filename
+        file_id = str(uuid.uuid4())[:4]  # Short ID for URL (4 chars)
+        file_extension = Path(file.filename).suffix if file.filename else ""
+        unique_filename = f"{file_id}{file_extension}"
+        
+        # Save file to storage
+        file_path = STORAGE_DIR / unique_filename
+        
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        log.info(f"File uploaded: {file.filename} -> {unique_filename}")
+        
+        # Get port from request
+        port = request.url.port if request and request.url.port else 8001
+        
+        # Return short URL with LAN IP
+        lan_url = f"http://{LOCAL_IP}:{port}/f/{unique_filename}"
+        
+        return {
+            "success": True,
+            "url": lan_url,
+            "filename": file.filename,
+            "size": file_path.stat().st_size
+        }
+    
+    except Exception as e:
+        log.error(f"File upload error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/f/{filename}")
+async def get_file(filename: str):
+    """
+    Serve uploaded files with a short URL.
+    """
+    file_path = STORAGE_DIR / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(file_path)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)

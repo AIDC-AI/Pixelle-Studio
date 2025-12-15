@@ -1,12 +1,80 @@
 import os
 import json
-from typing import Optional
+from typing import Optional, Dict, Any
 from openai import AsyncOpenAI
 
 # LLM Configuration
 LLM_BASE_URL = "https://REDACTED_BASE_URL_HOST/v1"
 LLM_API_KEY = "REDACTED_API_KEY"
 LLM_MODEL = "gemini-3-pro-preview"
+
+
+async def check_if_workflow_needed(user_prompt: str, tools: list, file_urls: list = None) -> Dict[str, Any]:
+    """
+    Check if the user's request requires a complex workflow or can be answered directly.
+    Returns: {
+        "needs_workflow": bool,
+        "reasoning": str,
+        "direct_answer": str (if needs_workflow is False)
+    }
+    """
+    client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+    
+    # Prepare file context
+    file_context = ""
+    if file_urls:
+        file_context = f"\n\nUser has uploaded the following files:\n" + "\n".join([f"- {url}" for url in file_urls])
+    
+    # Prepare tool summary
+    tool_summary = ""
+    if tools:
+        tool_names = [t.get('name', 'unknown') for t in tools[:10]]  # Limit to first 10 for brevity
+        tool_summary = f"\n\nAvailable tools: {', '.join(tool_names)}"
+        if len(tools) > 10:
+            tool_summary += f" (and {len(tools) - 10} more)"
+    
+    system_prompt = """
+You are an intelligent task analyzer. Your job is to determine if a user's request requires:
+1. A COMPLEX WORKFLOW: Multiple sequential tool calls, data transformations, or multi-step operations
+2. A DIRECT ANSWER: Simple questions, information requests, or single-step operations
+
+Return a JSON response with:
+- "needs_workflow": true/false
+- "reasoning": brief explanation
+- "direct_answer": your answer (ONLY if needs_workflow is false)
+
+Examples of requests that DON'T need workflow:
+- "What is the URL of the file I just uploaded?"
+- "Tell me about X"
+- "Explain how Y works"
+- "What tools are available?"
+- Simple information queries
+
+Examples of requests that NEED workflow:
+- "Generate a video with X and then add music Y"
+- "Process this image, enhance it, and create variations"
+- "Search for X, summarize results, and create a report"
+- Multi-step operations requiring tool orchestration
+"""
+
+    user_message = f"""
+User request: {user_prompt}{file_context}{tool_summary}
+
+Does this require a complex workflow with multiple tool calls, or can you answer directly?
+"""
+
+    response = await client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.3
+    )
+    
+    result = json.loads(response.choices[0].message.content)
+    return result
 
 async def generate_workflow_script(user_prompt: str, tools: list) -> str:
     """
@@ -136,7 +204,8 @@ async def generate_or_revise_script(
     user_message: str,
     tools: list,
     context_summary: str,
-    previous_iteration: Optional[any] = None
+    previous_iteration: Optional[any] = None,
+    file_urls: list = None
 ) -> str:
     """
     Generate or revise a workflow script based on context.
@@ -146,6 +215,7 @@ async def generate_or_revise_script(
         tools: Available tools
         context_summary: Context summary from ContextManager
         previous_iteration: Previous IterationRecord (if revising)
+        file_urls: File URLs uploaded by user
         
     Returns:
         Generated/revised Python script
@@ -187,7 +257,21 @@ RULES:
 7. Use `print()` to log progress steps.
 8. Return JSON-serializable result.
 9. If this is a revision, carefully review the previous errors and fix them.
+10. You should directly return the last tool's output as the final result when the output is not too large.
+
+⚠️  CRITICAL - Tool Output Handling:
+- Each tool returns data in a SPECIFIC format documented in its description's "Output Format" section.
+- You MUST follow the exact output schema - do NOT write defensive code to handle multiple possible formats.
+- Access returned fields directly as documented (e.g., if schema says 'rows', use result['rows']).
+- Do NOT guess or add fallback logic for different return types - trust the schema.
+- Example: If tool returns {"rows": [...], "count": 10}, directly use result['rows'] and result['count'].
 """
+    
+    # Prepare file URLs context
+    file_context = ""
+    if file_urls:
+        file_context = "\n\nUser-uploaded files:\n" + "\n".join([f"- {url}" for url in file_urls])
+        file_context += "\n(You can use these URLs as arguments when calling tools that accept file/image inputs)"
     
     # Build user message based on whether this is first generation or revision
     if previous_iteration is None:
@@ -196,6 +280,7 @@ RULES:
 Generate a complete Python script to fulfill the following request:
 
 "{user_message}"
+{file_context}
 
 Context:
 {context_summary}
@@ -206,10 +291,14 @@ Only return the Python code block. Do not include markdown formatting like ```py
         # Revision mode - use the advice prompt
         if previous_iteration.revision_advice:
             user_prompt = previous_iteration.revision_advice.llm_prompt
+            # Add file context if not already included
+            if file_urls and "User-uploaded files" not in user_prompt:
+                user_prompt = user_prompt + file_context
         else:
             # Fallback if no advice available
             user_prompt = f"""
 The previous script failed. Please revise it.
+{file_context}
 
 Context:
 {context_summary}
