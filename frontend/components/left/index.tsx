@@ -1,5 +1,5 @@
 import { useState } from "react";
-import FlexBox from "./ui/flexBox";
+import FlexBox from "../ui/flexBox";
 import McpServers from "./mcpServers";
 
 interface BoxProps {
@@ -23,7 +23,7 @@ const BOX_LIST: BoxProps[] = [
     }
 ]
 
-const LeftPanel = () => {
+const Left = () => {
     const [selectedIndex, setSelectedIndex] = useState<number>(-1);
 
     return <div className="w-[40%] bg-transparent h-full border-r border-gray-200 p-4 overflow-y-auto gap-8 flex flex-col">
@@ -47,4 +47,4 @@ const LeftPanel = () => {
     </div>
 }
 
-export default LeftPanel;
+export default Left;

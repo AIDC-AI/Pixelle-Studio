@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
-import { useApp } from "../context";
+import { useApp } from "../../context";
 import { Button, Popconfirm, Table, TableColumnsType, Tag } from "antd";
 import { MCPServer, mcpServerAPI } from "@/lib/mcpConfig";
-import McpConfigureModal from "./mcpConfigureModal";
+import McpConfigureModal from "../ui/mcpConfigureModal";
 
 interface Tool {
     name: string;
