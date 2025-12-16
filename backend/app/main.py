@@ -1,18 +1,31 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import uuid
 import asyncio
 import json
 import os
+import shutil
+import socket
+from pathlib import Path
 
 # Import modules
-from app.llm_adapter import generate_workflow_script
+from app.llm_adapter import generate_workflow_script, check_if_workflow_needed
 from app.execution.runner import run_script
 from app.mcp_aggregator import MCPAggregator, MCPServerConfig
 from app.tool_search.selector import select_tools
 from app.tool_search.search_agent import SearchAgent
+
+# Import self-evaluation modules
+from app.context.context_manager import ContextManager
+from app.orchestrator.execution_orchestrator import ExecutionOrchestrator, ExecutionConfig
+
+# Import logger
+from app.utils.logger import log
+
 app = FastAPI()
 
 # CORS
@@ -23,6 +36,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create storage directory if it doesn't exist
+STORAGE_DIR = Path(__file__).parent / "storage" / "files"
+STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Get local IP address
+def get_local_ip():
+    """Get the local IP address of this machine."""
+    try:
+        # Create a socket to get the local IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "127.0.0.1"
+
+LOCAL_IP = get_local_ip()
+log.info(f"Local IP address: {LOCAL_IP}")
 
 # In-memory storage
 chats = {}
@@ -35,10 +68,22 @@ mcp_config_cache = None
 # Initialize Aggregator
 mcp_aggregator = MCPAggregator()
 
+# Initialize Context Manager and Orchestrator (NEW)
+context_manager = ContextManager()
+execution_config = ExecutionConfig(
+    max_iterations=3,
+    enable_error_evaluation=True,
+    enable_result_validation=True
+)
+orchestrator = ExecutionOrchestrator(
+    context_manager=context_manager,
+    config=execution_config
+)
 
 class ChatRequest(BaseModel):
     message: str
     mcp_config: Optional[MCPServerConfig] = None  # Frontend sends this
+    file_urls: Optional[List[str]] = None  # File URLs uploaded by user
 
 
 class ChatResponse(BaseModel):
@@ -64,6 +109,7 @@ async def create_chat(request: ChatRequest):
             "content": request.message
         }],
         "mcp_config": request.mcp_config,  # Store config
+        "file_urls": request.file_urls or [],  # Store file URLs
         "status": "created"
     }
     return {"chat_id": chat_id}
@@ -72,126 +118,127 @@ async def create_chat(request: ChatRequest):
 async def process_and_execute(websocket: WebSocket, chat_id: str,
                               user_message: str):
     """
-    Process a user message: select tools, generate script, and execute it.
+    Process a user message: first check if workflow is needed, then execute accordingly.
+    If workflow not needed, directly return answer. Otherwise use ExecutionOrchestrator.
     """
     try:
-        with open("/tmp/debug_absolute.log", "a") as f:
-            f.write(f"Processing message for {chat_id}: {user_message}\n")
-        # 1. Notify start
-        await websocket.send_json({
-            "type": "status",
-            "content": "Analyzing request..."
-        })
-        await websocket.send_json({
-            "type": "status",
-            "content": "Analyzing request..."
-        })
-        with open("/tmp/debug_absolute.log", "a") as f:
-            f.write("Sent analyzing status\n")
-
+        log.info(f"Processing message for {chat_id}: {user_message}")
+        
+        # Get file URLs from chat context
+        file_urls = chats[chat_id].get("file_urls", [])
+        
+        # === Stage 0: Check if workflow is needed ===
+        await websocket.send_json({"type": "status", "content": "Analyzing request..."})
+        
         # Fetch tools using the stored config
         chat_config = chats[chat_id].get("mcp_config")
-        # Use global cache if chat specific config is missing (fallback)
-        config_to_use = chat_config or mcp_config_cache or MCPServerConfig(
-            servers=[])
-
+        config_to_use = chat_config or mcp_config_cache or MCPServerConfig(servers=[])
+        
         all_tools = await mcp_aggregator.fetch_tools(config_to_use)
-
-        # Select tools
-        await websocket.send_json({
-            "type": "status",
-            "content": "Selecting tools..."
-        })
         selected_tools = await select_tools(user_message, all_tools)
+        chats[chat_id]["tools"] = selected_tools
+        
+        # Check if workflow is needed
+        workflow_check = await check_if_workflow_needed(user_message, selected_tools, file_urls)
+        log.info(f"Workflow check result: {workflow_check}")
+        
+        if not workflow_check.get("needs_workflow", True):
+            # === Direct answer path ===
+            log.info("Direct answer mode - no workflow needed")
+            await websocket.send_json({
+                "type": "status",
+                "content": f"💡 Reasoning: {workflow_check.get('reasoning', 'Simple query')}"
+            })
+            
+            direct_answer = workflow_check.get("direct_answer", "I understand your question.")
+            await websocket.send_json({
+                "type": "final_result",
+                "status": "success",
+                "total_iterations": 0,
+                "result": {
+                    "answer": direct_answer,
+                    "file_urls": file_urls,
+                    "reasoning": workflow_check.get("reasoning", "")
+                }
+            })
+            return
+        
+        # === Workflow execution path ===
+        log.info("Workflow mode - generating and executing script")
         await websocket.send_json({
             "type": "status",
-            "content": "finished selecting tools,tools selected: " + json.dumps([tool['name'] for tool in selected_tools], ensure_ascii=False)
+            "content": f"🔧 {workflow_check.get('reasoning', 'Complex workflow detected - generating script...')}"
         })
-        chats[chat_id]["tools"] = selected_tools  # Store for reference
+        
+        # === Stage 1: Execute with self-evaluation ===
+        execution_context = await orchestrator.execute_with_self_evaluation(
+            websocket=websocket,
+            chat_id=chat_id,
+            user_message=user_message,
+            selected_tools=selected_tools,
+            file_urls=file_urls
+        )
+        
+        # === Stage 2: Send final result ===
+        if execution_context.status == "success":
+            latest_iter = execution_context.get_latest_iteration()
+            await websocket.send_json({
+                "type": "final_result",
+                "status": "success",
+                "total_iterations": len(execution_context.iterations),
+                "result": latest_iter.execution_result if latest_iter else None
+            })
+        else:
+            await websocket.send_json({
+                "type": "final_result",
+                "status": "failed",
+                "total_iterations": len(execution_context.iterations),
+                "error": "Maximum iterations reached or unrecoverable error"
+            })
 
-        # 2. Generate Script
-        #TODO(lingyue.ly) select tools only have one list level,can not mapping to the multiple server configs
-        script_content = await generate_workflow_script(
-            user_message, selected_tools,config_to_use)
-
-        # Save script to file
-        # Use a directory outside of 'backend' to prevent uvicorn auto-reload
-        script_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "../../scripts"))
-        os.makedirs(script_dir, exist_ok=True)
-        script_path = os.path.join(
-            script_dir,
-            f"{chat_id}_{uuid.uuid4().hex[:8]}.py")  # Unique script per turn
-
-        with open(script_path, "w") as f:
-            f.write(script_content)
-
-        # Store latest script
-        scripts[chat_id] = script_path
-
-        await websocket.send_json({
-            "type": "script",
-            "content": script_content
-        })
-
-        # 3. Execute Script
-        await websocket.send_json({
-            "type": "status",
-            "content": "Executing workflow..."
-        })
-
-        # Run script and stream logs
-        async for log in run_script(script_path,
-                                    cwd=os.path.dirname(script_path)):
-            await websocket.send_json(log)
-
-        await websocket.send_json({
-            "type": "status",
-            "content": "Turn complete"
-        })
-
+    except WebSocketDisconnect:
+        # Client went away; stop processing quietly
+        log.info(f"WebSocket disconnected while processing chat {chat_id}")
+        return
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        await websocket.send_json({"type": "error", "content": str(e)})
+        log.error(f"Error processing message for chat {chat_id}: {e}", exc_info=True)
+        try:
+            await websocket.send_json({"type": "error", "content": str(e)})
+        except Exception:
+            # If the socket is already closed, just exit
+            pass
 
 
 @app.websocket("/ws/chat/{chat_id}")
 async def websocket_endpoint(websocket: WebSocket, chat_id: str):
-    with open("/tmp/debug_absolute.log", "a") as f:
-        f.write(f"New websocket connection: {chat_id}\n")
+    log.info(f"New websocket connection: {chat_id}")
     await websocket.accept()
-    with open("/tmp/debug_absolute.log", "a") as f:
-        f.write("Websocket accepted\n")
-
-    with open("/tmp/debug_absolute.log", "a") as f:
-        f.write(f"Current chats: {list(chats.keys())}\n")
-
+    log.debug("Websocket accepted")
+    
+    log.debug(f"Current chats: {list(chats.keys())}")
+    
     if chat_id not in chats:
-        with open("/tmp/debug_absolute.log", "a") as f:
-            f.write(f"Chat not found: {chat_id}\n")
+        log.warning(f"Chat not found: {chat_id}")
         await websocket.close(code=4004, reason="Chat not found")
         return
 
     try:
         # Process initial message if it exists and hasn't been processed
         status = chats[chat_id].get("status")
-        with open("/tmp/debug_absolute.log", "a") as f:
-            f.write(f"Chat status: {status}\n")
-
+        log.debug(f"Chat status: {status}")
+            
         if status == "created":
-            with open("/tmp/debug_absolute.log", "a") as f:
-                f.write("Processing initial message\n")
+            log.info("Processing initial message")
             initial_message = chats[chat_id]["messages"][0]["content"]
             chats[chat_id]["status"] = "active"
             await process_and_execute(websocket, chat_id, initial_message)
 
         # Loop for subsequent messages
         while True:
-            print("Waiting for next message")
+            log.debug("Waiting for next message")
             data = await websocket.receive_json()
-            print(f"Received message: {data}")
-
+            log.debug(f"Received message: {data}")
+            
             if data.get("type") == "message":
                 user_message = data.get("content")
                 if user_message:
@@ -204,11 +251,15 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
                     await process_and_execute(websocket, chat_id, user_message)
 
     except WebSocketDisconnect:
-        print(f"Client disconnected: {chat_id}")
+        log.info(f"[WebSocket] Client disconnected: {chat_id}")
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        await websocket.send_json({"type": "error", "content": str(e)})
+        log.error(f"[WebSocket] Error in chat {chat_id}: {e}", exc_info=True)
+        try:
+            await websocket.send_json({"type": "error", "content": str(e)})
+        except:
+            # If we can't send, client already disconnected
+            log.error(f"[WebSocket] Failed to send error, client disconnected: {e}")
 
 
 @app.post("/api/tools")
@@ -217,7 +268,7 @@ async def get_tools(config: Optional[MCPServerConfig] = None):
     Fetch tools from all configured servers + default tools.
     """
     if config:
-        print(f"Fetching tools with config: {len(config.servers)} servers")
+        log.info(f"Fetching tools with config: {len(config.servers)} servers")
         tools = await mcp_aggregator.fetch_tools_by_server(config)
         #for debug, save the tools to a file
         # if not os.path.exists("./logs"):
@@ -228,3 +279,67 @@ async def get_tools(config: Optional[MCPServerConfig] = None):
         return [tool for server_tools in tools for tool in server_tools]
     # Return default tools if no config
     return mcp_aggregator._get_default_tools()
+
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "self_evaluation": "enabled",
+        "max_iterations": execution_config.max_iterations
+    }
+
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...), request: Request = None):
+    """
+    Upload a file and return a short URL for LAN access.
+    """
+    try:
+        # Generate a unique short filename
+        file_id = str(uuid.uuid4())[:4]  # Short ID for URL (4 chars)
+        file_extension = Path(file.filename).suffix if file.filename else ""
+        unique_filename = f"{file_id}{file_extension}"
+        
+        # Save file to storage
+        file_path = STORAGE_DIR / unique_filename
+        
+        with file_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        log.info(f"File uploaded: {file.filename} -> {unique_filename}")
+        
+        # Get port from request
+        port = request.url.port if request and request.url.port else 8001
+        
+        # Return short URL with LAN IP
+        lan_url = f"http://{LOCAL_IP}:{port}/f/{unique_filename}"
+        
+        return {
+            "success": True,
+            "url": lan_url,
+            "filename": file.filename,
+            "size": file_path.stat().st_size
+        }
+    
+    except Exception as e:
+        log.error(f"File upload error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/f/{filename}")
+async def get_file(filename: str):
+    """
+    Serve uploaded files with a short URL.
+    """
+    file_path = STORAGE_DIR / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return FileResponse(file_path)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)

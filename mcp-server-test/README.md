@@ -53,7 +53,7 @@ pip install -e .
 
 ## Running the Server
 
-### As stdio MCP Server
+### As sse MCP Server
 
 ```bash
 python server.py

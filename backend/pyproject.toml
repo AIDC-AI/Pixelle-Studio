@@ -5,10 +5,15 @@ description = "Backend for MCP Workflow Demo"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "fastapi",
-    "uvicorn",
-    "pydantic",
-    "openai",
-    "python-multipart",
-    "websockets"
+  "fastapi",
+  "uvicorn",
+  "websockets",
+  "openai",
+  "mcp",
+  "aiofiles",
+  "pytest",
+  "pytest-asyncio",
+  "aiohttp",
+  "pandas",
+  "openpyxl",
 ]

@@ -1,0 +1,53 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+
+package "Frontend (React + TSX)" {
+    [Chat Interface] as ChatUI
+    [MCP Config Modal] as ConfigUI
+}
+
+package "Backend (Python)" {
+    [FastAPI Application] as API
+    
+    package "MCP Core" {
+        [MCP Aggregator] as Aggregator
+        [MCP Client] as MCPClient
+    }
+    
+    package "Intelligence Layer" {
+        [Tool Search Engine] as ToolSearch
+        [LLM Adapter] as LLMAdapter
+    }
+    
+    package "Execution Engine" {
+        [Script Runner] as Runner
+    }
+}
+
+cloud "External Services" {
+    [LLM Provider] as LLM
+    [MCP Servers] as MCPServers
+}
+
+' Relationships
+ChatUI --> API : HTTP / WebSocket
+ConfigUI --> API : Configure Servers
+
+API --> ToolSearch : 1. Get Relevant Tools
+ToolSearch --> Aggregator : Query Available Tools
+Aggregator --> MCPServers : List Tools
+
+API --> LLMAdapter : 2. Generate Workflow
+LLMAdapter --> Aggregator : Get Tool Definitions
+LLMAdapter --> LLM : Prompt (Request + Tools)
+LLM --> LLMAdapter : Python Script
+
+API --> Runner : 3. Execute Workflow
+Runner --> MCPClient : Call Tool
+MCPClient --> MCPServers : Execute
+MCPServers --> MCPClient : Result
+MCPClient --> Runner : Return Data
+Runner --> API : Execution Result
+
+@enduml

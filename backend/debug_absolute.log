@@ -44,3 +44,45 @@ Chat status: created
 Processing initial message
 Processing message for 7adb579c-5e64-4cc2-9286-ebcf3a772793: topic = "如何治愈原生家庭"，我不希望这个字段变成写死的字段，改成从外部传参进去
 Sent analyzing status
+New websocket connection: 444f82b8-c771-4665-b4d3-8b6ea4ccedb3
+Websocket accepted
+Current chats: ['444f82b8-c771-4665-b4d3-8b6ea4ccedb3']
+Chat status: created
+Processing initial message
+Processing message for 444f82b8-c771-4665-b4d3-8b6ea4ccedb3: 给我返回一个视频，主题是："如何治愈原生家庭"
+Sent analyzing status
+New websocket connection: 42d638af-286a-4fe5-97b6-2a809e984660
+Websocket accepted
+Current chats: ['444f82b8-c771-4665-b4d3-8b6ea4ccedb3', '42d638af-286a-4fe5-97b6-2a809e984660']
+Chat status: created
+Processing initial message
+Processing message for 42d638af-286a-4fe5-97b6-2a809e984660: 给我返回一个视频，主题是："如何治愈原生家庭"
+Sent analyzing status
+New websocket connection: 427c298e-64c3-4580-a5b1-06128dd2db56
+Websocket accepted
+Current chats: ['444f82b8-c771-4665-b4d3-8b6ea4ccedb3', '42d638af-286a-4fe5-97b6-2a809e984660', '427c298e-64c3-4580-a5b1-06128dd2db56']
+Chat status: created
+Processing initial message
+Processing message for 427c298e-64c3-4580-a5b1-06128dd2db56: 给我返回一个视频，主题是："如何治愈原生家庭"
+Sent analyzing status
+New websocket connection: cc3a58ee-962a-4d48-9a43-564c5df46753
+Websocket accepted
+Current chats: ['cc3a58ee-962a-4d48-9a43-564c5df46753']
+Chat status: created
+Processing initial message
+Processing message for cc3a58ee-962a-4d48-9a43-564c5df46753: 给我返回一个视频，主题是："如何治愈原生家庭"
+Sent analyzing status
+New websocket connection: ab0680d6-6dd1-4644-98e5-3f7c037a81d1
+Websocket accepted
+Current chats: ['ab0680d6-6dd1-4644-98e5-3f7c037a81d1']
+Chat status: created
+Processing initial message
+Processing message for ab0680d6-6dd1-4644-98e5-3f7c037a81d1: 给我返回一个视频，主题是："如何治愈原生家庭"
+Sent analyzing status
+New websocket connection: 32ceaf97-4bf5-49db-acde-ee8015ca5346
+Websocket accepted
+Current chats: ['32ceaf97-4bf5-49db-acde-ee8015ca5346']
+Chat status: created
+Processing initial message
+Processing message for 32ceaf97-4bf5-49db-acde-ee8015ca5346: 给我返回一个视频，主题是："如何治愈原生家庭"
+Sent analyzing status

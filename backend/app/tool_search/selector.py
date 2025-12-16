@@ -1,5 +1,6 @@
 from typing import List, Dict, Any
 from app.tool_search.search_agent import SearchAgent
+import json
 
 
 
@@ -54,16 +55,30 @@ def format_tools_for_llm(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     formatted_tools = []
 
     for tool in tools:
+        # Build enhanced description with output schema information
+        description = tool['description']
+        
+        # Add output schema info if available
+        if 'outputSchema' in tool and tool['outputSchema']:
+            output_schema = tool['outputSchema']
+            description += "\n\n**Output Format (MUST be followed exactly):**\n"
+            description += f"```json\n{json.dumps(output_schema, indent=2)}\n```"
+            
+            # Add human-readable explanation if properties exist
+            if 'properties' in output_schema:
+                description += "\n\nReturned fields:\n"
+                for prop_name, prop_info in output_schema['properties'].items():
+                    prop_type = prop_info.get('type', 'any')
+                    prop_desc = prop_info.get('description', '')
+                    description += f"- `{prop_name}` ({prop_type}): {prop_desc}\n"
+        
         # Convert MCP tool format to OpenAI function calling format
         formatted_tool = {
             "type": "function",
             "function": {
-                "name":
-                tool['name'],
-                "description":
-                tool['description'],
-                "parameters":
-                tool.get('inputSchema', {
+                "name": tool['name'],
+                "description": description,
+                "parameters": tool.get('inputSchema', {
                     "type": "object",
                     "properties": {},
                     "required": []

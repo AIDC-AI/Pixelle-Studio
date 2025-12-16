@@ -9,3 +9,16 @@ wheels/
 # Virtual environments
 .venv
 scripts
+
+# Logs
+backend/logs/
+.backend/app/logs/
+
+# Storage
+backend/storage/
+.backend/app/storage/
+
+mcp-server-test/.idea/
+
+# next.js
+.next
