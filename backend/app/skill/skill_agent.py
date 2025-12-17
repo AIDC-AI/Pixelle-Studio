@@ -247,12 +247,12 @@ class SkillAgent(AgentSkill):
                 if 'script' == code_type:
                     code_split: List[str] = shlex.split(code_str)
                     new_code_split: List[str] = []
-                    for i, item in enumerate[str](code_split[1:]):
+                    for i, item in enumerate(code_split[1:]):
                         # All paths should be relative to `self.work_dir`
-                        item = os.path.join(str(self.work_dir), Path(item).as_posix())
-                        new_code_split.append(item)
-                        #BUG FIX: if the item is the parameter of the script, can not add the path to the code_str
-                        break
+                        #BUG FIX: if the item is the parameter of the script, can not add the path to the code_str, so we need to check the item is the parameter of the script
+                        if i == 0:
+                            item = os.path.join(str(self.work_dir), Path(item).as_posix())
+                        new_code_split.append(item)                        
 
                     new_code_split = code_split[:1] + new_code_split
                     code_str = ' '.join(new_code_split)
