@@ -24,3 +24,4 @@ mcp-server-test/.idea/
 .next
 
 work_dir/
+.DS_Store/
