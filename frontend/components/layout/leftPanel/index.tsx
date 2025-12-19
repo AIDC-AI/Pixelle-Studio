@@ -1,0 +1,108 @@
+'use client'
+
+import { useState } from 'react'
+import { MessageSquare, Wrench, Server } from 'lucide-react'
+import CollaspeButton from './components/collapseButton'
+import TabButton from './components/tabButton'
+import ChatPanel from './chatPanel'
+import SkillsPanel from './skillsPanel'
+import ServersPanel from './serversPanel'
+
+export type TAB_TYPE = 'chat' | 'skills' | 'servers'
+
+const TABS = [
+  {
+    title: '对话',
+    type: 'chat',
+    icon: <MessageSquare className="w-5 h-5" />
+  },
+  {
+    title: '能力',
+    type: 'skills',
+    icon: <Wrench className="w-5 h-5" />
+  },
+  {
+    title: 'Mcp Servers',
+    type: 'servers',
+    icon: <Server className="w-5 h-5" />
+  }
+]
+
+const LeftPanel = () => {    
+    const [isCollapsed, setIsCollapsed] = useState<boolean>(false)
+    const [currentTab, setCurrentTab] = useState<TAB_TYPE>('chat')
+
+    const handleCollapse = () => {
+        setIsCollapsed(!isCollapsed)
+    }
+
+	const renderTabPanel = () => {
+		switch (currentTab) {
+			case 'chat':
+				return <ChatPanel />
+			case 'skills':
+				return <SkillsPanel />
+			case 'servers':
+				return <ServersPanel />
+		}
+	}
+
+    if (isCollapsed) {
+        return (
+            <div className="w-12 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-4">
+                <CollaspeButton 
+                    isCollapsed={isCollapsed}
+                    onClick={handleCollapse}
+                />
+                {
+                  TABS?.map((tab) => <TabButton 
+					key={tab.title}
+					isCollapsed={isCollapsed}
+					isActive={currentTab === tab.type}
+					onClick={() => setCurrentTab(tab.type as TAB_TYPE)}
+                  >
+                      {tab.icon}
+                  </TabButton>)
+                }
+            </div>
+        )
+    }
+
+  return (
+	<div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+		{/* Header */}
+		<div className="p-4 border-b border-gray-200">
+			<div className="flex items-center justify-between mb-4">
+				<h2 className="text-lg font-semibold text-gray-800">Chat</h2>
+				<CollaspeButton 
+					isCollapsed={isCollapsed}
+					onClick={handleCollapse}
+				/>
+			</div>
+
+			{/* Tabs */}
+			<div className="grid grid-cols-2 gap-2">
+				{
+                  TABS?.map((tab, index) => <TabButton 
+					key={tab.title}
+					isCollapsed={isCollapsed}
+					isActive={currentTab === tab.type}
+					onClick={() => setCurrentTab(tab.type as TAB_TYPE)}
+					className={TABS.length % 2 !== 0 && index === TABS.length - 1 ? 'col-span-2' : ''}
+                  >
+                      {tab.icon}
+					  <span className="text-sm font-medium">{tab.title}</span>
+                  </TabButton>)
+                }
+			</div>
+		</div>
+
+      	{/* Content */}
+		{
+			renderTabPanel()
+		}
+    </div>
+  )
+}
+
+export default LeftPanel;
