@@ -500,9 +500,9 @@ class SkillAgent(AgentSkill):
             f.write(prompt_tasks_implementation)
 
 
-def end2end(skill_agent:SkillAgent,query: str, input_file: str, skills_path: str):
+def end2end(skill_agent:SkillAgent,query: str, input_file: str):
     skill_output_path = generate_skill(skill_agent, query, input_file)
-    execute_results_path = execute_skill(skill_agent, skill_output_path)
+    execute_results_path = execute_skill(skill_output_path)
     return execute_results_path
 
 
@@ -540,7 +540,7 @@ def generate_skill(skill_agent: SkillAgent, query: str, input_file: str) -> str:
     logger.info("Got skill output")
     print(skill_output.model_dump_json(ensure_ascii=False, indent=2))
 
-    skill_output_path = os.path.join(skill_agent.get_task_work_dir(), f"skill_output.json")
+    skill_output_path = skill_agent.get_task_work_dir(skill_output.task_id) / "skill_output.json"
     with open(skill_output_path, 'w', encoding='utf-8') as f:
         f.write(skill_output.model_dump_json(ensure_ascii=False, indent=2))
     print(f"Skill output saved to: {skill_output_path}")
