@@ -1,8 +1,9 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { MouseEventHandler } from 'react';
 
 interface IProps {
     isCollapsed?: boolean;
-    onClick?: () => void
+    onClick?: MouseEventHandler<HTMLButtonElement>
 }
 
 const CollaspeButton: React.FC<IProps> = (props) => {

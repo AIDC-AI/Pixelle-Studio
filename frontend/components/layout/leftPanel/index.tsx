@@ -49,7 +49,7 @@ const LeftPanel = () => {
 
     if (isCollapsed) {
         return (
-            <div className="w-12 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-4">
+            <div className="w-12 bg-white border-r border-border-default flex flex-col items-center py-4 gap-4">
                 <CollaspeButton 
                     isCollapsed={isCollapsed}
                     onClick={handleCollapse}
@@ -69,9 +69,9 @@ const LeftPanel = () => {
     }
 
   return (
-	<div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+	<div className="w-64 bg-white border-r border-border-default flex flex-col">
 		{/* Header */}
-		<div className="p-4 border-b border-gray-200">
+		<div className="p-4 border-b border-border-default">
 			<div className="flex items-center justify-between mb-4">
 				<h2 className="text-lg font-semibold text-gray-800">Chat</h2>
 				<CollaspeButton 
@@ -91,7 +91,7 @@ const LeftPanel = () => {
 					className={TABS.length % 2 !== 0 && index === TABS.length - 1 ? 'col-span-2' : ''}
                   >
                       {tab.icon}
-					  <span className="text-sm font-medium">{tab.title}</span>
+					  <span className="font-default">{tab.title}</span>
                   </TabButton>)
                 }
 			</div>

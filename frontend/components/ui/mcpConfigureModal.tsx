@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useApp } from "@/context";
 
 interface IProps {
-    open: boolean;
-    setOpen: (open: boolean) => void;
-    server?: MCPServer | null;
+    open: boolean
+    setOpen: React.Dispatch<React.SetStateAction<boolean>>
+    server?: MCPServer | null
 }
 
 type FieldType = {
@@ -27,7 +27,7 @@ const connectionTypes = [
 
 const McpConfigureModal: React.FC<IProps> = (props) => {
     const { open, setOpen, server } = props;
-    const { config, setConfig } = useApp()
+    const { config, setConfig, messageApi } = useApp()
 
     const [form] = Form.useForm();
 
@@ -77,7 +77,8 @@ const McpConfigureModal: React.FC<IProps> = (props) => {
             const newServer = mcpServerAPI.addServer(serverToSave as Omit<MCPServer, 'id'>);
             setConfig({ servers: [...config.servers, newServer] });
         }
-        handleCancel();
+        messageApi.success('Successed!', 1)
+        handleCancel()
     };
 
     const handleCancel = () => {
@@ -87,11 +88,12 @@ const McpConfigureModal: React.FC<IProps> = (props) => {
     };
 
     return <Modal
-        title="Add New Server"
+        title={`${!!server ? "Update Server" : "Add Server"}`}
         closable={{ 'aria-label': 'Custom Close Button' }}
         open={open}
         onOk={handleOk}
         onCancel={handleCancel}
+        width="50%"
         destroyOnHidden
     >
         <Form
@@ -143,7 +145,12 @@ const McpConfigureModal: React.FC<IProps> = (props) => {
                             })
                         ]}
                     >
-                        <Input.TextArea placeholder='Enter headers as JSON object, e.g. {"Authorization": "Bearer token"}' size="small" allowClear />
+                        <Input.TextArea 
+                            className="h-64"
+                            placeholder='Enter headers as JSON object, e.g. {"Authorization": "Bearer token"}' 
+                            size="small" 
+                            allowClear 
+                        />
                     </Form.Item>
                 </>)
             }
@@ -175,7 +182,12 @@ const McpConfigureModal: React.FC<IProps> = (props) => {
                             })
                         ]}
                     >
-                        <Input.TextArea placeholder='Enter headers as JSON object, e.g. {"Authorization": "Bearer token"}' size="small" allowClear />
+                        <Input.TextArea 
+                            className="h-32"
+                            placeholder='Enter headers as JSON object, e.g. {"Authorization": "Bearer token"}' 
+                            size="small" 
+                            allowClear 
+                        />
                     </Form.Item>
                 </>)
             }

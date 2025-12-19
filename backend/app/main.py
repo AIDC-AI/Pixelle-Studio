@@ -334,6 +334,261 @@ async def get_file(filename: str):
 
     return FileResponse(file_path)
 
+
+@app.get("/api/skills")
+async def get_skills():
+    """
+    Get all skills from the skillset folder.
+    Returns a list of skill names (folder names).
+    """
+    try:
+        skillset_dir = Path(__file__).parent.parent / "skillset"
+        
+        if not skillset_dir.exists():
+            return {"skills": []}
+        
+        # Get all subdirectories in skillset folder
+        skills = []
+        for item in skillset_dir.iterdir():
+            if item.is_dir() and not item.name.startswith('.'):
+                # Check if SKILL.md exists
+                skill_md = item / "SKILL.md"
+                skill_info = {
+                    "name": item.name,
+                    "path": str(item.relative_to(skillset_dir.parent)),
+                    "has_description": skill_md.exists()
+                }
+                
+                # Parse SKILL.md front matter if exists
+                if skill_md.exists():
+                    try:
+                        with open(skill_md, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            
+                            # Parse YAML front matter
+                            if content.startswith('---'):
+                                parts = content.split('---', 2)
+                                if len(parts) >= 3:
+                                    front_matter = parts[1].strip()
+                                    # Simple parsing for description field
+                                    for line in front_matter.split('\n'):
+                                        if line.strip().startswith('description:'):
+                                            # Extract description value (handle quotes)
+                                            desc = line.split('description:', 1)[1].strip()
+                                            # Remove surrounding quotes if present
+                                            if desc.startswith('"') and desc.endswith('"'):
+                                                desc = desc[1:-1]
+                                            elif desc.startswith("'") and desc.endswith("'"):
+                                                desc = desc[1:-1]
+                                            skill_info["description"] = desc
+                                            break
+                    except Exception as e:
+                        log.warning(f"Failed to read SKILL.md for {item.name}: {e}")
+                        skill_info["description"] = ""
+                
+                skills.append(skill_info)
+        
+        return {"skills": skills}
+    
+    except Exception as e:
+        log.error(f"Error getting skills: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/skills/{skill_name}")
+async def get_skill_detail(skill_name: str):
+    """
+    Get detailed content of a specific skill.
+    Returns the full SKILL.md content and metadata.
+    """
+    try:
+        skillset_dir = Path(__file__).parent.parent / "skillset"
+        skill_dir = skillset_dir / skill_name
+        
+        if not skill_dir.exists() or not skill_dir.is_dir():
+            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+        
+        skill_md = skill_dir / "SKILL.md"
+        
+        if not skill_md.exists():
+            raise HTTPException(status_code=404, detail=f"SKILL.md not found for '{skill_name}'")
+        
+        # Read full content
+        with open(skill_md, 'r', encoding='utf-8') as f:
+            full_content = f.read()
+        
+        # Parse front matter and body
+        metadata = {}
+        body = full_content
+        
+        if full_content.startswith('---'):
+            parts = full_content.split('---', 2)
+            if len(parts) >= 3:
+                front_matter = parts[1].strip()
+                body = parts[2].strip()
+                
+                # Parse front matter fields
+                for line in front_matter.split('\n'):
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        key = key.strip()
+                        value = value.strip()
+                        # Remove quotes
+                        if value.startswith('"') and value.endswith('"'):
+                            value = value[1:-1]
+                        elif value.startswith("'") and value.endswith("'"):
+                            value = value[1:-1]
+                        metadata[key] = value
+        
+        # Get list of files in skill directory
+        files = []
+        for file in skill_dir.iterdir():
+            if file.is_file():
+                files.append({
+                    "name": file.name,
+                    "size": file.stat().st_size,
+                    "path": str(file.relative_to(skillset_dir.parent))
+                })
+        
+        return {
+            "name": skill_name,
+            "metadata": metadata,
+            "content": body,
+            "full_content": full_content,
+            "files": files
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error getting skill detail for {skill_name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class CreateSkillRequest(BaseModel):
+    name: str
+    content: str  # Full SKILL.md content
+
+
+class UpdateSkillRequest(BaseModel):
+    new_name: Optional[str] = None  # If provided, rename the skill
+    content: str  # Updated SKILL.md content
+
+
+@app.post("/api/skills")
+async def create_skill(request: CreateSkillRequest):
+    """
+    Create a new skill.
+    """
+    try:
+        skillset_dir = Path(__file__).parent.parent / "skillset"
+        skillset_dir.mkdir(parents=True, exist_ok=True)
+        
+        skill_dir = skillset_dir / request.name
+        
+        # Check if skill already exists
+        if skill_dir.exists():
+            raise HTTPException(status_code=400, detail=f"Skill '{request.name}' already exists")
+        
+        # Create skill directory
+        skill_dir.mkdir(parents=True)
+        
+        # Create SKILL.md file
+        skill_md = skill_dir / "SKILL.md"
+        with open(skill_md, 'w', encoding='utf-8') as f:
+            f.write(request.content)
+        
+        log.info(f"Created skill: {request.name}")
+        
+        return {
+            "success": True,
+            "name": request.name,
+            "path": str(skill_dir.relative_to(skillset_dir.parent))
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error creating skill {request.name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/skills/{skill_name}")
+async def update_skill(skill_name: str, request: UpdateSkillRequest):
+    """
+    Update an existing skill.
+    Can rename the skill and/or update its content.
+    """
+    try:
+        skillset_dir = Path(__file__).parent.parent / "skillset"
+        skill_dir = skillset_dir / skill_name
+        
+        if not skill_dir.exists() or not skill_dir.is_dir():
+            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+        
+        # Handle rename if new_name is provided
+        if request.new_name and request.new_name != skill_name:
+            new_skill_dir = skillset_dir / request.new_name
+            
+            # Check if new name already exists
+            if new_skill_dir.exists():
+                raise HTTPException(status_code=400, detail=f"Skill '{request.new_name}' already exists")
+            
+            # Rename directory
+            skill_dir.rename(new_skill_dir)
+            skill_dir = new_skill_dir
+            log.info(f"Renamed skill from '{skill_name}' to '{request.new_name}'")
+        
+        # Update SKILL.md content
+        skill_md = skill_dir / "SKILL.md"
+        with open(skill_md, 'w', encoding='utf-8') as f:
+            f.write(request.content)
+        
+        final_name = request.new_name if request.new_name else skill_name
+        log.info(f"Updated skill: {final_name}")
+        
+        return {
+            "success": True,
+            "name": final_name,
+            "path": str(skill_dir.relative_to(skillset_dir.parent))
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error updating skill {skill_name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/skills/{skill_name}")
+async def delete_skill(skill_name: str):
+    """
+    Delete a skill and all its files.
+    """
+    try:
+        skillset_dir = Path(__file__).parent.parent / "skillset"
+        skill_dir = skillset_dir / skill_name
+        
+        if not skill_dir.exists() or not skill_dir.is_dir():
+            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+        
+        # Delete the entire skill directory
+        shutil.rmtree(skill_dir)
+        
+        log.info(f"Deleted skill: {skill_name}")
+        
+        return {
+            "success": True,
+            "message": f"Skill '{skill_name}' deleted successfully"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error deleting skill {skill_name}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)

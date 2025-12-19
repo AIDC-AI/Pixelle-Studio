@@ -5,6 +5,7 @@ import { Book, Plus } from "lucide-react"
 
 const ChatPanel = () => {
     const { 
+        activeSessionId,
         setActiveSessionId, 
         sessions, 
         deleteSession
@@ -14,10 +15,10 @@ const ChatPanel = () => {
         setActiveSessionId('')
     }
 
-    return <div className="p-4">
+    return <div className="left-panel p-4 gap-4">
         {/* Knowledge Base */}
-        <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex items-center gap-2 text-gray-400">
+        <div className="p-4 bg-default rounded-lg border border-border-default">
+            <div className="flex items-center gap-2 text-text-disabled">
                 <Book className="w-4 h-4" />
                 <span className="text-sm">个人知识库</span>
                 <span className="ml-auto text-xs">即将上线</span>
@@ -26,21 +27,22 @@ const ChatPanel = () => {
 
         {/* New Chat Button */}
         <button 
-            className="w-full flex items-center gap-2 px-4 py-2.5 mb-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
+            className="w-full flex items-center gap-2 px-4 py-2.5 bg-default hover:bg-hover rounded-lg transition-colors text-text-default"
             onClick={handleNewSession}
         >
-            <Plus className="w-4 h-4" />
-            <span className="text-sm font-medium">新建对话</span>
+            <Plus className="w-4 h-4"/>
+            <span className="font-default">新建对话</span>
         </button>
 
         {/* Chat History */}
         <div>
-            <h3 className="text-xs font-medium text-gray-500 mb-2 px-2">对话历史</h3>
-            <div className="space-y-1">
+            <h3 className="font-title text-text-default mb-2">对话历史</h3>
+            <div className="space-y-2">
                 {
                     sessions?.reverse()?.map((session) => (
                         <ItemWithTrash
                             key={session.id}
+                            selected={activeSessionId === session.id}
                             onItem={(e) => {
                                 e.stopPropagation()
                                 setActiveSessionId(session.id)
@@ -51,8 +53,8 @@ const ChatPanel = () => {
                             }}
                         >
                             <div className="flex flex-col">
-                                <span className="item-title">{session.title}</span>
-                                <span className="item-subtitle">{formatTime(session.timestamp)}</span>
+                                <span className="font-default text-text-default">{session.title}</span>
+                                <span className="font-title text-text-disabled">{formatTime(session.timestamp)}</span>
                             </div>
                         </ItemWithTrash>
                     ))

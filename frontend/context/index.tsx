@@ -5,6 +5,8 @@ import { mcpServerAPI, type MCPServerConfig } from '../lib/mcpConfig';
 import { sessionAPI } from '@/lib/session';
 import { Session } from '@/types/session';
 import { Message } from '@/types/message';
+import { message } from 'antd';
+import { MessageInstance } from 'antd/es/message/interface';
 
 type MessageMap = Record<string, Message[] | null> 
 
@@ -21,6 +23,8 @@ type IProps = {
     sessionMessages: MessageMap
     setSessionMessages: React.Dispatch<React.SetStateAction<MessageMap>>
 
+    messageApi: MessageInstance
+
     deleteSession: (id: string) => void 
 };
 
@@ -31,6 +35,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [activeSessionId, setActiveSessionId] = useState<string>('');
     const [sessions, setSessions] = useState<Session[]>([])
     const [sessionMessages, setSessionMessages] = useState<MessageMap>({});
+    const [messageApi, contextHolder] = message.useMessage();
+    
     const isInit = useRef<boolean>(true)
     
     const deleteSession = (id: string) => {
@@ -85,10 +91,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setSessions,
                 sessionMessages, 
                 setSessionMessages,
+                messageApi,
                 deleteSession
             }
         }
     >
+        {contextHolder}
         {children}
     </AppContext.Provider>;
 }

@@ -4,6 +4,8 @@ import McpConfigureModal from "@/components/ui/mcpConfigureModal";
 import { useApp } from "@/context";
 import { Server } from "lucide-react";
 import ItemWithTrash from "@/components/ui/itemWithTrash";
+import BottomButton from "./components/bottomButton";
+import { Skeleton } from "antd";
 
 interface Tool {
     name: string;
@@ -63,56 +65,60 @@ const ServersPanel = () => {
         fetchServerTools()
     }, [config.servers])
 
-    return <div className="p-4 flex flex-col h-full">
-        <h3 className="text-xs font-medium text-gray-500 mb-3 px-2">Mcp Servers</h3>
-        <div className="flex-1 overflow-y-auto">
-            {
-                servers?.map((server) => (
-                    <ItemWithTrash
-                        key={server.id}
-                        onItem={() => {
-                            setCurrentServer(config.servers.find(s => s.id === server.id) || null)
-                            setOpen(true)
-                        }}
-                        onTrash={() => {
-                            handleDeleteServer(server.id)
-                        }}
-                    >
-                        <div className="flex flex-col justify-center gap-1">
-                            <span className="item-title">
-                                {server.name}
-                            </span>
-                            <span className="item-subtitle">
-                                Tools:
-                            </span>
-                            <ul className="text-xs text-[#666] ml-2 space-y-1">
-                                {server?.tools?.map((tool, idx) => (
-                                    <li key={idx}>
-                                        <span>{tool.name}-</span>
-                                        {tool.description && (
-                                            <span>{tool.description}</span>
-                                        )}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </ItemWithTrash>
-                ))
-            }
+    return <div className="left-panel">
+        <div className="flex-1 overflow-y-auto space-y-2 p-4">
+            <h3 className="font-title text-text-default">Mcp Servers</h3>
+            <div className="flex-1 space-y-2">
+                {
+                    loading ? <Skeleton /> : <>
+                        {
+                            servers?.map((server) => (
+                                <ItemWithTrash
+                                    key={server.id}
+                                    onItem={() => {
+                                        setCurrentServer(config.servers.find(s => s.id === server.id) || null)
+                                        setOpen(true)
+                                    }}
+                                    onTrash={(e) => {
+                                        e.stopPropagation()
+                                        handleDeleteServer(server.id)
+                                    }}
+                                >
+                                    <div className="flex flex-col justify-center">
+                                        <span className="font-default text-text-default">
+                                            {server.name}
+                                        </span>
+                                        <span className="font-title text-text-disabled">
+                                            Tools:
+                                        </span>
+                                        <ul className="font-title text-text-disabled ml-2 space-y-1">
+                                            {server?.tools?.map((tool, idx) => (
+                                                <li key={idx}>
+                                                    <span>{tool.name}-</span>
+                                                    {tool.description && (
+                                                        <span>{tool.description}</span>
+                                                    )}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </ItemWithTrash>
+                            ))
+                        }
+                    </>
+                }
+            </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200">
-            <button 
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                onClick={() => {
+        <BottomButton 
+            text={"Add Server"}
+            icon={<Server className="w-4 h-4" />}
+            onClick={() => {
                     setOpen(true)
-                }}
-            >
-                <Server className="w-4 h-4" />
-                <span className="text-sm">Add Server</span>
-            </button>
-        </div>
+                }
+            }
+        />
 
         <McpConfigureModal
             open={open}

@@ -7,8 +7,6 @@
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -17,8 +15,19 @@
 }
 
 @theme {
-  --bg-color-default: rgba(0,0,0,0.05)
-  --bg-color-hover: rbga(0,0,0,0.1)
+  --color-default: #f9fafb; /* gray-50 */
+  --color-selected: #e5e7eb; /* gray-200 */
+  --color-hover: #d1d5dc; /* gray-300 */
+  --color-disabled: #d9d9d9;
+
+  --color-text-default: #4a5565; /* gray-600 */
+  --color-text-selected: #fff;
+  --color-text-hover: #fff;
+  --color-text-disabled: #99a1af; /* gray-400 */
+
+  --color-btn-hover: #e5e7eb;
+
+  --color-border-default: #e5e7eb;
 }
 
 
@@ -29,25 +38,21 @@
   }
 }
 
-/* #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+.left-panel {
   display: flex;
   flex-direction: column;
-} */
-
-.item-title {
-  font-size: 16px;
-  color: #333;
-  font-weight: 500; 
+  flex: 1;
+  height: 100%;
 }
 
-.item-subtitle {
+.font-default {
   font-size: 14px;
-  color: #444;
-  font-weight: 400; 
+  font-weight: 500;
+}
+
+.font-title {
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .message {
