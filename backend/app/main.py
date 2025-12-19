@@ -16,8 +16,8 @@ from pathlib import Path
 from app.llm_adapter import generate_workflow_script, check_if_workflow_needed
 from app.execution.runner import run_script
 from app.mcp_aggregator import MCPAggregator, MCPServerConfig
-from app.tool_search.selector import select_tools
-from app.tool_search.search_agent import SearchAgent
+# from app.tool_search.selector import select_tools
+# from app.tool_search.search_agent import SearchAgent
 
 # Import self-evaluation modules
 from app.context.context_manager import ContextManager
@@ -115,41 +115,39 @@ async def create_chat(request: ChatRequest):
     return {"chat_id": chat_id}
 
 
-async def process_and_execute(websocket: WebSocket, chat_id: str,
-                              user_message: str):
+async def process_and_execute(websocket: WebSocket, chat_id: str, user_message: str):
     """
     Process a user message: first check if workflow is needed, then execute accordingly.
     If workflow not needed, directly return answer. Otherwise use ExecutionOrchestrator.
     """
     try:
         log.info(f"Processing message for {chat_id}: {user_message}")
-        
+
         # Get file URLs from chat context
         file_urls = chats[chat_id].get("file_urls", [])
-        
+
         # === Stage 0: Check if workflow is needed ===
         await websocket.send_json({"type": "status", "content": "Analyzing request..."})
-        
+
         # Fetch tools using the stored config
         chat_config = chats[chat_id].get("mcp_config")
         config_to_use = chat_config or mcp_config_cache or MCPServerConfig(servers=[])
-        
+
         all_tools = await mcp_aggregator.fetch_tools(config_to_use)
-        selected_tools = await select_tools(user_message, all_tools)
+        #TODO: Tool selector rely on embedding model,close it for now,open it when the framework is ready
+        #selected_tools = await select_tools(user_message, all_tools)
+        selected_tools = all_tools
         chats[chat_id]["tools"] = selected_tools
-        
+
         # Check if workflow is needed
         workflow_check = await check_if_workflow_needed(user_message, selected_tools, file_urls)
         log.info(f"Workflow check result: {workflow_check}")
-        
+
         if not workflow_check.get("needs_workflow", True):
             # === Direct answer path ===
             log.info("Direct answer mode - no workflow needed")
-            await websocket.send_json({
-                "type": "status",
-                "content": f"💡 Reasoning: {workflow_check.get('reasoning', 'Simple query')}"
-            })
-            
+            await websocket.send_json({"type": "status", "content": f"💡 Reasoning: {workflow_check.get('reasoning', 'Simple query')}"})
+
             direct_answer = workflow_check.get("direct_answer", "I understand your question.")
             await websocket.send_json({
                 "type": "final_result",
@@ -162,23 +160,18 @@ async def process_and_execute(websocket: WebSocket, chat_id: str,
                 }
             })
             return
-        
+
         # === Workflow execution path ===
         log.info("Workflow mode - generating and executing script")
-        await websocket.send_json({
-            "type": "status",
-            "content": f"🔧 {workflow_check.get('reasoning', 'Complex workflow detected - generating script...')}"
-        })
-        
+        await websocket.send_json({"type": "status", "content": f"🔧 {workflow_check.get('reasoning', 'Complex workflow detected - generating script...')}"})
+
         # === Stage 1: Execute with self-evaluation ===
-        execution_context = await orchestrator.execute_with_self_evaluation(
-            websocket=websocket,
-            chat_id=chat_id,
-            user_message=user_message,
-            selected_tools=selected_tools,
-            file_urls=file_urls
-        )
-        
+        execution_context = await orchestrator.execute_with_self_evaluation(websocket=websocket,
+                                                                            chat_id=chat_id,
+                                                                            user_message=user_message,
+                                                                            selected_tools=selected_tools,
+                                                                            file_urls=file_urls)
+
         # === Stage 2: Send final result ===
         if execution_context.status == "success":
             latest_iter = execution_context.get_latest_iteration()
@@ -214,9 +207,9 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
     log.info(f"New websocket connection: {chat_id}")
     await websocket.accept()
     log.debug("Websocket accepted")
-    
+
     log.debug(f"Current chats: {list(chats.keys())}")
-    
+
     if chat_id not in chats:
         log.warning(f"Chat not found: {chat_id}")
         await websocket.close(code=4004, reason="Chat not found")
@@ -226,7 +219,7 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
         # Process initial message if it exists and hasn't been processed
         status = chats[chat_id].get("status")
         log.debug(f"Chat status: {status}")
-            
+
         if status == "created":
             log.info("Processing initial message")
             initial_message = chats[chat_id]["messages"][0]["content"]
@@ -238,7 +231,7 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
             log.debug("Waiting for next message")
             data = await websocket.receive_json()
             log.debug(f"Received message: {data}")
-            
+
             if data.get("type") == "message":
                 user_message = data.get("content")
                 if user_message:
@@ -275,7 +268,8 @@ async def get_tools(config: Optional[MCPServerConfig] = None):
         #     os.makedirs("./logs", exist_ok=True)
         # with open("./logs/config_tools.json", "w") as f:
         #     json.dump(tools, f, indent=4, ensure_ascii=False)
-        await SearchAgent.instance.embedding_tools(config,tools)
+        #TODO: SearchAgent rely on embedding model,close it for now,open it when the framework is ready
+        #await SearchAgent.instance.embedding_tools(config,tools)
         return [tool for server_tools in tools for tool in server_tools]
     # Return default tools if no config
     return mcp_aggregator._get_default_tools()
@@ -301,28 +295,28 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
         file_id = str(uuid.uuid4())[:4]  # Short ID for URL (4 chars)
         file_extension = Path(file.filename).suffix if file.filename else ""
         unique_filename = f"{file_id}{file_extension}"
-        
+
         # Save file to storage
         file_path = STORAGE_DIR / unique_filename
-        
+
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
+
         log.info(f"File uploaded: {file.filename} -> {unique_filename}")
-        
+
         # Get port from request
         port = request.url.port if request and request.url.port else 8001
-        
+
         # Return short URL with LAN IP
         lan_url = f"http://{LOCAL_IP}:{port}/f/{unique_filename}"
-        
+
         return {
             "success": True,
             "url": lan_url,
             "filename": file.filename,
             "size": file_path.stat().st_size
         }
-    
+
     except Exception as e:
         log.error(f"File upload error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -334,10 +328,10 @@ async def get_file(filename: str):
     Serve uploaded files with a short URL.
     """
     file_path = STORAGE_DIR / filename
-    
+
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    
+
     return FileResponse(file_path)
 
 if __name__ == "__main__":
