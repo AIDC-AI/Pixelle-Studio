@@ -18,7 +18,7 @@ import sys
 import os
 import shlex
 from ms_agent.utils.utils import install_package
-from app.skill.skill_output import SkillOutput, TaskState, Implementation, ImplementationType,ExecutionResult
+from app.skill.skill_output import SkillOutput, TaskState, Implementation, ImplementationType, ExecutionResult
 import traceback
 from dataclasses import asdict
 
@@ -34,9 +34,8 @@ class SkillAgent(AgentSkill):
                  enable_thinking: Optional[bool] = False,
                  max_tokens: Optional[int] = 8192,
                  work_dir: str = None,
-                 use_sandbox: bool = True,
                  **kwargs) -> None:
-        super().__init__(skills, model, api_key, base_url, stream, enable_thinking, max_tokens, work_dir, use_sandbox, **kwargs)
+        super().__init__(skills, model, api_key, base_url, stream, enable_thinking, max_tokens, work_dir, True, **kwargs)
         self.llm = AihubLLM(model=model, api_key=api_key, base_url=base_url, mode=LLMMode.SYNC, stream=stream)
         self.retriever = SkillRetriever(skills=self.all_skills)
 
@@ -60,7 +59,7 @@ class SkillAgent(AgentSkill):
 
         skill_name = relevant_skills[0][0]
         task_id = str_to_md5(query)
-        task_work_dir = self._get_task_work_dir(task_id)
+        task_work_dir = self.get_task_work_dir(task_id)
         top_skill_key, top_skill, score = relevant_skills[0]
         logger.info(f'Using skill: {top_skill_key} (score: {score:.2f})')
         skill: SkillSchema = top_skill
@@ -240,7 +239,7 @@ class SkillAgent(AgentSkill):
         code_blocks: List[Dict[str, Any]] = []
         implementations: List[Implementation] = []
         gen_impl_index = 0
-        task_work_dir = self._get_task_work_dir(task_id)
+        task_work_dir = self.get_task_work_dir(task_id)
         for content in implementation_content:
 
             if isinstance(content, dict):
@@ -287,7 +286,8 @@ class SkillAgent(AgentSkill):
                 implementations.append(Implementation(type=ImplementationType.CONTENT, content=content))
         return implementations, code_blocks
 
-    def execute(self, implementation: Implementation) -> ExecutionResult:
+    @classmethod
+    def execute(cls, implementation: Implementation,use_sandbox: bool = False) -> ExecutionResult:
         """
         Execute a code block from a skill context.
 
@@ -301,7 +301,7 @@ class SkillAgent(AgentSkill):
         """
         exec_result = ExecutionResult()
         try:
-            if self.use_sandbox:
+            if use_sandbox:
                 if ImplementationType.COMMAND == implementation.type:
 
                     # code_split = shlex.split(code_str)
@@ -312,7 +312,7 @@ class SkillAgent(AgentSkill):
                     #     new_code_split.append(item)
                     # code_str = ' '.join(code_split[:1] + new_code_split)
 
-                    results: Dict[str, Any] = self.sandbox.execute(
+                    results: Dict[str, Any] = cls.sandbox.execute(
                         shell_command=implementation.command,
                         requirements=implementation.package_list,
                     )
@@ -322,7 +322,7 @@ class SkillAgent(AgentSkill):
                         messages='Executed in sandbox successfully for script.',
                     )
                 elif ImplementationType.FUNCTION == implementation.type:
-                    results: Dict[str, Any] = self.sandbox.execute(
+                    results: Dict[str, Any] = cls.sandbox.execute(
                         python_code=implementation.content,
                         requirements=implementation.package_list,
                     )
@@ -344,10 +344,10 @@ class SkillAgent(AgentSkill):
                     install_package(package_name=pack)
 
                 if ImplementationType.COMMAND == implementation.type:
-                    return ExecutionResult(**asdict(self._execute_cmd(cmd_str=implementation.command)))
+                    return ExecutionResult(**asdict(cls._execute_cmd(cmd_str=implementation.command)))
 
                 elif ImplementationType.FUNCTION == implementation.type:
-                    return ExecutionResult(**asdict(self._execute_code_block(code=implementation.content)))
+                    return ExecutionResult(**asdict(cls._execute_code_block(code=implementation.content)))
 
                 else:
                     raise ValueError(f'Unknown implementation type: {implementation.type}')
@@ -423,7 +423,7 @@ class SkillAgent(AgentSkill):
             if not script_path.exists():
                 script_path: Path = skill_context.root_path / 'scripts' / script_str
             if not script_path.exists():
-                script_path: Path = self._get_task_work_dir(task_id) / script_str
+                script_path: Path = self.get_task_work_dir(task_id) / script_str
             if not script_path.exists():
                 raise FileNotFoundError(f'Script not found: {script_str}')
 
@@ -486,7 +486,7 @@ class SkillAgent(AgentSkill):
 
         return res
 
-    def _get_task_work_dir(self, task_id: str) -> Path:
+    def get_task_work_dir(self, task_id: str) -> Path:
         return self.work_dir / task_id
 
     def _dump_prompt_files(self, task_work_dir: Path, prompt_skill_plan: str, prompt_skill_tasks: str, prompt_tasks_implementation: str):
@@ -500,70 +500,82 @@ class SkillAgent(AgentSkill):
             f.write(prompt_tasks_implementation)
 
 
-def main(query: str, input_file: str, skills_path: str):
+def end2end(skill_agent:SkillAgent,query: str, input_file: str, skills_path: str):
+    skill_output_path = generate_skill(skill_agent, query, input_file)
+    execute_results_path = execute_skill(skill_agent, skill_output_path)
+    return execute_results_path
+
+
+def create_skill_agent(skills_path: str) -> SkillAgent:
     from app.llm_adapter import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
-    skill_agent = SkillAgent(skills=skills_path,
-                             model="us.anthropic.claude-opus-4-20250514-v1:0",
-                             api_key=LLM_API_KEY,
-                             base_url=LLM_BASE_URL,
-                             stream=False,
-                             enable_thinking=False,
-                             max_tokens=8192,
-                             work_dir='./work_dir',
-                             use_sandbox=False)
-    skill_output = skill_agent.generate(query=query, file_paths=[input_file])
-    logger.info("Got skill output")
-    print(skill_output.model_dump_json(ensure_ascii=False,indent=2))
-    #     #return skill_output.model_dump()
-    #     skill_output = """
-    # {
-    #   "state": 0,
-    #   "skill_name": "xlsx@latest",
-    #   "task_id": "d408285a2f8d2ebc042a23c6f3e724bb",
-    #   "message": "",
-    #   "implementations": [
-    #     {
-    #       "type": 2,
-    #       "content": null,
-    #       "command": "python work_dir/d408285a2f8d2ebc042a23c6f3e724bb/gen_impl_0.py",
-    #       "file_list": [
-    #         "d408285a2f8d2ebc042a23c6f3e724bb/gen_impl_0.py"
-    #       ],
-    #       "package_list": [
-    #         "openpyxl"
-    #       ]
-    #     },
-    #     {
-    #       "type": 2,
-    #       "content": null,
-    #       "command": "python work_dir/xlsx/recalc.py work_dir/excel_test.xlsx 30",
-    #       "file_list": [
-    #         "xlsx/recalc.py"
-    #       ],
-    #       "package_list": [
-    #         "openpyxl"
-    #       ]
-    #     }
-    #   ]
-    # }
-    # """
-    #     json_output = json.loads(skill_output)
-    #     skill_output = SkillOutput(**json_output)
+    return SkillAgent(skills=skills_path,
+                      model="us.anthropic.claude-opus-4-20250514-v1:0",
+                      api_key=LLM_API_KEY,
+                      base_url=LLM_BASE_URL,
+                      stream=False,
+                      enable_thinking=False,
+                      max_tokens=8192,
+                      work_dir='./work_dir')
+
+
+def execute_skill(skill_output_path: str):
+    with open(skill_output_path, 'r', encoding='utf-8') as f:
+        skill_output = SkillOutput(**json.load(f))
     execute_results: List[Dict[str, Any]] = []
     for implementation in skill_output.implementations:
         if implementation.type == ImplementationType.COMMAND or implementation.type == ImplementationType.FUNCTION:
-            execute_result = skill_agent.execute(implementation=implementation)
+            execute_result = SkillAgent.execute(implementation=implementation)
             execute_results.append(execute_result.model_dump())
-    return execute_results
+    print(f"Got execute results")
+    print(json.dumps(execute_results, ensure_ascii=False, indent=2))
+    execute_results_path = os.path.join(os.path.dirname(skill_output_path), f"execute_results.json")
+    with open(execute_results_path, 'w', encoding='utf-8') as f:
+        f.write(json.dumps(execute_results, ensure_ascii=False, indent=2))
+    print(f"Execute results saved to: {execute_results_path}")
+    return execute_results_path
 
+
+def generate_skill(skill_agent: SkillAgent, query: str, input_file: str) -> str:
+    skill_output: SkillOutput = skill_agent.generate(query=query, file_paths=[input_file])
+    logger.info("Got skill output")
+    print(skill_output.model_dump_json(ensure_ascii=False, indent=2))
+
+    skill_output_path = os.path.join(skill_agent.get_task_work_dir(), f"skill_output.json")
+    with open(skill_output_path, 'w', encoding='utf-8') as f:
+        f.write(skill_output.model_dump_json(ensure_ascii=False, indent=2))
+    print(f"Skill output saved to: {skill_output_path}")
+    return skill_output_path
 
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--query', type=str, required=True)
-    parser.add_argument('--file', type=str, required=True)
-    parser.add_argument('--skills', type=str, required=True)
+    subparsers = parser.add_subparsers(dest="op")
+
+    all_op = subparsers.add_parser('all', help='Generate skill output and execute skill output')
+    all_op.add_argument("--query", type=str, required=True, help="user query string")
+    all_op.add_argument("--file", type=str, default=None, help="input file path")
+    all_op.add_argument("--skills", type=str, required=True, help="skill set path")
+
+    gen_op = subparsers.add_parser('gen', help='Generate skill output')
+    gen_op.add_argument("--query", type=str, required=True, help="user query string")
+    gen_op.add_argument("--file", type=str, default=None, help="input file path")
+    gen_op.add_argument("--skills", type=str, required=True, help="skill set path")
+
+    exe_op = subparsers.add_parser('exe', help='Execute skill output')
+    exe_op.add_argument("--skill_output", type=str, required=True, help="skill output path")
+
     args = parser.parse_args()
-    result = main(args.query, args.file, args.skills)
-    print(json.dumps(result,ensure_ascii=False,indent=2))
+    if hasattr(args, "skills"):
+        skill_agent = create_skill_agent(args.skills)
+
+    if args.op == 'gen':
+        result = generate_skill(skill_agent, args.query, args.file)
+    elif args.op == 'all':
+        result = end2end(skill_agent, args.query, args.file)
+    elif args.op == 'exe':
+        result = execute_skill(args.skill_output)
+    else:
+        parser.print_help()
+        exit(1)
+    logger.info(f"Finish to do {args.op},result file path:{result}")
