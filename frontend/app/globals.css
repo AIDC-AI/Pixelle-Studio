@@ -1,3 +1,4 @@
+/* stylelint-disable at-rule-no-unknown */
 @import "tailwindcss";
 
 :root {
@@ -15,139 +16,38 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+@theme {
+  --bg-color-default: rgba(0,0,0,0.05)
+  --bg-color-hover: rbga(0,0,0,0.1)
 }
 
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-
-button:hover {
-  border-color: #646cff;
-}
-
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
 
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
     background-color: #ffffff;
   }
-
-  a:hover {
-    color: #747bff;
-  }
-
-  button {
-    background-color: #f9f9f9;
-  }
 }
 
-/* App-specific styles */
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  margin-bottom: 20px;
-  border-radius: 8px;
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: 1.5em;
-}
-
-.config-btn {
-  background: white;
-  color: #667eea;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.config-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-#root {
+/* #root {
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
   display: flex;
   flex-direction: column;
+} */
+
+.item-title {
+  font-size: 16px;
+  color: #333;
+  font-weight: 500; 
 }
 
-.container {
-  display: flex;
-  height: 100%;
-  gap: 20px;
-  text-align: left;
-}
-
-.sidebar {
-  width: 300px;
-  border-right: 1px solid #ccc;
-  padding-right: 20px;
-  overflow-y: auto;
-}
-
-.main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.chat-window {
-  flex: 1;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 20px;
-  overflow-y: auto;
-  margin-bottom: 20px;
-  background: #f9f9f9;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.item-subtitle {
+  font-size: 14px;
+  color: #444;
+  font-weight: 400; 
 }
 
 .message {
@@ -166,104 +66,4 @@ button:focus-visible {
   align-self: flex-start;
   background-color: #e9ecef;
   color: black;
-}
-
-.log-entry {
-  font-family: monospace;
-  font-size: 0.9em;
-  color: #666;
-  margin: 2px 0;
-}
-
-.input-area {
-  display: flex;
-  gap: 10px;
-  align-items: flex-end;
-}
-
-.file-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.file-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #e3f2fd;
-  border: 1px solid #90caf9;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 0.85em;
-  color: #1976d2;
-}
-
-.remove-file-btn {
-  background: none;
-  border: none;
-  color: #d32f2f;
-  padding: 0;
-  margin: 0;
-  cursor: pointer;
-  font-size: 1.1em;
-  line-height: 1;
-  min-width: auto;
-}
-
-.remove-file-btn:hover {
-  color: #b71c1c;
-}
-
-.upload-btn {
-  padding: 10px 15px;
-  border-radius: 4px;
-  border: none;
-  background-color: #28a745;
-  color: white;
-  cursor: pointer;
-  font-size: 1.2em;
-  transition: all 0.3s;
-}
-
-.upload-btn:hover:not(:disabled) {
-  background-color: #218838;
-  transform: scale(1.05);
-}
-
-.upload-btn:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
-}
-
-input[type="text"] {
-  flex: 1;
-  padding: 10px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-}
-
-button {
-  padding: 10px 20px;
-  border-radius: 4px;
-  border: none;
-  background-color: #007bff;
-  color: white;
-  cursor: pointer;
-}
-
-button:disabled {
-  background-color: #ccc;
-}
-
-.script-preview {
-  margin-top: 10px;
-  padding: 10px;
-  background: #2d2d2d;
-  color: #f8f8f2;
-  border-radius: 4px;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  font-family: monospace;
 }
