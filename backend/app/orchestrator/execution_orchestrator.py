@@ -60,13 +60,14 @@ class ExecutionOrchestrator:
         chat_id: str,
         user_message: str,
         selected_tools: List[Dict[str, Any]],
-        file_urls: List[str] = None
+        file_urls: List[str] = None,
+        suggested_skill: str = None
     ) -> ExecutionContext:
         """
         Execute workflow with self-evaluation loop.
         
         Workflow:
-        1. Generate script (using context summary)
+        1. Generate script (using skill guidance and context summary)
         2. Execute script
         3. Evaluate execution (error + result validation)
         4. If success and valid -> done
@@ -76,12 +77,15 @@ class ExecutionOrchestrator:
             websocket: WebSocket for streaming updates
             chat_id: Chat session ID
             user_message: User's request
-            selected_tools: Tools selected for this request
+            selected_tools: MCP tools selected for this request (optional)
             file_urls: File URLs uploaded by user
+            suggested_skill: Skill name to use (optional, will auto-detect if not provided)
             
         Returns:
             ExecutionContext with all iterations
         """
+        # Store suggested_skill in context for use in script generation
+        self._current_suggested_skill = suggested_skill
         # Reset disconnection flag for new execution
         self._ws_disconnected = False
         
@@ -112,7 +116,7 @@ class ExecutionOrchestrator:
             ):
                 break
             
-            script_content = await self._generate_or_revise_script(ctx)
+            script_content = await self._generate_or_revise_script(ctx, self._current_suggested_skill)
             
             # Save script to file
             script_path = await self._save_script(chat_id, ctx.current_iteration, script_content)
@@ -441,9 +445,9 @@ class ExecutionOrchestrator:
                 "note": f"Failed to analyze image: {str(e)}"
             }
     
-    async def _generate_or_revise_script(self, ctx: ExecutionContext) -> str:
-        """Generate or revise script based on context."""
-        from app.llm_adapter import generate_or_revise_script
+    async def _generate_or_revise_script(self, ctx: ExecutionContext, suggested_skill: str = None) -> str:
+        """Generate or revise script based on context and skill guidance."""
+        from app.llm_adapter import generate_script_with_skill
         
         # Get file summaries if files are present
         file_summaries = None
@@ -472,16 +476,25 @@ class ExecutionOrchestrator:
                 
                 context_summary += "\n"
         
+        # Detect skill from file types if not provided
+        if not suggested_skill and ctx.file_urls:
+            for url in ctx.file_urls:
+                if any(url.lower().endswith(ext) for ext in ['.xlsx', '.xls', '.csv']):
+                    suggested_skill = 'xlsx'
+                    print(f"[Orchestrator] Auto-detected skill: {suggested_skill}")
+                    break
+        
         # Get previous iteration (if any)
         previous_iteration = ctx.get_latest_iteration()
         
-        # Generate script
-        script_content = await generate_or_revise_script(
+        # Generate script using skill-based approach
+        script_content = await generate_script_with_skill(
             user_message=ctx.user_message,
-            tools=ctx.selected_tools,
+            skill_name=suggested_skill,
+            file_urls=ctx.file_urls,
             context_summary=context_summary,
             previous_iteration=previous_iteration,
-            file_urls=ctx.file_urls
+            mcp_tools=ctx.selected_tools if ctx.selected_tools else None
         )
         
         return script_content
