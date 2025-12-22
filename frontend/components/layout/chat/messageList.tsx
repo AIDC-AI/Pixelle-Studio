@@ -10,6 +10,10 @@ import EvalutaionItem from "./items/evaluationItem";
 import AdviceItem from "./items/adviceItem";
 import ResultItem from "./items/resultItem";
 import ErrorItem from "./items/errorItem";
+import CodeItem from "./items/codeItem";
+import ExecutionResultItem from "./items/executionResultItem";
+import ResponseItem from "./items/responseItem";
+import SkillLoadedItem from "./items/skillLoadedItem";
 
 interface IProps {
     messages?: Message[] | null
@@ -25,7 +29,7 @@ const MessageList: React.FC<IProps> = (props) => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
     
-    const renderItem = (msg: Message) => {
+    const renderItem = (msg: Message, index: number) => {
         switch (msg.type) {
             case 'user':
                 return <UserItem content={msg.content} />
@@ -43,23 +47,64 @@ const MessageList: React.FC<IProps> = (props) => {
                 return <ResultItem content={msg.content} />
             case 'error':
                 return <ErrorItem content={msg.content} />
+            case 'code':
+                return (
+                    <CodeItem 
+                        code={msg.codeData?.code || msg.content} 
+                        executionCount={msg.codeData?.executionCount}
+                        reasoning={msg.codeData?.reasoning}
+                    />
+                )
+            case 'execution_result':
+                return (
+                    <ExecutionResultItem 
+                        result={msg.executionResult || msg.content}
+                        executionCount={msg.codeData?.executionCount}
+                    />
+                )
+            case 'response':
+                return <ResponseItem content={msg.content} />
+            case 'skill_loaded':
+                return <SkillLoadedItem skillName={msg.skillName || msg.content} />
         }
         return null;
     }
 
+    // Calculate appropriate wrapper class based on message type
+    const getMessageClass = (msg: Message) => {
+        if (msg.type === 'user') {
+            return 'self-end max-w-[85%]';
+        }
+        if (msg.type === 'code' || msg.type === 'execution_result' || msg.type === 'result') {
+            return 'self-start w-full max-w-[90%]';
+        }
+        if (msg.type === 'response') {
+            return 'self-start max-w-[85%]';
+        }
+        if (msg.type === 'system' || msg.type === 'skill_loaded') {
+            return 'self-center';
+        }
+        return 'self-start max-w-[80%]';
+    }
+
     return (
-        <div className="flex flex-1 flex-col p-4 overflow-y-auto gap-3">
+        <div className="flex flex-1 flex-col p-4 overflow-y-auto gap-4">
             {messages?.map((msg, idx) => (
-                <div key={idx} className={`message ${msg.type}`}>
-                    {
-                        renderItem(msg)
-                    }
+                <div key={idx} className={`flex flex-col ${getMessageClass(msg)}`}>
+                    {renderItem(msg, idx)}
                 </div>
             ))}
             {currentScript && (
-                <div className="message system">
-                    <strong>Current Workflow Script:</strong>
-                    <div className="mt-2.5 p-2.5 bg-gray-800 text-gray-100 rounded overflow-x-auto whitespace-pre-wrap font-mono">{currentScript}</div>
+                <div className="self-start w-full max-w-[90%]">
+                    <div className="bg-slate-800 rounded-xl p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                            <span className="ml-2 text-slate-400 text-sm">Current Workflow Script</span>
+                        </div>
+                        <pre className="text-slate-200 text-sm font-mono overflow-x-auto whitespace-pre-wrap">{currentScript}</pre>
+                    </div>
                 </div>
             )}
             <div ref={chatEndRef} />

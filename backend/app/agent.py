@@ -75,7 +75,7 @@ class SkillAgent:
         self.loaded_skills: Dict[str, str] = {}  # skill_name -> content
         
         # Script storage - put outside backend to avoid triggering file watcher
-        self.script_dir = Path(__file__).parent.parent.parent / "scripts"
+        self.script_dir = Path(__file__).parent.parent / "scripts"
         self.script_dir.mkdir(parents=True, exist_ok=True)
     
     def _build_system_prompt(self) -> str:
