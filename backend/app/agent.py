@@ -27,7 +27,7 @@ from app.execution.runner import run_script
 # LLM Configuration
 LLM_BASE_URL = "https://REDACTED_BASE_URL_HOST/v1"
 LLM_API_KEY = "REDACTED_API_KEY"
-LLM_MODEL = "gemini-3-pro-preview"
+LLM_MODEL = "us.anthropic.claude-opus-4-20250514-v1:0"
 
 
 @dataclass

@@ -1,7 +1,20 @@
+'''
+Author: ai-business-hql ai.bussiness.hql@gmail.com
+Date: 2025-12-22 11:11:34
+LastEditors: ai-business-hql ai.bussiness.hql@gmail.com
+LastEditTime: 2025-12-22 14:57:28
+FilePath: /mcp-workflow/backend/app/tool_search/selector.py
+Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+'''
 from typing import List, Dict, Any
+#from app.tool_search.search_agent import SearchAgent
 import json
 
-def select_tools(user_message: str, all_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+
+
+
+async def select_tools(user_message: str,
+                 all_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Select relevant tools based on user message.
     
@@ -17,23 +30,24 @@ def select_tools(user_message: str, all_tools: List[Dict[str, Any]]) -> List[Dic
         - Future: Use LLM or keyword matching to intelligently select tools
     """
     # Phase 1: Simple implementation - return all tools
-    print(f"[Tool Search] Selecting tools for message: '{user_message[:50]}...'")
+    print(
+        f"[Tool Search] Selecting tools for message: '{user_message[:50]}...'")
     print(f"[Tool Search] Available tools: {len(all_tools)}")
     print(f"[Tool Search] Strategy: Return all tools (simple)")
-    
     # Filter out default mock tools if we have real MCP tools
     mcp_tools = [t for t in all_tools if 'server_url' in t]
-    
+    search_agent = SearchAgent.instance
     if mcp_tools:
         # Prefer MCP tools over mock tools
-        selected = mcp_tools
-        print(f"[Tool Search] Selected {len(selected)} MCP tools")
+        selected_tools = await search_agent.search_tools(user_message=user_message, all_mcp_tools=all_tools)
+        print(f"[Tool Search] Selected {len(selected_tools)} MCP tools")
     else:
         # Fallback to all tools including mocks
-        selected = all_tools
-        print(f"[Tool Search] Selected {len(selected)} tools (including mocks)")
-    
-    return selected
+        selected_tools = all_tools
+        print(
+            f"[Tool Search] Selected {len(selected_tools)} tools (including mocks)")
+
+    return selected_tools
 
 
 def format_tools_for_llm(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -47,7 +61,7 @@ def format_tools_for_llm(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         List of tools in OpenAI function calling format
     """
     formatted_tools = []
-    
+
     for tool in tools:
         # Build enhanced description with output schema information
         description = tool['description']
@@ -80,5 +94,5 @@ def format_tools_for_llm(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             }
         }
         formatted_tools.append(formatted_tool)
-    
+
     return formatted_tools

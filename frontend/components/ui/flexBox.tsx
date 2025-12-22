@@ -26,7 +26,7 @@ const FlexBox: React.FC<IProps> = (props) => {
                             title
                         }
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 w-full">
                         {
                             children
                         }
