@@ -61,8 +61,7 @@ const SkillsPanel = () => {
                                         setSelectedIndex(index)
                                         setOpen(true)
                                     }}
-                                    onTrash={(e) => {
-                                        e.stopPropagation()
+                                    onTrash={() => {
                                         handleDeleteSkill(skill.name)
                                     }}
                                 >

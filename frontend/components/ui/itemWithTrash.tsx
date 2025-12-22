@@ -5,7 +5,7 @@ import { MouseEventHandler, ReactNode } from "react"
 interface IProps {
     selected?: boolean
     onItem?: MouseEventHandler<HTMLElement>
-    onTrash?: () => void | MouseEventHandler<HTMLElement>
+    onTrash?: () => void
     children?: ReactNode
     className?: string
 }
@@ -23,7 +23,10 @@ const ItemWithTrash: React.FC<IProps> = (props) => {
         <Popconfirm
             title="Delete"
             description="Are you sure to delete?"
-            onConfirm={onTrash}
+            onConfirm={(e) => {
+                e?.stopPropagation()
+                onTrash?.()
+            }}
             onCancel={(e) => {
                 e?.stopPropagation()
             }}

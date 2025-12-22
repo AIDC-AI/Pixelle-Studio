@@ -3,8 +3,7 @@
 import { Message } from "@/types/message";
 import { useState } from "react";
 import MessageList from "./messageList";
-import { Button, Input, Upload, UploadFile, UploadProps } from "antd";
-import { FileOutlined } from '@ant-design/icons';
+import { Upload, UploadFile, UploadProps } from "antd";
 import { api } from "@/lib/api";
 import { useApp } from "@/context";
 import { MAX_SESSION_COUNT, sessionAPI } from "@/lib/session";
@@ -15,7 +14,6 @@ const Chat = () => {
       config, 
       activeSessionId, 
       setActiveSessionId,
-      sessions,
       setSessions,
       sessionMessages,
       setSessionMessages
@@ -35,18 +33,14 @@ const Chat = () => {
             title
         }
         setActiveSessionId(id)
-        // 超出上限，去掉第一个进栈的元素
-        if (sessions?.length >= MAX_SESSION_COUNT) {
-            setSessions(prev => ([
-                ...prev,
-                session
-            ].slice(1)))
-        } else {
-            setSessions(prev => ([
-                ...prev,
-                session
-            ]))
-        }
+        // 超出上限，去掉最后一个的元素
+        setSessions(prev => {
+            const arr = [session, ...prev]
+            if (arr?.length > MAX_SESSION_COUNT) {
+              return arr.slice(0, MAX_SESSION_COUNT)
+            } 
+            return arr
+        })
         return id;
     }
 
