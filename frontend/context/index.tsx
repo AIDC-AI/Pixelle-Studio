@@ -41,9 +41,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     
     const deleteSession = (id: string) => {
         setSessions(prev => [...prev.filter((session) => session.id !== id)])
-        if (activeSessionId === id) {
-            setActiveSessionId('')
-        }
+        setActiveSessionId('')
         setSessionMessages(prev => ({
             ...prev,
             [id]: null

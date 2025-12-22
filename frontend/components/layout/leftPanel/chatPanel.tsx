@@ -39,16 +39,16 @@ const ChatPanel = () => {
             <h3 className="font-title text-text-default mb-2">对话历史</h3>
             <div className="space-y-2">
                 {
-                    sessions?.reverse()?.map((session) => (
+                    sessions?.map((session) => (
                         <ItemWithTrash
                             key={session.id}
                             selected={activeSessionId === session.id}
                             onItem={(e) => {
                                 e.stopPropagation()
+                                console.log('onItem-->')
                                 setActiveSessionId(session.id)
                             }}
-                            onTrash={(e) => {
-                                e.stopPropagation()
+                            onTrash={() => {
                                 deleteSession(session.id)
                             }}
                         >

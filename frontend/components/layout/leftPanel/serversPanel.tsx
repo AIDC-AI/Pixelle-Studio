@@ -79,8 +79,7 @@ const ServersPanel = () => {
                                         setCurrentServer(config.servers.find(s => s.id === server.id) || null)
                                         setOpen(true)
                                     }}
-                                    onTrash={(e) => {
-                                        e.stopPropagation()
+                                    onTrash={() => {
                                         handleDeleteServer(server.id)
                                     }}
                                 >
