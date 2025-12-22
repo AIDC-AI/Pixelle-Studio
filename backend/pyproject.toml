@@ -16,4 +16,5 @@ dependencies = [
   "aiohttp",
   "pandas",
   "openpyxl",
+  "sentence-transformers>=5.2.0",
 ]
