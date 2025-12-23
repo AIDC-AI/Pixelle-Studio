@@ -1,6 +1,6 @@
-from sqlalchemy import Column, String, DateTime, create_engine
+from sqlalchemy import Column, String, DateTime, ForeignKey, create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import uuid
 
@@ -16,8 +16,12 @@ class MCPServer(Base):
     command = Column(String, nullable=True)  # for stdio
     args = Column(String, nullable=True)  # JSON string array
     error = Column(String, nullable=True)
+    uid = Column(String, ForeignKey('users.uid'), nullable=False, index=True)  # 关联用户
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关系
+    user = relationship("User", back_populates="mcp_servers")
 
 
 class User(Base):
@@ -29,6 +33,9 @@ class User(Base):
     password = Column(String, nullable=False)  # hashed password
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关系
+    mcp_servers = relationship("MCPServer", back_populates="user", cascade="all, delete-orphan")
 
 
 # Database setup

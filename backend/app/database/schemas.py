@@ -13,7 +13,7 @@ class MCPServerBase(BaseModel):
 
 
 class MCPServerCreate(MCPServerBase):
-    pass
+    pass  # uid will be set from current_user in the route
 
 
 class MCPServerUpdate(BaseModel):
@@ -27,6 +27,7 @@ class MCPServerUpdate(BaseModel):
 
 class MCPServerResponse(MCPServerBase):
     id: str
+    uid: str  # 用户 ID
     created_at: datetime
     updated_at: datetime
 

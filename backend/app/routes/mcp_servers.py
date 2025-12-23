@@ -13,8 +13,10 @@ def get_all_servers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all MCP servers (requires authentication)"""
-    servers = db.query(MCPServer).order_by(MCPServer.created_at.desc()).all()
+    """Get all MCP servers for current user (requires authentication)"""
+    servers = db.query(MCPServer).filter(
+        MCPServer.uid == current_user.uid
+    ).order_by(MCPServer.created_at.desc()).all()
     return servers
 
 
@@ -24,8 +26,11 @@ def get_server(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get a specific MCP server (requires authentication)"""
-    server = db.query(MCPServer).filter(MCPServer.id == server_id).first()
+    """Get a specific MCP server (requires authentication and ownership)"""
+    server = db.query(MCPServer).filter(
+        MCPServer.id == server_id,
+        MCPServer.uid == current_user.uid
+    ).first()
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
     return server
@@ -38,8 +43,11 @@ def create_server(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new MCP server (requires authentication)"""
-    # Check if server with same name exists
-    existing = db.query(MCPServer).filter(MCPServer.name == server.name).first()
+    # Check if server with same name exists for this user
+    existing = db.query(MCPServer).filter(
+        MCPServer.name == server.name,
+        MCPServer.uid == current_user.uid
+    ).first()
     if existing:
         raise HTTPException(status_code=409, detail="Server with this name already exists")
     
@@ -51,7 +59,8 @@ def create_server(
             detail=f"Invalid transport. Must be one of: {', '.join(valid_transports)}"
         )
     
-    db_server = MCPServer(**server.model_dump())
+    # Create server with current user's uid
+    db_server = MCPServer(**server.model_dump(), uid=current_user.uid)
     db.add(db_server)
     db.commit()
     db.refresh(db_server)
@@ -65,14 +74,20 @@ def update_server(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update an MCP server (requires authentication)"""
-    db_server = db.query(MCPServer).filter(MCPServer.id == server_id).first()
+    """Update an MCP server (requires authentication and ownership)"""
+    db_server = db.query(MCPServer).filter(
+        MCPServer.id == server_id,
+        MCPServer.uid == current_user.uid
+    ).first()
     if not db_server:
         raise HTTPException(status_code=404, detail="Server not found")
     
-    # Check name uniqueness if updating name
+    # Check name uniqueness if updating name (within user's servers)
     if server.name and server.name != db_server.name:
-        existing = db.query(MCPServer).filter(MCPServer.name == server.name).first()
+        existing = db.query(MCPServer).filter(
+            MCPServer.name == server.name,
+            MCPServer.uid == current_user.uid
+        ).first()
         if existing:
             raise HTTPException(status_code=409, detail="Server with this name already exists")
     
@@ -101,8 +116,11 @@ def delete_server(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete an MCP server (requires authentication)"""
-    db_server = db.query(MCPServer).filter(MCPServer.id == server_id).first()
+    """Delete an MCP server (requires authentication and ownership)"""
+    db_server = db.query(MCPServer).filter(
+        MCPServer.id == server_id,
+        MCPServer.uid == current_user.uid
+    ).first()
     if not db_server:
         raise HTTPException(status_code=404, detail="Server not found")
     
