@@ -95,11 +95,11 @@ const Chat = () => {
         const currentFileUrls = doneFiles
             ?.filter((file) => !!(file?.response?.url || file?.url))
             .map((file) => (file.response?.url || file.url) as string)
-        const currentFilePaths = doneFiles
-            ?.filter((file) => !!file?.response?.file_path)
-            .map((file) => file.response.file_path as string)
+        const currentFileNames = doneFiles
+            ?.filter((file) => !!file?.response?.file_name)
+            .map((file) => file.response.file_name as string)
         
-        console.log('[DEBUG] doneFiles:', doneFiles.length, 'currentFilePaths:', currentFilePaths);
+        console.log('[DEBUG] doneFiles:', doneFiles.length, 'currentFileNames:', currentFileNames);
         setInput('');
         setFileList([]);
         setIsProcessing(true);
@@ -126,7 +126,7 @@ const Chat = () => {
         
         try {
           // 1. Create Chat (backend will auto-select tools)
-          const { chat_id } = await api.createChat(input, config, currentFileUrls, currentFilePaths);
+          const { chat_id } = await api.createChat(input, config, currentFileUrls, currentFileNames);
     
           // 2. Connect WebSocket
           const ws = new WebSocket(api.getWebSocketUrl(chat_id));

@@ -37,7 +37,7 @@ export const api = {
         return response.json();
     },
 
-    createChat: async (message: string, mcpConfig?: MCPServerConfig, fileUrls?: string[], filePaths?: string[]): Promise<ChatResponse> => {
+    createChat: async (message: string, mcpConfig?: MCPServerConfig, fileUrls?: string[], fileNames?: string[]): Promise<ChatResponse> => {
         const res = await fetch(`${API_BASE}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -45,7 +45,7 @@ export const api = {
                 message,
                 mcp_config: mcpConfig,  // Send config for tool fetching
                 file_urls: fileUrls || [],  // Send file URLs
-                file_paths: filePaths || []  // Send local file paths for Agent
+                file_names: fileNames || []  // Send uploaded file names for Agent
             }),
         });
         return res.json();
