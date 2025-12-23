@@ -242,6 +242,7 @@ from pathlib import Path
         self,
         user_message: str,
         file_urls: List[str] = None,
+        file_paths: List[str] = None,
         session_id: str = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
@@ -251,7 +252,8 @@ from pathlib import Path
         
         Args:
             user_message: User's input message
-            file_urls: Optional list of file URLs
+            file_urls: Optional list of file URLs (for display/download)
+            file_paths: Optional list of local file paths (for Agent to use directly)
             session_id: Optional session ID
             
         Yields:
@@ -260,11 +262,28 @@ from pathlib import Path
         session_id = session_id or str(uuid.uuid4())[:8]
         self.tool_call_count = 0
         
+        # Debug: 打印收到的参数
+        print(f"[Agent DEBUG] file_urls: {file_urls}")
+        print(f"[Agent DEBUG] file_paths: {file_paths}")
+        
         # Build initial user message with file context
         full_user_message = user_message
-        if file_urls:
-            full_user_message += "\n\nUser uploaded files:\n"
-            full_user_message += "\n".join([f"- {url}" for url in file_urls])
+        
+        # 优先使用 file_paths（本地路径），这样 LLM 可以直接使用
+        if file_paths:
+            full_user_message += "\n\n## 用户上传的文件（本地路径，可直接在代码中使用）:\n"
+            for path in file_paths:
+                full_user_message += f"- {path}\n"
+        elif file_urls:
+            # 兜底：如果只有 URL，尝试从 URL 中解析文件名并拼接本地路径
+            full_user_message += "\n\n## 用户上传的文件:\n"
+            for url in file_urls:
+                filename = url.split("/")[-1]
+                local_path = self.script_dir / filename
+                if local_path.exists():
+                    full_user_message += f"- {local_path} (本地路径)\n"
+                else:
+                    full_user_message += f"- {url}\n"
         
         # Initialize conversation
         self.messages = [

@@ -75,6 +75,7 @@ log.info(f"Loaded {len(skills_list)} skills: {[s.name for s in skills_list]}")
 class ChatRequest(BaseModel):
     message: str
     file_urls: Optional[List[str]] = None
+    file_paths: Optional[List[str]] = None  # 本地文件绝对路径，优先使用
 
 
 class ChatResponse(BaseModel):
@@ -91,9 +92,11 @@ async def create_chat(request: ChatRequest):
             "content": request.message
         }],
         "file_urls": request.file_urls or [],
+        "file_paths": request.file_paths or [],  # 本地文件路径
         "status": "created"
     }
     log.info(f"Created chat {chat_id}: {request.message[:50]}...")
+    log.info(f"[DEBUG] file_urls: {request.file_urls}, file_paths: {request.file_paths}")
     return {"chat_id": chat_id}
 
 
@@ -119,8 +122,9 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
             chat["status"] = "active"
             user_message = chat["messages"][0]["content"]
             file_urls = chat.get("file_urls", [])
+            file_paths = chat.get("file_paths", [])
             
-            await process_with_agent(websocket, chat_id, user_message, file_urls)
+            await process_with_agent(websocket, chat_id, user_message, file_urls, file_paths)
         
         # Listen for follow-up messages
         while True:
@@ -129,13 +133,14 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
             if data.get("type") == "message":
                 user_message = data.get("content", "")
                 file_urls = data.get("file_urls", [])
+                file_paths = data.get("file_paths", [])
                 
                 if user_message:
                     chat["messages"].append({
                         "role": "user",
                         "content": user_message
                     })
-                    await process_with_agent(websocket, chat_id, user_message, file_urls)
+                    await process_with_agent(websocket, chat_id, user_message, file_urls, file_paths)
     
     except WebSocketDisconnect:
         log.info(f"WebSocket disconnected: {chat_id}")
@@ -151,7 +156,8 @@ async def process_with_agent(
     websocket: WebSocket,
     chat_id: str,
     user_message: str,
-    file_urls: List[str]
+    file_urls: List[str],
+    file_paths: List[str] = None
 ):
     """
     Process a user message using the single agent.
@@ -168,6 +174,7 @@ async def process_with_agent(
         async for event in agent.run(
             user_message=user_message,
             file_urls=file_urls,
+            file_paths=file_paths or [],
             session_id=chat_id[:8]
         ):
             # Forward all events to the frontend
@@ -250,6 +257,7 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
         return {
             "success": True,
             "url": lan_url,
+            "file_path": str(file_path.absolute()),  # 本地绝对路径，供 Agent 直接使用
             "filename": file.filename,
             "size": file_path.stat().st_size
         }

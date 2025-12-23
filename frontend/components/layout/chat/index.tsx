@@ -4,7 +4,7 @@ import { Message, ExecutionResult } from "@/types/message";
 import { useState } from "react";
 import MessageList from "./messageList";
 import { Upload, UploadFile, UploadProps } from "antd";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { useApp } from "@/context";
 import { MAX_SESSION_COUNT, sessionAPI } from "@/lib/session";
 import { Loader2, Plus, Send, Trash2 } from "lucide-react";
@@ -55,11 +55,12 @@ const Chat = () => {
     }
 
     const handleChange: UploadProps['onChange'] = (info) => {
-        let newFileList = [...fileList, ...info.fileList];
-
-        newFileList = newFileList.map((file) => {
+        // info.fileList 已经是完整的文件列表，不需要再追加
+        let newFileList = info.fileList.map((file) => {
             if (file.response) {
                 file.url = file.response.url;
+                // 存储本地文件路径，供 Agent 直接使用
+                (file as any).filePath = file.response.file_path;
             }
             return file;
         });
@@ -79,8 +80,26 @@ const Chat = () => {
         e.preventDefault();
 
         if (!input.trim() || isProcessing) return;
+        
+        // 检查是否有文件正在上传
+        const uploadingFiles = fileList.filter(f => f.status === 'uploading');
+        if (uploadingFiles.length > 0) {
+            console.log('[DEBUG] 等待文件上传完成...');
+            return; // 阻止提交，等待上传完成
+        }
     
-        const currentFileUrls = fileList?.filter((file) => !!file?.url && file?.url !== '').map((file) => file.url!)
+        // 只选择已上传完成的文件 (status === 'done')
+        const doneFiles = fileList.filter(f => f.status === 'done');
+        
+        // 直接从 response 中获取，确保数据正确
+        const currentFileUrls = doneFiles
+            ?.filter((file) => !!(file?.response?.url || file?.url))
+            .map((file) => (file.response?.url || file.url) as string)
+        const currentFilePaths = doneFiles
+            ?.filter((file) => !!file?.response?.file_path)
+            .map((file) => file.response.file_path as string)
+        
+        console.log('[DEBUG] doneFiles:', doneFiles.length, 'currentFilePaths:', currentFilePaths);
         setInput('');
         setFileList([]);
         setIsProcessing(true);
@@ -107,7 +126,7 @@ const Chat = () => {
         
         try {
           // 1. Create Chat (backend will auto-select tools)
-          const { chat_id } = await api.createChat(input, config, currentFileUrls);
+          const { chat_id } = await api.createChat(input, config, currentFileUrls, currentFilePaths);
     
           // 2. Connect WebSocket
           const ws = new WebSocket(api.getWebSocketUrl(chat_id));
@@ -333,10 +352,11 @@ const Chat = () => {
                     {/* Input Box */}
                     <div className="flex h-[100px] items-center gap-2 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100 transition-all px-3 rounded-2xl">
                         <Upload
-                            fileList={[]}
-                            action={'http://localhost:8001/api/upload'}
+                            fileList={fileList}
+                            action={`${API_BASE}/upload`}
                             onChange={handleChange}
                             beforeUpload={beforeUpload}
+                            showUploadList={false}
                             multiple
                             disabled={isProcessing}
                         >
@@ -365,7 +385,7 @@ const Chat = () => {
                         
                         <button
                             onClick={handleSubmit}
-                            disabled={isProcessing || (!input.trim() && fileList.length === 0)}
+                            disabled={isProcessing || (!input.trim() && fileList.length === 0) || fileList.some(f => f.status === 'uploading')}
                             className="p-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-300 disabled:text-slate-400 disabled:cursor-not-allowed transition-all flex-shrink-0 shadow-lg shadow-blue-500/25 disabled:shadow-none"
                         >
                             {isProcessing ? (
