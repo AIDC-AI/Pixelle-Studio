@@ -14,6 +14,7 @@ import CodeItem from "./items/codeItem";
 import ExecutionResultItem from "./items/executionResultItem";
 import ResponseItem from "./items/responseItem";
 import SkillLoadedItem from "./items/skillLoadedItem";
+import OutputFilesItem from "./items/outputFilesItem";
 
 interface IProps {
     messages?: Message[] | null
@@ -66,6 +67,8 @@ const MessageList: React.FC<IProps> = (props) => {
                 return <ResponseItem content={msg.content} />
             case 'skill_loaded':
                 return <SkillLoadedItem skillName={msg.skillName || msg.content} />
+            case 'output_files':
+                return <OutputFilesItem files={msg.outputFiles || []} />
         }
         return null;
     }
@@ -75,7 +78,7 @@ const MessageList: React.FC<IProps> = (props) => {
         if (msg.type === 'user') {
             return 'self-end max-w-[85%]';
         }
-        if (msg.type === 'code' || msg.type === 'execution_result' || msg.type === 'result') {
+        if (msg.type === 'code' || msg.type === 'execution_result' || msg.type === 'result' || msg.type === 'output_files') {
             return 'self-start w-full max-w-[90%]';
         }
         if (msg.type === 'response') {

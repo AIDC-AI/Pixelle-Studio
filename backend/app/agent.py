@@ -14,6 +14,7 @@ error handling patterns and best practices.
 import os
 import json
 import uuid
+import socket
 from pathlib import Path
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from dataclasses import dataclass
@@ -28,6 +29,22 @@ from app.execution.runner import run_script
 LLM_BASE_URL = "https://REDACTED_BASE_URL_HOST/v1"
 LLM_API_KEY = "REDACTED_API_KEY"
 LLM_MODEL = "us.anthropic.claude-opus-4-20250514-v1:0"
+
+
+def get_local_ip():
+    """Get the local IP address of this machine."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "127.0.0.1"
+
+
+LOCAL_IP = get_local_ip()
+SERVER_PORT = 8001  # Default backend port
 
 
 @dataclass
@@ -106,14 +123,28 @@ When generating Python code:
 1. Wrap code in ```python and ``` markers
 2. The script must be self-contained and executable
 3. Use `print()` for output that you want to see
-4. For final results, print a JSON object with "status" and "result" keys
+4. For final results, print a JSON object with "status", "result", and optionally "output_file_names" keys
 5. Follow patterns from loaded skills when available
 
-Example output format:
+**IMPORTANT: If your code generates any output files (xlsx, csv, pdf, images, etc.), you MUST include `output_file_names` in your final JSON output!**
+
+Example output format (without output files):
 ```python
 import json
 # ... your code ...
-print(json.dumps({{"status": "success", "result": your_result}}))
+print(json.dumps({{"status": "success", "result": "任务完成的描述"}}))
+```
+
+Example output format (with output files):
+```python
+import json
+# ... your code that generates files ...
+output_files = ["report.xlsx", "chart.png"]  # List all generated files
+print(json.dumps({{
+    "status": "success", 
+    "result": "任务完成的描述",
+    "output_file_names": output_files
+}}))
 ```
 
 ## Skill Helper Scripts
@@ -356,13 +387,36 @@ from pathlib import Path
                 # Execute
                 exec_result = await self._execute_code(action.content, session_id)
                 
-                yield {
+                # Check if there are output files and generate URLs for them
+                output_files = []
+                if exec_result["result"] and isinstance(exec_result["result"], dict):
+                    output_file_names = exec_result["result"].get("output_file_names", [])
+                    if output_file_names:
+                        for file_name in output_file_names:
+                            # Check if file exists in script directory
+                            file_path = self.script_dir / file_name
+                            if file_path.exists():
+                                # Generate LAN URL
+                                file_url = f"http://{LOCAL_IP}:{SERVER_PORT}/f/{file_name}"
+                                output_files.append({
+                                    "file_name": file_name,
+                                    "file_url": file_url,
+                                    "file_size": file_path.stat().st_size
+                                })
+                
+                exec_result_event = {
                     "type": "execution_result",
                     "status": exec_result["status"],
                     "stdout": exec_result["stdout"],
                     "stderr": exec_result["stderr"],
                     "result": exec_result["result"]
                 }
+                
+                # Add output_files to the event if any
+                if output_files:
+                    exec_result_event["output_files"] = output_files
+                
+                yield exec_result_event
                 
                 # Add execution result to conversation
                 result_message = f"""[Code Execution Result]

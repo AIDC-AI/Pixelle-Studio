@@ -1,6 +1,6 @@
 'use client'
 
-import { Message, ExecutionResult } from "@/types/message";
+import { Message, ExecutionResult, OutputFile } from "@/types/message";
 import { useState } from "react";
 import MessageList from "./messageList";
 import { Upload, UploadFile, UploadProps } from "antd";
@@ -184,11 +184,13 @@ const Chat = () => {
               })
             } else if (data.type === 'execution_result') {
               // NEW: Handle execution result event
+              const outputFiles: OutputFile[] = data.output_files || [];
               const execResult: ExecutionResult = {
                 status: data.status,
                 stdout: data.stdout || '',
                 stderr: data.stderr || '',
-                result: data.result
+                result: data.result,
+                output_files: outputFiles
               };
               messages.push({
                 type: 'execution_result',
@@ -200,6 +202,16 @@ const Chat = () => {
                   executionCount: currentExecCount
                 }
               })
+              
+              // If there are output files, add a separate output_files message
+              if (outputFiles.length > 0) {
+                messages.push({
+                  type: 'output_files',
+                  content: `${outputFiles.length} 个文件已生成`,
+                  timestamp: Date.now(),
+                  outputFiles: outputFiles
+                })
+              }
             } else if (data.type === 'response') {
               // NEW: Handle direct response from agent
               removeProcessingMessage(); // Remove loading message
