@@ -27,3 +27,4 @@ mcp-server-test/.idea/
 work_dir/
 .DS_Store/
 .vscode
+*.db
