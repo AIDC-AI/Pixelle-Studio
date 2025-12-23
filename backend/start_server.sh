@@ -12,5 +12,6 @@ echo "Python 路径: $(.venv/bin/python3 -c 'import sys; print(sys.executable)')
 echo ""
 
 # 使用 .venv 中的 Python 启动 uvicorn
-.venv/bin/python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+# --reload-exclude scripts 排除脚本目录，防止生成脚本时触发服务器重启
+.venv/bin/python3 -m uvicorn app.main:app --reload --reload-exclude scripts --host 0.0.0.0 --port 8001
 

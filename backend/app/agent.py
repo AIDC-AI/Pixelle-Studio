@@ -242,6 +242,7 @@ from pathlib import Path
         self,
         user_message: str,
         file_urls: List[str] = None,
+        file_names: List[str] = None,
         session_id: str = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
@@ -251,7 +252,8 @@ from pathlib import Path
         
         Args:
             user_message: User's input message
-            file_urls: Optional list of file URLs
+            file_urls: Optional list of file URLs (for display/download)
+            file_names: Optional list of uploaded file names (e.g. ['9120.xlsx'])
             session_id: Optional session ID
             
         Yields:
@@ -260,11 +262,24 @@ from pathlib import Path
         session_id = session_id or str(uuid.uuid4())[:8]
         self.tool_call_count = 0
         
+        # Debug: 打印收到的参数
+        print(f"[Agent DEBUG] file_urls: {file_urls}")
+        print(f"[Agent DEBUG] file_names: {file_names}")
+        
         # Build initial user message with file context
         full_user_message = user_message
-        if file_urls:
-            full_user_message += "\n\nUser uploaded files:\n"
-            full_user_message += "\n".join([f"- {url}" for url in file_urls])
+        
+        # 使用 file_names，文件就在当前工作目录 (scripts/) 下
+        if file_names:
+            full_user_message += "\n\n## 用户上传的文件（在当前目录下）:\n"
+            for name in file_names:
+                full_user_message += f"- {name}\n"
+        elif file_urls:
+            # 兜底：如果只有 URL，从 URL 中解析文件名
+            full_user_message += "\n\n## 用户上传的文件（在当前目录下）:\n"
+            for url in file_urls:
+                filename = url.split("/")[-1]
+                full_user_message += f"- {filename}\n"
         
         # Initialize conversation
         self.messages = [

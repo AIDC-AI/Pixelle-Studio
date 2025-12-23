@@ -1,5 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8001/api';
-const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE || 'ws://localhost:8001/ws';
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8001/api';
+export const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE || 'ws://localhost:8001/ws';
 
 import { Skill } from '@/types/skill';
 import { type MCPServerConfig } from './mcpServerApi';
@@ -31,14 +31,15 @@ export const api = {
         return response.json();
     },
 
-    createChat: async (message: string, mcpConfig?: MCPServerConfig, fileUrls?: string[]): Promise<ChatResponse> => {
+    createChat: async (message: string, mcpConfig?: MCPServerConfig, fileUrls?: string[], fileNames?: string[]): Promise<ChatResponse> => {
         const res = await fetch(`${API_BASE}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message,
                 mcp_config: mcpConfig,  // Send config for tool fetching
-                file_urls: fileUrls || []  // Send file URLs
+                file_urls: fileUrls || [],  // Send file URLs
+                file_names: fileNames || []  // Send uploaded file names for Agent
             }),
         });
         return res.json();
