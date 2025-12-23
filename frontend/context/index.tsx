@@ -1,18 +1,23 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { mcpServerAPI, type MCPServerConfig } from '../lib/mcpConfig';
 import { sessionAPI } from '@/lib/session';
 import { Session } from '@/types/session';
 import { Message } from '@/types/message';
 import { message } from 'antd';
 import { MessageInstance } from 'antd/es/message/interface';
+import { UserResponse } from '@/types/user';
+import { userAPI } from '@/lib/userApi';
+import { useRouter, usePathname } from 'next/navigation';
 
 type MessageMap = Record<string, Message[] | null> 
 
 type IProps = {
-    config: MCPServerConfig
-    setConfig: React.Dispatch<React.SetStateAction<MCPServerConfig>>
+    user: UserResponse | null
+    setUser: React.Dispatch<React.SetStateAction<UserResponse | null>>
+
+    token: string | null
+    setToken: React.Dispatch<React.SetStateAction<string | null>>
 
     activeSessionId: string
     setActiveSessionId: React.Dispatch<React.SetStateAction<string>>
@@ -25,13 +30,21 @@ type IProps = {
 
     messageApi: MessageInstance
 
+    login: (email: string, password: string) => Promise<void>
+    register: (username: string, email: string, password: string) => Promise<boolean>
+    logout: () => void
     deleteSession: (id: string) => void 
 };
 
 const AppContext = createContext<IProps | null>(null);
 
+const PUBLIC_ROUTES = ['/auth']
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
-    const [config, setConfig] = useState<MCPServerConfig>(mcpServerAPI.loadConfig());
+    const router = useRouter();
+    const pathname = usePathname();
+    const [user, setUser] = useState<UserResponse | null>(null)
+    const [token, setToken] = useState<string | null>(null)
     const [activeSessionId, setActiveSessionId] = useState<string>('');
     const [sessions, setSessions] = useState<Session[]>([])
     const [sessionMessages, setSessionMessages] = useState<MessageMap>({});
@@ -47,6 +60,64 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             [id]: null
         }))
         sessionAPI.deleteMessagesBySessionId(id)
+        setSessionMessages(prev => ({
+            ...prev,
+            [id]: null
+        }))
+        sessionAPI.deleteMessagesBySessionId(id)
+    }
+
+    const login = async (email: string, password: string) => {
+        try {
+            const res = await userAPI.login(email, password)
+            if (!!res) {
+                userAPI.setToken(res.token.access_token)
+                setToken(res.token.access_token)
+                setUser(res.user)
+            }
+        } catch (error) {
+            messageApi.error((error as Error)?.message || 'Login Failed!')
+        }
+    }
+
+    const register = async (username: string, email: string, password: string) => {
+        try {
+            const res = await userAPI.createUser({
+                username,
+                email,
+                password
+            })
+            if (!!res) {
+                messageApi.success('Register Successed!')
+                return true
+            }
+        } catch (error) {
+            messageApi.error((error as Error)?.message || 'Register Failed!')
+            return false
+        }
+    } 
+
+    const logout = () => {
+        try {
+            setUser(null)
+            setToken(null)
+            userAPI.logout()
+            messageApi.success('Logout Successed!')
+        } catch (error) {
+            messageApi.error((error as Error)?.message || 'Logout Failed!')
+        }
+    }
+
+    const getCurrentUser = async () => {
+        const user = await userAPI.getCurrentUser()
+        if (!!user) {
+            setUser(user)
+            setToken(userAPI.getToken())
+        } else {
+            userAPI.clearToken()
+            setUser(null)
+            setToken(null)
+        }
     }
 
     useEffect(() => {
@@ -78,11 +149,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
     }, [])
     
+    useEffect(() => {
+        const isAuthRoute = PUBLIC_ROUTES.includes(pathname);
+        if (!!userAPI.isAuthenticated() && !!isAuthRoute) {
+            getCurrentUser()
+
+        } else {
+
+        }
+    }, [token, router, pathname])
+
     return <AppContext.Provider
         value={
             {
-                config,
-                setConfig,
+                user, 
+                setUser,
+                token, 
+                setToken,
                 activeSessionId, 
                 setActiveSessionId, 
                 sessions, 
@@ -90,6 +173,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 sessionMessages, 
                 setSessionMessages,
                 messageApi,
+                login,
+                register,
+                logout,
                 deleteSession
             }
         }

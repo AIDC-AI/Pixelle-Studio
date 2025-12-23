@@ -1,7 +1,8 @@
-import { Button, Form, FormProps, Input, Modal, Select } from "antd"
-import { MCPServer, mcpServerAPI } from "@/lib/mcpConfig";
+import { Form, Input, Modal, Select } from "antd"
+import { mcpServerAPI } from "@/lib/mcpServerApi";
 import { useEffect, useState } from "react";
 import { useApp } from "@/context";
+import { MCPServer } from "@/types/server";
 
 interface IProps {
     open: boolean
@@ -25,7 +26,7 @@ const connectionTypes = [
     { label: 'Stdio', value: 'stdio' },
 ];
 
-const McpConfigureModal: React.FC<IProps> = (props) => {
+const McpServerConfigureModal: React.FC<IProps> = (props) => {
     const { open, setOpen, server } = props;
     const { config, setConfig, messageApi } = useApp()
 
@@ -214,4 +215,4 @@ const McpConfigureModal: React.FC<IProps> = (props) => {
     </Modal>
 }
 
-export default McpConfigureModal
+export default McpServerConfigureModal

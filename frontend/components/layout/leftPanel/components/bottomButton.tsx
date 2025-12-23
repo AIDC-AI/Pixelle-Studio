@@ -9,10 +9,10 @@ interface IProps {
 const BottomButton: React.FC<IProps> = (props) => {
     const { text = '', icon, onClick = () => {} } = props
 
-    return <div className="p-4 border-t border-border-default">
+    return <div className="p-4 border-t border-gray-200">
         <button 
             onClick={onClick}
-            className="w-full flex items-center gap-2 px-4 py-2.5 text-text-default bg-default hover:bg-hover rounded-lg transition-colors"
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-gray-400 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
         >
             {icon}
             <span className="text-sm">{text}</span>

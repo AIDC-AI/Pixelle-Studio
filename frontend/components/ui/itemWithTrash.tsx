@@ -15,7 +15,7 @@ const ItemWithTrash: React.FC<IProps> = (props) => {
 
     return <div 
         onClick={onItem}
-        className={`group flex items-center gap-1 px-4 py-2 rounded-lg ${selected ? "bg-selected" : "bg-default text-text-default"} hover:bg-hover cursor-pointer transition-colors ${className}`}
+        className={`group flex items-center gap-1 px-4 py-2 rounded-lg ${selected ? "bg-gray-100" : ""} hover:bg-gray-100 cursor-pointer transition-colors ${className}`}
     >
         <div className="flex-1 min-w-0">
             {children}

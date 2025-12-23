@@ -14,20 +14,24 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+  默认背景：gray-50 文本 gray-600
+  有选中和选择状态时默认背景纯白
+  选中和hover：gray-100 
+  disabled：gray-200 文本 gray-400
+*/
 @theme {
-  --color-default: #f9fafb; /* gray-50 */
-  --color-selected: #e5e7eb; /* gray-200 */
-  --color-hover: #d1d5dc; /* gray-300 */
-  --color-disabled: #d9d9d9;
-
-  --color-text-default: #4a5565; /* gray-600 */
-  --color-text-selected: #fff;
-  --color-text-hover: #fff;
-  --color-text-disabled: #99a1af; /* gray-400 */
-
-  --color-btn-hover: #e5e7eb;
-
-  --color-border-default: #e5e7eb;
+  /* Gray scale - Tailwind default colors */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
 }
 
 /* Scrollbar Styling */

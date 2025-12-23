@@ -2,21 +2,15 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8001/api'
 const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE || 'ws://localhost:8001/ws';
 
 import { Skill } from '@/types/skill';
-import { type MCPServerConfig } from './mcpConfig';
-
-export interface Tool {
-    name: string;
-    description: string;
-    functions?: string[];
-    inputSchema?: any;
-}
+import { type MCPServerConfig } from './mcpServerApi';
+import { MCPTool } from '@/types/server';
 
 export interface ChatResponse {
     chat_id: string;
 }
 
 export const api = {
-    getTools: async (config?: MCPServerConfig): Promise<Tool[]> => {
+    getTools: async (config?: MCPServerConfig): Promise<MCPTool[]> => {
         const options: RequestInit = {};
 
         if (config) {

@@ -23,6 +23,7 @@ mcp-server-test/.idea/
 # next.js
 .next
 
+.env
 work_dir/
 .DS_Store/
 .vscode
