@@ -30,12 +30,12 @@ const MessageList: React.FC<IProps> = (props) => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
     
-    const renderItem = (msg: Message, index: number) => {
+    const renderItem = (msg: Message, isLast: boolean) => {
         switch (msg.type) {
             case 'user':
-                return <UserItem content={msg.content} />
+                return <UserItem content={msg.content} files={msg.files} />
             case 'system':
-                return <SystemItem content={msg.content} />
+                return <SystemItem content={msg.content} isLast={isLast} />
             case 'iteration':
                 return <IterationItem content={msg.content} />
             case 'log':
@@ -92,9 +92,9 @@ const MessageList: React.FC<IProps> = (props) => {
 
     return (
         <div className="flex flex-1 flex-col p-4 overflow-y-auto gap-4">
-            {messages?.map((msg, idx) => (
-                <div key={idx} className={`flex flex-col ${getMessageClass(msg)}`}>
-                    {renderItem(msg, idx)}
+            {messages?.map((msg, index) => (
+                <div key={index} className={`flex flex-col ${getMessageClass(msg)}`}>
+                    {renderItem(msg, index === messages.length - 1)}
                 </div>
             ))}
             {currentScript && (

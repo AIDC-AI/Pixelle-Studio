@@ -14,8 +14,10 @@
     "lucide-react": "^0.561.0",
     "next": "^16.0.8",
     "react": "^19.2.1",
+    "react-data-grid": "^7.0.0-beta.59",
     "react-dom": "^19.2.1",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",

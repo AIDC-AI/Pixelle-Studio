@@ -31,7 +31,14 @@ from app.skills.loader import get_skill_loader
 # Import logger
 from app.utils.logger import log
 
+# Import CRUD routes
+from app.routes import mcp_servers, users
+
 app = FastAPI(title="MCP Workflow API", version="2.0.0")
+
+# Include routers
+app.include_router(mcp_servers.router)
+app.include_router(users.router)
 
 # CORS
 app.add_middleware(

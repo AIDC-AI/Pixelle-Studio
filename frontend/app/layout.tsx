@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppProvider } from "@/context";
+import AuthGuard from "@/components/auth/AuthGuard";
 
 export const metadata: Metadata = {
     title: "MCP Workflow Demo",
@@ -16,7 +17,9 @@ export default function RootLayout({
         <html lang="en">
             <body>
                 <AppProvider>
-                    {children}
+                    <AuthGuard>
+                        {children}
+                    </AuthGuard>
                 </AppProvider>
             </body>
         </html>

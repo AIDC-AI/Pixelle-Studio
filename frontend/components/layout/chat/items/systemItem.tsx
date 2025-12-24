@@ -4,10 +4,11 @@ import { Loader2, Settings, Info, CheckCircle } from 'lucide-react';
 
 interface IProps {
     content?: string;
+    isLast?: boolean
 }
 
 const SystemItem: React.FC<IProps> = (props) => {
-    const { content = '' } = props;
+    const { content = '', isLast } = props;
 
     // Determine the icon and style based on content
     const isProcessing = content.toLowerCase().includes('processing') || 
@@ -17,6 +18,9 @@ const SystemItem: React.FC<IProps> = (props) => {
                        content.toLowerCase().includes('success') ||
                        content.toLowerCase().includes('done');
 
+    if (isProcessing && !isLast) 
+        return null
+    
     return (
         <div className="flex items-center gap-2 py-2">
             <div className={`flex items-center justify-center w-6 h-6 rounded-full ${

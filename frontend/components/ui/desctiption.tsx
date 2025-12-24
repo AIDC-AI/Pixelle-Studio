@@ -24,7 +24,7 @@ const Description: React.FC<IProps> = (props) => {
     const content = (
         <span 
             ref={textRef}
-            className="font-title text-text-disabled"
+            className="font-title text-gray-500"
             style={{
                 display: '-webkit-box',
                 WebkitLineClamp: lineCount,
@@ -49,8 +49,8 @@ const Description: React.FC<IProps> = (props) => {
                         width: 400,
                         padding: 12,
                         borderRadius: 12,
-                        backgroundColor: "var(--color-default)",
-                        color: "var(--color-text-default)",
+                        backgroundColor: "var(--color-gray-50)",
+                        color: "var(--color-gray-600)",
                         boxShadow: 'inset 0 0 8px #ccc',
                     }
                 }}
