@@ -33,7 +33,7 @@ const MessageList: React.FC<IProps> = (props) => {
     const renderItem = (msg: Message, isLast: boolean) => {
         switch (msg.type) {
             case 'user':
-                return <UserItem content={msg.content} files={msg.files} />
+                return <UserItem content={msg.content} files={msg.outputFiles} />
             case 'system':
                 return <SystemItem content={msg.content} isLast={isLast} />
             case 'iteration':

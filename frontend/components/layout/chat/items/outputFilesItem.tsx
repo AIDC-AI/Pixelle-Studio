@@ -88,9 +88,9 @@ const OutputFilesItem: React.FC<IProps> = ({ files }) => {
     };
 
     return (
-        <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-2xl border-2 border-emerald-200 shadow-lg overflow-hidden">
+        <div className="bg-linear-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-2xl border-2 border-emerald-200 shadow-lg overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-4">
+            <div className="bg-linear-to-r from-emerald-500 to-teal-500 px-5 py-4">
                 <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm">
                         <FolderDown className="w-6 h-6 text-white" />
@@ -133,7 +133,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files }) => {
 
                         {/* Download Button */}
                         <button
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg opacity-0 group-hover:opacity-100 hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/25"
+                            className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-emerald-500 to-teal-500 text-white rounded-lg opacity-0 group-hover:opacity-100 hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/25"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleDownload(file);

@@ -18,11 +18,6 @@ export interface CodeMessage {
   reasoning?: string;  // LLM's reasoning for generating this code
 }
 
-export interface UserFile {
-  name: string
-  url: string
-}
-
 export interface Message {
   type: 'user' | 'system' | 'log' | 'script' | 'result' | 'error' | 'iteration' | 'evaluation' | 'advice' | 'code' | 'execution_result' | 'response' | 'skill_loaded' | 'output_files';
   content: any;
@@ -32,10 +27,6 @@ export interface Message {
   executionResult?: ExecutionResult;
   codeData?: CodeMessage;
   skillName?: string;
-<<<<<<< HEAD
   // For output files
   outputFiles?: OutputFile[];
-=======
-  files?: UserFile[]
->>>>>>> dev/frontend
 }

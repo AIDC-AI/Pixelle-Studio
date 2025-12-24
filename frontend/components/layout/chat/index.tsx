@@ -97,11 +97,12 @@ const Chat = () => {
         const currentFileNames = doneFiles
             ?.filter((file) => !!file?.response?.file_name)
             .map((file) => file.response.file_name as string)
-        const userFiles = doneFiles
+        const outputFiles = doneFiles
             ?.filter((file) => !!(file?.response?.url || file?.url) && (file?.name))
             .map((file) => ({
-              name: file?.name,
-              url: file?.response?.url || file?.url
+              file_name: file?.name,
+              file_url: file?.response?.url || file?.url,
+              file_size: file.size || 0
             }))
             
         console.log('[DEBUG] doneFiles:', doneFiles.length, 'currentFileNames:', currentFileNames);
@@ -122,7 +123,7 @@ const Chat = () => {
             { 
               type: 'user', 
               content: input, 
-              files: userFiles,
+              outputFiles,
               timestamp: Date.now() 
             }
         ]

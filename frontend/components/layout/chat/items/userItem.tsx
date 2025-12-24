@@ -1,12 +1,12 @@
 'use client';
 
-import { UserFile } from '@/types/message';
+import { OutputFile } from '@/types/message';
 import { User } from 'lucide-react';
 import FilePreview from '@/components/ui/filePreview';
 
 interface IProps {
     content?: string;
-    files?: UserFile[]
+    files?: OutputFile[]
 }
 
 const UserItem: React.FC<IProps> = (props) => {
@@ -24,7 +24,7 @@ const UserItem: React.FC<IProps> = (props) => {
                         <div className="flex flex-wrap gap-2 mt-2">
                             {files.map((file, index) => (
                                 <div key={index} onClick={(e) => e.stopPropagation()}>
-                                    <FilePreview url={file.url} filename={file.name} />
+                                    <FilePreview url={file.file_url} filename={file.file_name} />
                                 </div>
                             ))}
                         </div>
