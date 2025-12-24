@@ -12,79 +12,49 @@ interface IProps {
 
 type FieldType = {
     name?: string;
-    type?: string;
-    endpoint?: string;
+    transport?: string;
     url?: string;
+    headers?: string;
     command?: string;
     args?: string;
-    headers?: string;
 };
 
 const connectionTypes = [
-    { label: 'HTTP (Streamable)', value: 'http' },
+    { label: 'Streamable HTTP (推荐)', value: 'streamable-http' },
     { label: 'SSE (Server-Sent Events)', value: 'sse' },
-    { label: 'Stdio', value: 'stdio' },
+    { label: 'STUDIO（本地进程）', value: 'stdio' },
 ];
 
-const McpServerConfigureModal: React.FC<IProps> = (props) => {
+const ToolConfigureModal: React.FC<IProps> = (props) => {
     const { open, setOpen, server } = props;
-    const { config, setConfig, messageApi } = useApp()
+    const { setMcpServers, messageApi } = useApp()
 
     const [form] = Form.useForm();
 
-    const [selectedType, setSelectedType] = useState<string>('');
+    const [selectedTransport, setSelectedTransport] = useState<string>('');
 
     useEffect(() => {
         if (server) {
             form?.setFieldsValue({
                 ...server,
-                ...server?.config
             });
-            setSelectedType(server.type);
+            setSelectedTransport(server.transport);
         }
     }, [server]);
 
     const handleOk = async () => {
         const values = await form.validateFields();
-        let serverConfig = {}
-        if (values.type === 'http') {
-            serverConfig = {
-                endpoint: values.endpoint
-            }
-        } else if (values.type === 'sse') {
-            serverConfig = {
-                url: values.url
-            }
-        } else if (values.type === 'stdio') {
-            serverConfig = {
-                command: values.command,
-                args: values.args,
-            }
+        const res = await mcpServerAPI.createServer(values)
+        if (!!res) {
+            setMcpServers(prev => [...prev, res])
+            messageApi.success('Successed!', 1)
+            handleCancel()
         }
-        const serverToSave: Partial<MCPServer> = {
-            name: values.name,
-            type: values.type,
-            config: serverConfig,
-            enabled: true
-        };
-        if (!!values.headers && values.headers !== '') {
-            serverToSave.headers = JSON.parse(values.headers);
-        }
-        if (!!server?.id) {
-            serverToSave.id = server.id;
-            mcpServerAPI.updateServer(server.id, serverToSave);
-            setConfig({ servers: config.servers.map(s => s.id === server.id ? { ...s, ...serverToSave } : s) });
-        } else {
-            const newServer = mcpServerAPI.addServer(serverToSave as Omit<MCPServer, 'id'>);
-            setConfig({ servers: [...config.servers, newServer] });
-        }
-        messageApi.success('Successed!', 1)
-        handleCancel()
     };
 
     const handleCancel = () => {
         form?.resetFields();
-        setSelectedType('');
+        setSelectedTransport('');
         setOpen(false);
     };
 
@@ -104,7 +74,7 @@ const McpServerConfigureModal: React.FC<IProps> = (props) => {
             autoComplete="off"
         >
             <Form.Item<FieldType>
-                label="Server Name"
+                label="名称"
                 name="name"
                 rules={[{ required: true, message: 'please input server name!' }]}
             >
@@ -112,58 +82,21 @@ const McpServerConfigureModal: React.FC<IProps> = (props) => {
             </Form.Item>
 
             <Form.Item<FieldType>
-                label="Connection Type"
-                name="type"
+                label="传输类型"
+                name="transport"
                 rules={[{ required: true, message: 'Please select connection type!' }]}
             >
-                <Select options={connectionTypes} onChange={(value) => setSelectedType(value)} />
+                <Select options={connectionTypes} onChange={(value) => setSelectedTransport(value)} />
             </Form.Item>
 
             {
-                selectedType === 'http' && (<>
+                (selectedTransport === 'streamable-http' || selectedTransport === 'sse') && (<>
                     <Form.Item<FieldType>
-                        label="Endpoint URL"
-                        name="endpoint"
+                        label="服务器 URL"
+                        name="url"
                         rules={[{ required: true, message: 'please input endpoint url!' }]}
                     >
                         <Input placeholder="https://api.example.com/mcp" size="small" allowClear />
-                    </Form.Item>
-                    <Form.Item<FieldType>
-                        label="Headers"
-                        name="headers"
-                        rules={[
-                            ({ }) => ({
-                                validator(_, value) {
-                                    if (!value || value === '')
-                                        return Promise.resolve();
-                                    try {
-                                        JSON.parse(value);
-                                        return Promise.resolve();
-                                    } catch (e) {
-                                        return Promise.reject(new Error('Headers JSON format is invalid. Please check and try again!'));
-                                    }
-                                },
-                            })
-                        ]}
-                    >
-                        <Input.TextArea 
-                            className="h-64"
-                            placeholder='Enter headers as JSON object, e.g. {"Authorization": "Bearer token"}' 
-                            size="small" 
-                            allowClear 
-                        />
-                    </Form.Item>
-                </>)
-            }
-
-            {
-                selectedType === 'sse' && (<>
-                    <Form.Item<FieldType>
-                        label="SSE URL"
-                        name="url"
-                        rules={[{ required: true, message: 'please input sse url!' }]}
-                    >
-                        <Input placeholder="https://api.example.com/events" size="small" allowClear />
                     </Form.Item>
                     <Form.Item<FieldType>
                         label="Headers"
@@ -194,16 +127,16 @@ const McpServerConfigureModal: React.FC<IProps> = (props) => {
             }
 
             {
-                selectedType === 'stdio' && (<>
+                selectedTransport === 'stdio' && (<>
                     <Form.Item<FieldType>
-                        label="Command"
+                        label="命令"
                         name="command"
                         rules={[{ required: true, message: 'please input command!' }]}
                     >
                         <Input placeholder="npx" size="small" allowClear />
                     </Form.Item>
                     <Form.Item<FieldType>
-                        label="Arguments"
+                        label="参数"
                         name="args"
                         rules={[{ required: true, message: 'please input arguments!' }]}
                     >
@@ -215,4 +148,4 @@ const McpServerConfigureModal: React.FC<IProps> = (props) => {
     </Modal>
 }
 
-export default McpServerConfigureModal
+export default ToolConfigureModal

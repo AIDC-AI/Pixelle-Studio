@@ -8,7 +8,7 @@ import os
 _DEFAULT_JWT_SECRET = "pixelle-jwt-secret-key-for-development-only-2024"
 SECRET_KEY = os.environ.get("JWT_SECRET", _DEFAULT_JWT_SECRET)  # 生产环境应该使用环境变量
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 24 * 7 
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 
 
 def _truncate_password(password: str) -> bytes:
     """Truncate password to 72 bytes for bcrypt compatibility"""

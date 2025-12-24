@@ -1,16 +1,5 @@
 import { UserResponse, CreateUserRequest, UpdateUserRequest, Token } from '@/types/user';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8001/api'
-const AUTH_TOKEN_KEY = 'auth_token';
-
-// Helper to get auth headers
-const getAuthHeaders = (): HeadersInit => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    return {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    };
-};
+import { API_BASE, AUTH_TOKEN_KEY, getAuthHeaders } from './data';
  
 export const userAPI = {
     // Store token

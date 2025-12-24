@@ -23,8 +23,8 @@ const EvalutaionItem: React.FC<IProps> = (props) => {
     return (
         <div className={`rounded-xl overflow-hidden border ${
             isPassing 
-                ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200'
-                : 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200'
+                ? 'bg-linear-to-br from-emerald-50 to-teal-50 border-emerald-200'
+                : 'bg-linear-to-br from-amber-50 to-orange-50 border-amber-200'
         }`}>
             {/* Header */}
             <div 
@@ -69,7 +69,7 @@ const EvalutaionItem: React.FC<IProps> = (props) => {
                         isPassing ? 'bg-white/60 border-emerald-100' : 'bg-white/60 border-amber-100'
                     }`}>
                         <div className="flex items-start gap-2 mb-2">
-                            <ClipboardCheck className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                            <ClipboardCheck className={`w-4 h-4 mt-0.5 shrink-0 ${
                                 isPassing ? 'text-emerald-500' : 'text-amber-500'
                             }`} />
                             <span className={`text-sm font-medium ${

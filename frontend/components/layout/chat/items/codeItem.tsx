@@ -23,7 +23,7 @@ const CodeItem: React.FC<IProps> = (props) => {
     const lineCount = code.split('\n').length;
 
     return (
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700/50">
+        <div className="bg-linear-to-br from-slate-900 to-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700/50">
             {/* Header */}
             <div 
                 className="flex items-center justify-between px-4 py-3 bg-slate-800/50 cursor-pointer hover:bg-slate-800/80 transition-colors"
@@ -72,7 +72,7 @@ const CodeItem: React.FC<IProps> = (props) => {
                     {/* Line numbers + Code */}
                     <div className="flex overflow-auto max-h-[500px]">
                         {/* Line numbers */}
-                        <div className="flex-shrink-0 py-4 px-3 bg-slate-900/50 text-right select-none border-r border-slate-700/50">
+                        <div className="shrink-0 py-4 px-3 bg-slate-900/50 text-right select-none border-r border-slate-700/50">
                             {code.split('\n').map((_, idx) => (
                                 <div key={idx} className="text-slate-600 text-xs leading-6 font-mono">
                                     {idx + 1}
@@ -144,7 +144,7 @@ function highlightPythonLine(line: string): React.ReactNode {
 function highlightKeywords(text: string, keywords: string[], builtins: string[]): React.ReactNode {
     const parts = text.split(/(\s+)/);
     return (
-        <>
+        <div key={text}>
             {parts.map((part, idx) => {
                 if (keywords.includes(part)) {
                     return <span key={idx} className="text-pink-400 font-medium">{part}</span>;
@@ -156,9 +156,9 @@ function highlightKeywords(text: string, keywords: string[], builtins: string[])
                 if (/^\d+(\.\d+)?$/.test(part)) {
                     return <span key={idx} className="text-orange-400">{part}</span>;
                 }
-                return part;
+                return <span key={idx}>part</span>;
             })}
-        </>
+        </div>
     );
 }
 

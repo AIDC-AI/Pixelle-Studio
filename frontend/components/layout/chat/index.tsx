@@ -11,7 +11,6 @@ import { Loader2, Plus, Send, Trash2 } from "lucide-react";
 
 const Chat = () => {
     const { 
-      config, 
       activeSessionId, 
       setActiveSessionId,
       setSessions,
@@ -98,7 +97,13 @@ const Chat = () => {
         const currentFileNames = doneFiles
             ?.filter((file) => !!file?.response?.file_name)
             .map((file) => file.response.file_name as string)
-        
+        const userFiles = doneFiles
+            ?.filter((file) => !!(file?.response?.url || file?.url) && (file?.name))
+            .map((file) => ({
+              name: file?.name,
+              url: file?.response?.url || file?.url
+            }))
+            
         console.log('[DEBUG] doneFiles:', doneFiles.length, 'currentFileNames:', currentFileNames);
         setInput('');
         setFileList([]);
@@ -117,6 +122,7 @@ const Chat = () => {
             { 
               type: 'user', 
               content: input, 
+              files: userFiles,
               timestamp: Date.now() 
             }
         ]
@@ -126,7 +132,7 @@ const Chat = () => {
         
         try {
           // 1. Create Chat (backend will auto-select tools)
-          const { chat_id } = await api.createChat(input, config, currentFileUrls, currentFileNames);
+          const { chat_id } = await api.createChat(input, {}, currentFileUrls, currentFileNames);
     
           // 2. Connect WebSocket
           const ws = new WebSocket(api.getWebSocketUrl(chat_id));
@@ -315,7 +321,7 @@ const Chat = () => {
     };
 
     return (
-        <div className="flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 w-full h-full overflow-x-hidden">
+        <div className="flex flex-col bg-linear-to-br from-slate-50 to-slate-100 w-full h-full overflow-x-hidden">
             <MessageList 
                 messages={sessionMessages[activeSessionId]} 
                 currentScript={currentScript} 
@@ -328,7 +334,7 @@ const Chat = () => {
                             {fileList.map((file, index) => (
                                 <div
                                     key={index}
-                                    className="bg-gradient-to-r from-blue-50 to-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 cursor-pointer border border-indigo-100 hover:border-indigo-200 transition-colors"
+                                    className="bg-linear-to-r from-blue-50 to-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 cursor-pointer border border-indigo-100 hover:border-indigo-200 transition-colors"
                                     onClick={(e) => {
                                         e.stopPropagation()
                                         window.open(file.url, '_blank')

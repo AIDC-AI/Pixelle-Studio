@@ -9,6 +9,7 @@ import { MessageInstance } from 'antd/es/message/interface';
 import { UserResponse } from '@/types/user';
 import { userAPI } from '@/lib/userApi';
 import { useRouter, usePathname } from 'next/navigation';
+import { MCPServer } from '@/types/server';
 
 type MessageMap = Record<string, Message[] | null> 
 
@@ -27,6 +28,9 @@ type IProps = {
 
     sessionMessages: MessageMap
     setSessionMessages: React.Dispatch<React.SetStateAction<MessageMap>>
+
+    mcpServers: MCPServer[]
+    setMcpServers: React.Dispatch<React.SetStateAction<MCPServer[]>>
 
     messageApi: MessageInstance
 
@@ -48,6 +52,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [activeSessionId, setActiveSessionId] = useState<string>('');
     const [sessions, setSessions] = useState<Session[]>([])
     const [sessionMessages, setSessionMessages] = useState<MessageMap>({});
+    const [mcpServers, setMcpServers] = useState<MCPServer[]>([])
     const [messageApi, contextHolder] = message.useMessage();
     
     const isInit = useRef<boolean>(true)
@@ -93,8 +98,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
         } catch (error) {
             messageApi.error((error as Error)?.message || 'Register Failed!')
-            return false
         }
+        return false
     } 
 
     const logout = () => {
@@ -172,6 +177,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setSessions,
                 sessionMessages, 
                 setSessionMessages,
+                mcpServers, 
+                setMcpServers,
                 messageApi,
                 login,
                 register,

@@ -4,8 +4,21 @@ from typing import List
 from app.database.models import MCPServer, User, get_db
 from app.database.schemas import MCPServerCreate, MCPServerUpdate, MCPServerResponse
 from app.utils.auth import get_current_user
+from app.mcp_aggregator import MCPAggregator, MCPServerConfig as AggregatorConfig
+from pydantic import BaseModel
+from app.utils.logger import log
+import asyncio
 
 router = APIRouter(prefix="/api/mcp-servers", tags=["MCP Servers"])
+
+
+class ConnectionStatus(BaseModel):
+    server_id: str
+    server_name: str
+    status: str  # 'connected', 'disconnected', 'error'
+    message: str
+    response_time: float  # 响应时间（毫秒）
+    tools: List[dict] = []  # 添加 tools 字段
 
 
 @router.get("", response_model=List[MCPServerResponse])
@@ -34,6 +47,98 @@ def get_server(
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
     return server
+
+
+@router.get("/{server_id}/status", response_model=ConnectionStatus)
+async def check_server_status(
+    server_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Check connection status of a specific MCP server and return tools"""
+    import time
+    
+    server = db.query(MCPServer).filter(
+        MCPServer.id == server_id,
+        MCPServer.uid == current_user.uid
+    ).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+    
+    start_time = time.time()
+    
+    try:
+        # 映射 transport 类型
+        transport_mapping = {
+            'streamable-http': 'http',
+            'sse': 'sse',
+            'stdio': 'stdio'
+        }
+        
+        server_type = transport_mapping.get(server.transport, server.transport)
+        
+        # 根据不同类型构建不同的 config
+        if server_type == 'sse':
+            config_data = {"url": server.url}
+        elif server_type == 'http':
+            config_data = {"endpoint": server.url}
+        elif server_type == 'stdio':
+            config_data = {
+                "command": server.command,
+                "args": server.args.split(',') if server.args else []
+            }
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported transport type: {server.transport}")
+        
+        # 构建 MCP 服务器配置
+        mcp_server = {
+            "id": server.id,
+            "name": server.name,
+            "type": server_type,
+            "config": config_data,
+            "enabled": True,
+            "headers": None
+        }
+        
+        config = AggregatorConfig(servers=[mcp_server])
+        
+        # 尝试连接并获取工具列表（带超时）
+        aggregator = MCPAggregator()
+        
+        # 设置 5 秒超时
+        try:
+            tools = await asyncio.wait_for(aggregator.fetch_tools(config), timeout=5.0)
+            response_time = (time.time() - start_time) * 1000  # 转换为毫秒
+            
+            return ConnectionStatus(
+                server_id=server.id,
+                server_name=server.name,
+                status="connected",
+                message=f"Successfully connected. Found {len(tools)} tools.",
+                response_time=round(response_time, 2),
+                tools=tools  # 返回工具列表
+            )
+        except asyncio.TimeoutError:
+            response_time = (time.time() - start_time) * 1000
+            return ConnectionStatus(
+                server_id=server.id,
+                server_name=server.name,
+                status="error",
+                message="Connection timeout (5s)",
+                response_time=round(response_time, 2),
+                tools=[]
+            )
+            
+    except Exception as e:
+        response_time = (time.time() - start_time) * 1000
+        return ConnectionStatus(
+            server_id=server.id,
+            server_name=server.name,
+            status="disconnected",
+            message=f"Connection failed: {str(e)}",
+            response_time=round(response_time, 2),
+            tools=[]
+        )
 
 
 @router.post("", response_model=MCPServerResponse, status_code=201)
