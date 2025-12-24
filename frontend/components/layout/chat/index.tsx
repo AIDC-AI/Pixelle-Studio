@@ -13,6 +13,7 @@ const Chat = () => {
     const { 
       activeSessionId, 
       setActiveSessionId,
+      sessions,
       setSessions,
       sessionMessages,
       setSessionMessages
@@ -117,6 +118,10 @@ const Chat = () => {
         if (!id || id === '') {
           id = addNewSession(input)
         }
+
+        // Lookup backend session id bound to this local session (Cursor-like)
+        const currentSession = sessions.find(s => s.id === id)
+        const backendSessionId = currentSession?.backendSessionId
         // Add user message
         const messages: Message[] = [
             ...(sessionMessages[id] || []),
@@ -133,7 +138,18 @@ const Chat = () => {
         
         try {
           // 1. Create Chat (backend will auto-select tools)
-          const { chat_id } = await api.createChat(input, {}, currentFileUrls, currentFileNames);
+          const { chat_id, session_id } = await api.createChat(
+            input,
+            {},
+            currentFileUrls,
+            currentFileNames,
+            backendSessionId
+          );
+
+          // Bind backend session id to this local session for future turns
+          if (!backendSessionId && session_id) {
+            setSessions(prev => prev.map(s => s.id === id ? { ...s, backendSessionId: session_id } : s))
+          }
     
           // 2. Connect WebSocket
           const ws = new WebSocket(api.getWebSocketUrl(chat_id));

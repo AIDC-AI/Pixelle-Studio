@@ -17,4 +17,8 @@ dependencies = [
   "pandas",
   "openpyxl",
   "sentence-transformers>=5.2.0",
+  "sqlalchemy",
+  "pydantic[email]",
+  "bcrypt",
+  "python-jose[cryptography]",
 ]
