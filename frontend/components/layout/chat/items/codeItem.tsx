@@ -156,7 +156,7 @@ function highlightKeywords(text: string, keywords: string[], builtins: string[])
                 if (/^\d+(\.\d+)?$/.test(part)) {
                     return <span key={idx} className="text-orange-400">{part}</span>;
                 }
-                return <span key={idx}>part</span>;
+                return <span key={idx}>{part}</span>;
             })}
         </div>
     );
