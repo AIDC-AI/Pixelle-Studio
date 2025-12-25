@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { MessageSquare, Wrench } from 'lucide-react'
-import CollaspeButton from './components/collapseButton'
-import TabButton from './components/tabButton'
+import CollaspeButton from '../../ui/collapseButton'
+import TabButton from '../../ui/tabButton'
 import ChatPanel from './chatPanel'
 import SkillsPanel from './skillsPanel'
 

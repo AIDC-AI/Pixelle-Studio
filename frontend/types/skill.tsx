@@ -1,4 +1,5 @@
 export interface Skill {
+    id: string;
     name: string;
     path: string;
     has_description: boolean;
@@ -17,4 +18,10 @@ export interface SkillDetail {
     content: string;
     full_content: string;
     files: SkillFile[];
+}
+
+export interface ScriptItem {
+    serverId: string
+    serverName: string
+    toolName: string
 }

@@ -29,9 +29,6 @@ type IProps = {
     sessionMessages: MessageMap
     setSessionMessages: React.Dispatch<React.SetStateAction<MessageMap>>
 
-    mcpServers: MCPServer[]
-    setMcpServers: React.Dispatch<React.SetStateAction<MCPServer[]>>
-
     messageApi: MessageInstance
 
     login: (email: string, password: string) => Promise<void>
@@ -52,7 +49,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [activeSessionId, setActiveSessionId] = useState<string>('');
     const [sessions, setSessions] = useState<Session[]>([])
     const [sessionMessages, setSessionMessages] = useState<MessageMap>({});
-    const [mcpServers, setMcpServers] = useState<MCPServer[]>([])
     const [messageApi, contextHolder] = message.useMessage();
     
     const isInit = useRef<boolean>(true)
@@ -177,8 +173,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setSessions,
                 sessionMessages, 
                 setSessionMessages,
-                mcpServers, 
-                setMcpServers,
                 messageApi,
                 login,
                 register,

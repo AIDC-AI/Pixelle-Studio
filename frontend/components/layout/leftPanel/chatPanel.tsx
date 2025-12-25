@@ -15,7 +15,7 @@ const ChatPanel = () => {
         setActiveSessionId('')
     }
 
-    return <div className="left-panel p-4 gap-4">
+    return <div className="left-panel p-4 gap-4 overflow-y-auto">
         {/* Knowledge Base */}
         <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 text-gray-400">
@@ -45,7 +45,6 @@ const ChatPanel = () => {
                             selected={activeSessionId === session.id}
                             onItem={(e) => {
                                 e.stopPropagation()
-                                console.log('onItem-->')
                                 setActiveSessionId(session.id)
                             }}
                             onTrash={() => {

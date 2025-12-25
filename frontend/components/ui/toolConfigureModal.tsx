@@ -6,8 +6,9 @@ import { MCPServer } from "@/types/server";
 
 interface IProps {
     open: boolean
-    setOpen: React.Dispatch<React.SetStateAction<boolean>>
     server?: MCPServer | null
+    onSuccess?: () => void // 添加成功回调
+    onClose?: () => void   // 关闭回调
 }
 
 type FieldType = {
@@ -26,8 +27,8 @@ const connectionTypes = [
 ];
 
 const ToolConfigureModal: React.FC<IProps> = (props) => {
-    const { open, setOpen, server } = props;
-    const { setMcpServers, messageApi } = useApp()
+    const { open, server, onSuccess, onClose } = props;
+    const { messageApi } = useApp()
 
     const [form] = Form.useForm();
 
@@ -46,8 +47,8 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
         const values = await form.validateFields();
         const res = await mcpServerAPI.createServer(values)
         if (!!res) {
-            setMcpServers(prev => [...prev, res])
             messageApi.success('Successed!', 1)
+            onSuccess?.()  // 调用成功回调
             handleCancel()
         }
     };
@@ -55,7 +56,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
     const handleCancel = () => {
         form?.resetFields();
         setSelectedTransport('');
-        setOpen(false);
+        onClose?.()
     };
 
     return <Modal
@@ -64,14 +65,14 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
         open={open}
         onOk={handleOk}
         onCancel={handleCancel}
-        width="50%"
+        width="30%"
         destroyOnHidden
     >
         <Form
             name="server"
             form={form}
-            labelCol={{ span: 8 }}
             autoComplete="off"
+            layout="vertical"
         >
             <Form.Item<FieldType>
                 label="名称"
@@ -117,7 +118,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                         ]}
                     >
                         <Input.TextArea 
-                            className="h-32"
+                            className="h-32 resize-none"
                             placeholder='Enter headers as JSON object, e.g. {"Authorization": "Bearer token"}' 
                             size="small" 
                             allowClear 

@@ -2,15 +2,18 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Code2, Copy, Check } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface IProps {
     code: string;
+    language?: string;
     executionCount?: number;
     reasoning?: string;
 }
 
 const CodeItem: React.FC<IProps> = (props) => {
-    const { code, executionCount = 1, reasoning } = props;
+    const { code, language = 'python', executionCount = 1, reasoning } = props;
     const [isExpanded, setIsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -22,8 +25,17 @@ const CodeItem: React.FC<IProps> = (props) => {
 
     const lineCount = code.split('\n').length;
 
+    // 自定义样式，与现有设计保持一致
+    const customStyle = {
+        margin: 0,
+        padding: '1rem',
+        background: 'transparent',
+        fontSize: '0.875rem',
+        lineHeight: '1.5rem',
+    };
+
     return (
-        <div className="bg-linear-to-br from-slate-900 to-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700/50">
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700/50">
             {/* Header */}
             <div 
                 className="flex items-center justify-between px-4 py-3 bg-slate-800/50 cursor-pointer hover:bg-slate-800/80 transition-colors"
@@ -40,6 +52,9 @@ const CodeItem: React.FC<IProps> = (props) => {
                             </span>
                             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">
                                 {lineCount} 行
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
+                                {language}
                             </span>
                         </div>
                         {reasoning && (
@@ -68,28 +83,34 @@ const CodeItem: React.FC<IProps> = (props) => {
             
             {/* Code Content */}
             <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[600px]' : 'max-h-0'} overflow-hidden`}>
-                <div className="relative">
-                    {/* Line numbers + Code */}
-                    <div className="flex overflow-auto max-h-[500px]">
-                        {/* Line numbers */}
-                        <div className="shrink-0 py-4 px-3 bg-slate-900/50 text-right select-none border-r border-slate-700/50">
-                            {code.split('\n').map((_, idx) => (
-                                <div key={idx} className="text-slate-600 text-xs leading-6 font-mono">
-                                    {idx + 1}
-                                </div>
-                            ))}
-                        </div>
-                        {/* Code */}
-                        <pre className="flex-1 py-4 px-4 text-slate-200 text-sm font-mono overflow-x-auto">
-                            <code>
-                                {code.split('\n').map((line, idx) => (
-                                    <div key={idx} className="leading-6 hover:bg-slate-700/30 -mx-4 px-4">
-                                        {highlightPythonLine(line)}
-                                    </div>
-                                ))}
-                            </code>
-                        </pre>
-                    </div>
+                <div className="relative overflow-auto max-h-[500px]">
+                    <SyntaxHighlighter
+                        language={language}
+                        style={vscDarkPlus}
+                        customStyle={customStyle}
+                        showLineNumbers
+                        lineNumberStyle={{
+                            minWidth: '3em',
+                            paddingRight: '1em',
+                            color: '#475569',
+                            userSelect: 'none',
+                        }}
+                        wrapLines
+                        lineProps={(lineNumber) => ({
+                            style: {
+                                display: 'block',
+                                cursor: 'pointer',
+                            },
+                            onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.3)';
+                            },
+                            onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            },
+                        })}
+                    >
+                        {code}
+                    </SyntaxHighlighter>
                 </div>
             </div>
             
@@ -105,62 +126,6 @@ const CodeItem: React.FC<IProps> = (props) => {
         </div>
     );
 };
-
-// Simple Python syntax highlighting
-function highlightPythonLine(line: string): React.ReactNode {
-    const keywords = ['import', 'from', 'def', 'class', 'if', 'else', 'elif', 'for', 'while', 'return', 'try', 'except', 'with', 'as', 'in', 'not', 'and', 'or', 'True', 'False', 'None', 'async', 'await', 'print', 'raise'];
-    const builtins = ['str', 'int', 'float', 'list', 'dict', 'set', 'tuple', 'bool', 'len', 'range', 'open', 'json', 'Path'];
-    
-    // Handle comments
-    if (line.trim().startsWith('#')) {
-        return <span className="text-slate-500 italic">{line}</span>;
-    }
-    
-    // Handle strings
-    if (line.includes('"') || line.includes("'")) {
-        const stringRegex = /(["'])((?:\\.|[^\\])*?)\1/g;
-        const parts = [];
-        let lastIndex = 0;
-        let match;
-        
-        while ((match = stringRegex.exec(line)) !== null) {
-            if (match.index > lastIndex) {
-                parts.push(highlightKeywords(line.slice(lastIndex, match.index), keywords, builtins));
-            }
-            parts.push(<span key={match.index} className="text-amber-400">{match[0]}</span>);
-            lastIndex = match.index + match[0].length;
-        }
-        
-        if (lastIndex < line.length) {
-            parts.push(highlightKeywords(line.slice(lastIndex), keywords, builtins));
-        }
-        
-        return <>{parts}</>;
-    }
-    
-    return highlightKeywords(line, keywords, builtins);
-}
-
-function highlightKeywords(text: string, keywords: string[], builtins: string[]): React.ReactNode {
-    const parts = text.split(/(\s+)/);
-    return (
-        <div key={text}>
-            {parts.map((part, idx) => {
-                if (keywords.includes(part)) {
-                    return <span key={idx} className="text-pink-400 font-medium">{part}</span>;
-                }
-                if (builtins.includes(part)) {
-                    return <span key={idx} className="text-cyan-400">{part}</span>;
-                }
-                // Numbers
-                if (/^\d+(\.\d+)?$/.test(part)) {
-                    return <span key={idx} className="text-orange-400">{part}</span>;
-                }
-                return <span key={idx}>{part}</span>;
-            })}
-        </div>
-    );
-}
 
 export default CodeItem;
 

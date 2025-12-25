@@ -13,7 +13,7 @@ import LeftPanel from '@/components/layout/leftPanel';
 
 export default function Home() {
     return (
-        <div className="w-screen h-screen flex">
+        <div className="w-screen h-screen flex overflow-hidden">
             <LeftPanel />
 
             <Chat />
