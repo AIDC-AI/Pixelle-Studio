@@ -1,6 +1,10 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8001/api'
+export const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE || 'ws://localhost:8001/ws'
+
 
 export const AUTH_TOKEN_KEY = 'auth_token';
+
+export const MAX_SESSION_COUNT = 15
 
 export const getAuthHeaders = (): HeadersInit => {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);

@@ -122,28 +122,6 @@ npm run lint
 - **`components/`**: 可复用的 React 组件
 - **`lib/`**: 工具函数和 API 客户端
 
-### 客户端组件
-
-由于应用使用了 WebSocket 和 localStorage，所有交互组件都使用 `'use client'` 指令标记为客户端组件。
-
-### API 客户端
-
-`lib/api.ts` 提供了以下功能：
-
-- `getTools()` - 获取 MCP 服务器提供的工具列表
-- `createChat()` - 创建新的聊天会话
-- `getWebSocketUrl()` - 获取 WebSocket 连接 URL
-
-### 配置管理
-
-`lib/mcpConfig.ts` 提供了 MCP 服务器配置的 CRUD 操作：
-
-- `loadConfig()` - 从 localStorage 加载配置
-- `saveConfig()` - 保存配置到 localStorage
-- `addServer()` - 添加新服务器
-- `updateServer()` - 更新服务器配置
-- `deleteServer()` - 删除服务器
-
 ## 故障排查
 
 ### 连接错误

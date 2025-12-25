@@ -1,14 +1,20 @@
 import ItemWithTrash from "@/components/ui/itemWithTrash"
 import { useApp } from "@/context"
+import { Session } from "@/types/session"
 import { formatTime } from "@/utils/utils"
 import { Book, Plus } from "lucide-react"
 
-const ChatPanel = () => {
+interface IProps {
+    sessions?: Session[]
+    handleDeleteSession?: (id: string) => void
+}
+
+const ChatPanel: React.FC<IProps> = (props) => {
+    const { sessions, handleDeleteSession } = props
+
     const { 
         activeSessionId,
         setActiveSessionId, 
-        sessions, 
-        deleteSession
     } = useApp()
     
     const handleNewSession = () => {
@@ -48,7 +54,7 @@ const ChatPanel = () => {
                                 setActiveSessionId(session.id)
                             }}
                             onTrash={() => {
-                                deleteSession(session.id)
+                                handleDeleteSession?.(session.id)
                             }}
                         >
                             <div className="flex flex-col">

@@ -1,9 +1,5 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8001/api';
-export const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE || 'ws://localhost:8001/ws';
-
 import { Skill } from '@/types/skill';
-import { type MCPServerConfig } from './mcpServerApi';
-import { MCPTool } from '@/types/server';
+import { API_BASE, WS_BASE } from './data';
 
 export interface ChatResponse {
     chat_id: string;
@@ -11,30 +7,8 @@ export interface ChatResponse {
 }
 
 export const api = {
-    getTools: async (config?: MCPServerConfig): Promise<MCPTool[]> => {
-        const options: RequestInit = {};
-
-        if (config) {
-            options.method = 'POST';
-            options.headers = { 'Content-Type': 'application/json' };
-            options.body = JSON.stringify(config);
-        } else {
-            // Fallback or initial load without config
-            options.method = 'POST'; // Changed to POST to match backend
-            options.headers = { 'Content-Type': 'application/json' };
-            options.body = JSON.stringify({});
-        }
-
-        const response = await fetch(`${API_BASE}/tools`, options);
-        if (!response.ok) {
-            throw new Error('Failed to fetch tools');
-        }
-        return response.json();
-    },
-
     createChat: async (
         message: string,
-        mcpConfig?: MCPServerConfig,
         fileUrls?: string[],
         fileNames?: string[],
         sessionId?: string
@@ -44,7 +18,6 @@ export const api = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message,
-                mcp_config: mcpConfig,  // Send config for tool fetching
                 file_urls: fileUrls || [],  // Send file URLs
                 file_names: fileNames || [],  // Send uploaded file names for Agent
                 session_id: sessionId || null
