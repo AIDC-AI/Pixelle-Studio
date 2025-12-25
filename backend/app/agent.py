@@ -15,11 +15,13 @@ import os
 import json
 import uuid
 import socket
+import asyncio
 from pathlib import Path
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from dataclasses import dataclass
 from datetime import datetime
 from openai import AsyncOpenAI
+import httpx
 
 from app.skills.loader import get_skill_loader
 from app.execution.runner import run_script
@@ -62,9 +64,10 @@ class AgentMessage:
 @dataclass 
 class AgentAction:
     """An action decided by the agent."""
-    action_type: str  # "respond", "execute_code", "read_skill"
+    action_type: str  # "respond", "execute_code", "read_skill", "read_skill_file", "list_skill_tree"
     content: str  # Response text or code content
     skill_name: Optional[str] = None
+    file_path: Optional[str] = None  # For read_skill_file action
 
 
 class SkillAgent:
@@ -86,7 +89,13 @@ class SkillAgent:
         Args:
             max_tool_calls: Maximum number of code executions (safety limit)
         """
-        self.client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+        # Configure client with longer timeout for large requests
+        self.client = AsyncOpenAI(
+            api_key=LLM_API_KEY, 
+            base_url=LLM_BASE_URL,
+            timeout=httpx.Timeout(300.0, connect=30.0),  # 5 min total, 30s connect
+            max_retries=3,  # Auto-retry on connection errors
+        )
         self.skill_loader = get_skill_loader()
         self.max_tool_calls = max_tool_calls
         self.history_messages = history_messages or []
@@ -102,7 +111,8 @@ class SkillAgent:
     
     def _build_system_prompt(self) -> str:
         """Build the system prompt with skills metadata."""
-        skills_meta = self.skill_loader.build_skills_meta_prompt()
+        # Use enhanced prompt that includes related docs info
+        skills_meta = self.skill_loader.build_skills_meta_prompt_enhanced()
         
         system_prompt = f"""You are an intelligent agent that helps users accomplish tasks.
 
@@ -181,17 +191,48 @@ After seeing code execution results:
         """
         Parse the agent's response to determine the action.
         
+        Supports the following text markers:
+        - [LOAD_SKILL: name] - Load SKILL.md content
+        - [READ_SKILL_FILE: name, path] - Read a specific file from skill directory
+        - [LIST_SKILL_TREE: name] - List skill directory structure
+        - ```python ... ``` - Execute Python code
+        
         Returns:
             AgentAction with type and content
         """
-        # Check for skill load request
+        import re
+        
+        # Check for skill load request: [LOAD_SKILL: name]
         if "[LOAD_SKILL:" in response_text:
-            import re
             match = re.search(r'\[LOAD_SKILL:\s*(\w+)\s*\]', response_text)
             if match:
                 skill_name = match.group(1)
                 return AgentAction(
                     action_type="read_skill",
+                    content=response_text,
+                    skill_name=skill_name
+                )
+        
+        # Check for read skill file request: [READ_SKILL_FILE: name, path]
+        if "[READ_SKILL_FILE:" in response_text:
+            match = re.search(r'\[READ_SKILL_FILE:\s*(\w+)\s*,\s*([^\]]+)\]', response_text)
+            if match:
+                skill_name = match.group(1)
+                file_path = match.group(2).strip()
+                return AgentAction(
+                    action_type="read_skill_file",
+                    content=response_text,
+                    skill_name=skill_name,
+                    file_path=file_path
+                )
+        
+        # Check for list skill tree request: [LIST_SKILL_TREE: name]
+        if "[LIST_SKILL_TREE:" in response_text:
+            match = re.search(r'\[LIST_SKILL_TREE:\s*(\w+)\s*\]', response_text)
+            if match:
+                skill_name = match.group(1)
+                return AgentAction(
+                    action_type="list_skill_tree",
                     content=response_text,
                     skill_name=skill_name
                 )
@@ -214,6 +255,94 @@ After seeing code execution results:
             content=response_text
         )
     
+    def _build_skill_helpers_code(self) -> str:
+        """
+        Build the skill_helpers module code to inject into execution environment.
+        
+        This provides convenient functions for accessing skill resources during code execution.
+        """
+        skills_dir = str(self.skill_loader.skills_dir.absolute())
+        
+        return f'''
+# === Skill Helpers (auto-injected) ===
+class SkillHelpers:
+    """Access skill resources during code execution."""
+    
+    SKILLS_DIR = r"{skills_dir}"
+    
+    @staticmethod
+    def get_file_path(skill_name: str, relative_path: str) -> str:
+        """
+        Get absolute path to a file in skill directory.
+        
+        Args:
+            skill_name: Name of the skill (e.g., "pptx", "xlsx")
+            relative_path: Path relative to skill directory (e.g., "scripts/html2pptx.js")
+            
+        Returns:
+            Absolute path to the file
+            
+        Raises:
+            FileNotFoundError: If file doesn't exist
+        """
+        from pathlib import Path
+        path = Path(SkillHelpers.SKILLS_DIR) / skill_name / relative_path
+        if path.exists():
+            return str(path.absolute())
+        raise FileNotFoundError(f"Skill file not found: {{skill_name}}/{{relative_path}}")
+    
+    @staticmethod
+    def get_script_path(skill_name: str, script_name: str) -> str:
+        """
+        Get path to a script in skill's scripts/ directory.
+        
+        Args:
+            skill_name: Name of the skill
+            script_name: Script filename (e.g., "html2pptx.js", "recalc.py")
+            
+        Returns:
+            Absolute path to the script
+        """
+        return SkillHelpers.get_file_path(skill_name, f"scripts/{{script_name}}")
+    
+    @staticmethod
+    def get_skill_dir(skill_name: str) -> str:
+        """
+        Get absolute path to a skill's root directory.
+        
+        Args:
+            skill_name: Name of the skill
+            
+        Returns:
+            Absolute path to skill directory
+        """
+        from pathlib import Path
+        path = Path(SkillHelpers.SKILLS_DIR) / skill_name
+        if path.exists():
+            return str(path.absolute())
+        raise FileNotFoundError(f"Skill not found: {{skill_name}}")
+    
+    @staticmethod
+    def list_scripts(skill_name: str) -> list:
+        """
+        List all scripts in a skill's scripts/ directory.
+        
+        Args:
+            skill_name: Name of the skill
+            
+        Returns:
+            List of script filenames
+        """
+        from pathlib import Path
+        scripts_dir = Path(SkillHelpers.SKILLS_DIR) / skill_name / "scripts"
+        if not scripts_dir.exists():
+            return []
+        return [f.name for f in scripts_dir.iterdir() if f.is_file()]
+
+skill_helpers = SkillHelpers()
+# === End Skill Helpers ===
+'''
+
     async def _execute_code(self, code: str, session_id: str) -> Dict[str, Any]:
         """
         Execute Python code and return results.
@@ -225,13 +354,15 @@ After seeing code execution results:
         Returns:
             Dict with execution results
         """
+        # Build skill helpers injection
+        # skill_helpers_code = self._build_skill_helpers_code()
+        
         # Wrap code with proper structure
         wrapped_code = f'''import sys
 import json
 import os
 import subprocess
 from pathlib import Path
-
 {code}
 '''
         
@@ -328,6 +459,10 @@ from pathlib import Path
         empty_response_retries = 0
         max_empty_retries = 3
 
+        # Track connection retries separately from empty response retries
+        connection_retries = 0
+        max_connection_retries = 3
+
         # Agent loop
         while self.tool_call_count < self.max_tool_calls:
             # Get LLM response
@@ -340,7 +475,11 @@ from pathlib import Path
                         {"role": "system", "content": system_prompt},
                         *self.messages
                     ],
+                    #max_tokens=,
                 )
+                # Reset connection retry counter on successful request
+                connection_retries = 0
+                
                 logger.debug(f"[Agent DEBUG] LLM 响应为, response: {response}")
                 # Defensive: some gateways/models may return empty choices/content
                 choices = getattr(response, "choices", None) or []
@@ -383,8 +522,24 @@ from pathlib import Path
                 # Reset retry counter on successful response
                 empty_response_retries = 0
                 self.messages.append({"role": "assistant", "content": assistant_message})
+            
+            except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException) as e:
+                # Network/connection errors - retry with backoff
+                connection_retries += 1
+                logger.warning(f"[Agent] Connection error (attempt {connection_retries}/{max_connection_retries}): {e}")
+                
+                if connection_retries >= max_connection_retries:
+                    yield {"type": "error", "content": f"网络连接失败，已重试 {max_connection_retries} 次。请检查网络后重试。错误: {str(e)}"}
+                    return
+                
+                # Wait before retry (exponential backoff)
+                wait_time = 2 ** connection_retries  # 2, 4, 8 seconds
+                yield {"type": "status", "content": f"网络连接中断，{wait_time} 秒后重试..."}
+                await asyncio.sleep(wait_time)
+                continue
                 
             except Exception as e:
+                logger.error(f"[Agent] LLM error: {e}", exc_info=True)
                 yield {"type": "error", "content": f"LLM error: {str(e)}"}
                 return
             
@@ -398,19 +553,33 @@ from pathlib import Path
                 return
             
             elif action.action_type == "read_skill":
-                # Load skill
+                # Load skill's SKILL.md
                 skill_name = action.skill_name
                 yield {"type": "status", "content": f"Loading skill: {skill_name}"}
                 
                 skill_content = self.skill_loader.read_skill(skill_name)
                 if skill_content:
                     self.loaded_skills[skill_name] = skill_content
-                    # Use user role with clear marker for system notification (OpenAI protocol compliance)
-                    self.messages.append({
-                        "role": "user",
-                        "content": f"[System Notification] Skill '{skill_name}' has been loaded successfully. The skill documentation is now available. Please proceed with the original task and generate the appropriate Python code following the skill's guidance."
-                    })
-                    yield {"type": "skill_loaded", "skill_name": skill_name}
+                    
+                    # Find referenced documents in SKILL.md
+                    links = self.skill_loader.parse_skill_links(skill_name)
+                    referenced_docs = [link.path for link in links if link.exists and link.path.endswith('.md')]
+                    
+                    # Build guidance message
+                    guidance = f"[System Notification] Skill '{skill_name}' SKILL.md has been loaded.\n\n"
+                    
+                    if referenced_docs:
+                        guidance += "**Important**: The SKILL.md references these detailed documentation files:\n"
+                        for doc in referenced_docs[:5]:  # Limit to 5
+                            guidance += f"- {doc}\n"
+                        guidance += "\nFor file creation tasks, you should read the relevant detailed docs before generating code. "
+                        guidance += f"Use `[READ_SKILL_FILE: {skill_name}, <filename>]` to read them.\n\n"
+                        guidance += "Review the SKILL.md to understand which workflow applies to your task, then read the corresponding detailed documentation."
+                    else:
+                        guidance += "Please proceed with the task following the skill's guidance."
+                    
+                    self.messages.append({"role": "user", "content": guidance})
+                    yield {"type": "skill_loaded", "skill_name": skill_name, "referenced_docs": referenced_docs}
                 else:
                     self.messages.append({
                         "role": "user",
@@ -418,6 +587,50 @@ from pathlib import Path
                     })
                 
                 # Continue loop to let agent use the skill
+                continue
+            
+            elif action.action_type == "read_skill_file":
+                # Read a specific file from skill directory
+                skill_name = action.skill_name
+                file_path = action.file_path
+                yield {"type": "status", "content": f"Reading skill file: {skill_name}/{file_path}"}
+                
+                file_content = self.skill_loader.read_skill_file(skill_name, file_path)
+                if file_content:
+                    # Add file content to context
+                    self.messages.append({
+                        "role": "user",
+                        "content": f"[System Notification] Content of '{skill_name}/{file_path}':\n\n```\n{file_content}\n```\n\nPlease proceed with the task using this information."
+                    })
+                    yield {"type": "skill_file_read", "skill_name": skill_name, "file_path": file_path}
+                else:
+                    self.messages.append({
+                        "role": "user",
+                        "content": f"[System Notification] File '{skill_name}/{file_path}' not found or not readable. Please check the path or try listing the skill tree first."
+                    })
+                
+                continue
+            
+            elif action.action_type == "list_skill_tree":
+                # List skill directory structure
+                skill_name = action.skill_name
+                yield {"type": "status", "content": f"Listing skill tree: {skill_name}"}
+                
+                tree = self.skill_loader.list_skill_tree(skill_name)
+                if tree:
+                    import json
+                    tree_json = json.dumps(tree, indent=2, ensure_ascii=False)
+                    self.messages.append({
+                        "role": "user",
+                        "content": f"[System Notification] Directory structure of skill '{skill_name}':\n\n```json\n{tree_json}\n```\n\nYou can read specific files using [READ_SKILL_FILE: {skill_name}, <path>]."
+                    })
+                    yield {"type": "skill_tree_listed", "skill_name": skill_name, "tree": tree}
+                else:
+                    self.messages.append({
+                        "role": "user",
+                        "content": f"[System Notification] Skill '{skill_name}' not found. Please check the skill name."
+                    })
+                
                 continue
             
             elif action.action_type == "execute_code":
