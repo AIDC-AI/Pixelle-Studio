@@ -15,6 +15,7 @@ import json
 import shutil
 import socket
 from pathlib import Path
+from datetime import datetime
 
 # Import the simplified agent
 from app.agent import SkillAgent
@@ -33,6 +34,9 @@ from app.utils.logger import log
 
 # Import CRUD routes
 from app.routes import mcp_servers, users
+
+# DB models (sqlite persistence)
+from app.database.models import SessionLocal, ChatSession, ChatTurn, ChatStep
 
 app = FastAPI(title="MCP Workflow API", version="2.0.0")
 
@@ -70,8 +74,11 @@ def get_local_ip():
 LOCAL_IP = get_local_ip()
 log.info(f"Local IP address: {LOCAL_IP}")
 
-# In-memory chat storage
-chats = {}
+# NOTE:
+# Previously we used an in-memory `chats` dict keyed by `chat_id` (one user request).
+# This caused history loss across turns. We now persist session/turn/step into sqlite
+# (see app.database.models). WebSocket still keys by `chat_id` (turn id), but each
+# turn belongs to a long-lived `session_id`.
 
 # Initialize skill loader
 skill_loader = get_skill_loader()
@@ -83,28 +90,52 @@ class ChatRequest(BaseModel):
     message: str
     file_urls: Optional[List[str]] = None
     file_names: Optional[List[str]] = None  # 上传后的文件名（如 9120.xlsx）
+    session_id: Optional[str] = None  # 可选：复用同一会话（Cursor-like）
 
 
 class ChatResponse(BaseModel):
     chat_id: str
+    session_id: str
 
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def create_chat(request: ChatRequest):
     """Create a new chat session."""
-    chat_id = str(uuid.uuid4())
-    chats[chat_id] = {
-        "messages": [{
-            "role": "user",
-            "content": request.message
-        }],
-        "file_urls": request.file_urls or [],
-        "file_names": request.file_names or [],  # 上传后的文件名
-        "status": "created"
-    }
-    log.info(f"Created chat {chat_id}: {request.message[:50]}...")
-    log.info(f"[DEBUG] file_urls: {request.file_urls}, file_names: {request.file_names}")
-    return {"chat_id": chat_id}
+    db = SessionLocal()
+    try:
+        # 1) Resolve session_id (create if missing)
+        session_id = request.session_id
+        if session_id:
+            session = db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
+            if not session:
+                session = ChatSession(session_id=session_id)
+                db.add(session)
+                db.commit()
+        else:
+            session = ChatSession()
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+            session_id = session.session_id
+
+        # 2) Create a new turn (chat_id) under this session
+        chat_id = str(uuid.uuid4())[:8]
+        turn = ChatTurn(
+            chat_id=chat_id,
+            session_id=session_id,
+            user_message=request.message,
+            status="pending",
+            file_urls_json=json.dumps(request.file_urls or [], ensure_ascii=False),
+            file_names_json=json.dumps(request.file_names or [], ensure_ascii=False),
+        )
+        db.add(turn)
+        db.commit()
+
+        log.info(f"Created turn {chat_id} (session {session_id[:8]}): {request.message[:50]}...")
+        log.info(f"[DEBUG] session_id: {session_id}, file_urls: {request.file_urls}, file_names: {request.file_names}")
+        return {"chat_id": chat_id, "session_id": session_id}
+    finally:
+        db.close()
 
 
 @app.websocket("/ws/chat/{chat_id}")
@@ -115,39 +146,29 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
     
     log.debug("Websocket accepted")
 
-    log.debug(f"Current chats: {list(chats.keys())}")
-
-    if chat_id not in chats:
-        await websocket.close(code=4004, reason="Chat not found")
-        return
-    
     try:
-        chat = chats[chat_id]
-        
-        # Process initial message if chat was just created
-        if chat["status"] == "created":
-            chat["status"] = "active"
-            user_message = chat["messages"][0]["content"]
-            file_urls = chat.get("file_urls", [])
-            file_names = chat.get("file_names", [])
-            
-            await process_with_agent(websocket, chat_id, user_message, file_urls, file_names)
-        
-        # Listen for follow-up messages
-        while True:
-            data = await websocket.receive_json()
-            
-            if data.get("type") == "message":
-                user_message = data.get("content", "")
-                file_urls = data.get("file_urls", [])
-                file_names = data.get("file_names", [])
-                
-                if user_message:
-                    chat["messages"].append({
-                        "role": "user",
-                        "content": user_message
-                    })
-                    await process_with_agent(websocket, chat_id, user_message, file_urls, file_names)
+        # Load pending turn from DB and process
+        db = SessionLocal()
+        try:
+            turn = db.query(ChatTurn).filter(ChatTurn.chat_id == chat_id).first()
+            if not turn:
+                await websocket.close(code=4004, reason=f"Chat not found: {chat_id}")
+                return
+
+            # Only process if pending/running (idempotent-ish)
+            if turn.status in ("pending", "running"):
+                turn.status = "running"
+                turn.updated_at = datetime.utcnow()
+                db.commit()
+
+            user_message = turn.user_message
+            file_urls = json.loads(turn.file_urls_json) if turn.file_urls_json else []
+            file_names = json.loads(turn.file_names_json) if turn.file_names_json else []
+            session_id = turn.session_id
+        finally:
+            db.close()
+
+        await process_with_agent(websocket, chat_id, session_id, user_message, file_urls, file_names)
     
     except WebSocketDisconnect:
         log.info(f"WebSocket disconnected: {chat_id}")
@@ -162,6 +183,7 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
 async def process_with_agent(
     websocket: WebSocket,
     chat_id: str,
+    session_id: str,
     user_message: str,
     file_urls: List[str],
     file_names: List[str] = None
@@ -176,8 +198,43 @@ async def process_with_agent(
     - Continuing until task is complete
     """
     try:
-        agent = SkillAgent(max_tool_calls=10)
+        # Build history from persisted completed turns in the same session
+        db = SessionLocal()
+        try:
+            prior_turns = (
+                db.query(ChatTurn)
+                .filter(ChatTurn.session_id == session_id)
+                .filter(ChatTurn.chat_id != chat_id)
+                .order_by(ChatTurn.created_at.asc())
+                .all()
+            )
+            history_messages = []
+            for t in prior_turns:
+                if t.user_message:
+                    history_messages.append({"role": "user", "content": t.user_message})
+
+                assistant_text = t.assistant_message
+                if not assistant_text:
+                    # Try reconstruct from steps (best-effort)
+                    last_resp = (
+                        db.query(ChatStep)
+                        .filter(ChatStep.chat_id == t.chat_id)
+                        .filter(ChatStep.step_type == "response")
+                        .order_by(ChatStep.step_index.desc())
+                        .first()
+                    )
+                    if last_resp and last_resp.content:
+                        assistant_text = last_resp.content
+
+                if assistant_text:
+                    history_messages.append({"role": "assistant", "content": assistant_text})
+        finally:
+            db.close()
+
+        agent = SkillAgent(max_tool_calls=10, history_messages=history_messages)
         
+        step_index = 0
+        final_response_text: Optional[str] = None
         async for event in agent.run(
             user_message=user_message,
             file_urls=file_urls,
@@ -186,6 +243,33 @@ async def process_with_agent(
         ):
             # Forward all events to the frontend
             await websocket.send_json(event)
+
+            # Persist step trace (Cursor-like)
+            try:
+                db = SessionLocal()
+                step_type = event.get("type", "unknown")
+                content = event.get("content")
+                data_json = None
+                if step_type in ("execution_result", "final_result"):
+                    data_json = json.dumps(event, ensure_ascii=False)
+                    content = None
+                if step_type == "response" and isinstance(content, str) and content.strip():
+                    final_response_text = content
+                step = ChatStep(
+                    chat_id=chat_id,
+                    step_index=step_index,
+                    step_type=step_type,
+                    content=content if isinstance(content, str) else None,
+                    data_json=data_json
+                )
+                db.add(step)
+                db.commit()
+                step_index += 1
+            finally:
+                try:
+                    db.close()
+                except Exception:
+                    pass
             
             # Log important events
             event_type = event.get("type")
@@ -197,6 +281,38 @@ async def process_with_agent(
                 log.info(f"[{chat_id[:8]}] Execution result: {event.get('status')}")
             elif event_type == "final_result":
                 log.info(f"[{chat_id[:8]}] Final: {event.get('status')}")
+
+                # Persist final assistant message to the turn
+                try:
+                    db = SessionLocal()
+                    turn = db.query(ChatTurn).filter(ChatTurn.chat_id == chat_id).first()
+                    if turn:
+                        final_status = event.get("status") or "error"
+                        # Normalize to our turn status domain
+                        if final_status not in ("success", "error", "incomplete"):
+                            final_status = "error"
+                        turn.status = final_status
+                        # Prefer direct response if present
+                        result_obj = event.get("result") or {}
+                        if isinstance(result_obj, dict) and "answer" in result_obj:
+                            turn.assistant_message = str(result_obj.get("answer"))
+                        elif isinstance(result_obj, str):
+                            turn.assistant_message = result_obj
+                        else:
+                            # fallback stringify
+                            turn.assistant_message = json.dumps(result_obj, ensure_ascii=False)
+
+                        # If final answer is empty, fallback to best-effort response text captured earlier
+                        if (turn.assistant_message is None) or (isinstance(turn.assistant_message, str) and not turn.assistant_message.strip()):
+                            if final_response_text:
+                                turn.assistant_message = final_response_text
+                        turn.updated_at = datetime.utcnow()
+                        db.commit()
+                finally:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
     
     except WebSocketDisconnect:
         log.info(f"Client disconnected during processing: {chat_id}")

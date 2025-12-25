@@ -24,6 +24,10 @@ from openai import AsyncOpenAI
 from app.skills.loader import get_skill_loader
 from app.execution.runner import run_script
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 
 # LLM Configuration
 LLM_BASE_URL = "https://REDACTED_BASE_URL_HOST/v1"
@@ -75,7 +79,7 @@ class SkillAgent:
     The agent loop continues until the agent decides the task is complete.
     """
     
-    def __init__(self, max_tool_calls: int = 10):
+    def __init__(self, max_tool_calls: int = 10, history_messages: Optional[List[Dict[str, str]]] = None):
         """
         Initialize the agent.
         
@@ -85,6 +89,7 @@ class SkillAgent:
         self.client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
         self.skill_loader = get_skill_loader()
         self.max_tool_calls = max_tool_calls
+        self.history_messages = history_messages or []
         
         # Conversation state
         self.messages: List[Dict[str, str]] = []
@@ -294,8 +299,8 @@ from pathlib import Path
         self.tool_call_count = 0
         
         # Debug: 打印收到的参数
-        print(f"[Agent DEBUG] file_urls: {file_urls}")
-        print(f"[Agent DEBUG] file_names: {file_names}")
+        logger.debug(f"[Agent DEBUG] file_urls: {file_urls}")
+        logger.debug(f"[Agent DEBUG] file_names: {file_names}")
         
         # Build initial user message with file context
         full_user_message = user_message
@@ -313,12 +318,16 @@ from pathlib import Path
                 full_user_message += f"- {filename}\n"
         
         # Initialize conversation
-        self.messages = [
-            {"role": "user", "content": full_user_message}
-        ]
+        # Start from persisted history (Cursor-like session memory)
+        self.messages = list(self.history_messages)
+        self.messages.append({"role": "user", "content": full_user_message})
         
         yield {"type": "status", "content": "Processing your request..."}
         
+        # Track empty response retries to prevent silent empty replies (which break session memory)
+        empty_response_retries = 0
+        max_empty_retries = 3
+
         # Agent loop
         while self.tool_call_count < self.max_tool_calls:
             # Get LLM response
@@ -331,10 +340,48 @@ from pathlib import Path
                         {"role": "system", "content": system_prompt},
                         *self.messages
                     ],
-                    temperature=0.7
                 )
-                
-                assistant_message = response.choices[0].message.content
+                logger.debug(f"[Agent DEBUG] LLM 响应为, response: {response}")
+                # Defensive: some gateways/models may return empty choices/content
+                choices = getattr(response, "choices", None) or []
+                if not choices:
+                    logger.debug(f"[Agent DEBUG] LLM 返回了空的 choices, response: {response}")
+                    empty_response_retries += 1
+                    if empty_response_retries >= max_empty_retries:
+                        logger.error(f"[Agent ERROR] LLM 返回了空的 choices，超过最大重试次数，返回错误")
+                        yield {"type": "error", "content": "LLM 返回了空的 choices，请稍后重试或更换模型。"}
+                        return
+                    logger.debug(f"[Agent DEBUG] LLM 返回了空的 choices，重试次数: {empty_response_retries}")
+                    continue
+
+                msg = getattr(choices[0], "message", None)
+                assistant_message = getattr(msg, "content", None)
+                if isinstance(assistant_message, list):
+                    # Normalize list-of-parts to string
+                    parts = []
+                    for p in assistant_message:
+                        if isinstance(p, str):
+                            parts.append(p)
+                        elif isinstance(p, dict):
+                            parts.append(p.get("text") or "")
+                        else:
+                            parts.append(str(p))
+                    assistant_message = "".join(parts)
+
+                if not assistant_message or not str(assistant_message).strip():
+                    empty_response_retries += 1
+                    if empty_response_retries >= max_empty_retries:
+                        yield {"type": "error", "content": "LLM 返回了空响应，请重试。"}
+                        return
+                    # Use user role with clear marker for system feedback (OpenAI protocol compliance)
+                    self.messages.append({
+                        "role": "user",
+                        "content": "[System Feedback] Your previous response was empty. Please continue the task: either provide the final answer or generate Python code."
+                    })
+                    continue
+
+                # Reset retry counter on successful response
+                empty_response_retries = 0
                 self.messages.append({"role": "assistant", "content": assistant_message})
                 
             except Exception as e:
@@ -358,16 +405,16 @@ from pathlib import Path
                 skill_content = self.skill_loader.read_skill(skill_name)
                 if skill_content:
                     self.loaded_skills[skill_name] = skill_content
-                    # Add to conversation that skill was loaded
+                    # Use user role with clear marker for system notification (OpenAI protocol compliance)
                     self.messages.append({
-                        "role": "user", 
-                        "content": f"[Skill '{skill_name}' has been loaded. You can now see its documentation in the system prompt. Please proceed with the task.]"
+                        "role": "user",
+                        "content": f"[System Notification] Skill '{skill_name}' has been loaded successfully. The skill documentation is now available. Please proceed with the original task and generate the appropriate Python code following the skill's guidance."
                     })
                     yield {"type": "skill_loaded", "skill_name": skill_name}
                 else:
                     self.messages.append({
                         "role": "user",
-                        "content": f"[Skill '{skill_name}' not found. Available skills are listed in the system prompt.]"
+                        "content": f"[System Notification] Skill '{skill_name}' not found. Please proceed with the task using your general knowledge or try a different approach."
                     })
                 
                 # Continue loop to let agent use the skill
@@ -419,7 +466,9 @@ from pathlib import Path
                 yield exec_result_event
                 
                 # Add execution result to conversation
-                result_message = f"""[Code Execution Result]
+                # Use user role with clear marker for tool output (OpenAI protocol compliance)
+                # Many agent frameworks (LangChain, AutoGPT) use this pattern
+                result_message = f"""[Execution Result]
 Status: {exec_result["status"]}
 
 Stdout:
@@ -467,6 +516,11 @@ async def run_agent(
         Agent events
     """
     agent = SkillAgent()
-    async for event in agent.run(user_message, file_urls, session_id):
+    async for event in agent.run(
+        user_message=user_message,
+        file_urls=file_urls,
+        file_names=None,
+        session_id=session_id
+    ):
         yield event
 
