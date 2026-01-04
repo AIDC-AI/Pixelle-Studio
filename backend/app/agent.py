@@ -31,10 +31,10 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-# LLM Configuration
-LLM_BASE_URL = "https://REDACTED_BASE_URL_HOST/v1"
-LLM_API_KEY = "REDACTED_API_KEY"
-LLM_MODEL = "us.anthropic.claude-opus-4-20250514-v1:0"
+# LLM Configuration - Load from environment variables
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://aihubmix.com/v1")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "claude-opus-4-5")
 
 
 def get_local_ip():
@@ -69,7 +69,7 @@ class AgentAction:
     skill_name: Optional[str] = None
     file_path: Optional[str] = None  # For read_skill_file action
 
-
+from langsmith import wrappers
 class SkillAgent:
     """
     Single Agent that handles user requests with skill guidance.
@@ -90,12 +90,12 @@ class SkillAgent:
             max_tool_calls: Maximum number of code executions (safety limit)
         """
         # Configure client with longer timeout for large requests
-        self.client = AsyncOpenAI(
+        self.client = wrappers.wrap_openai(AsyncOpenAI(
             api_key=LLM_API_KEY, 
             base_url=LLM_BASE_URL,
             timeout=httpx.Timeout(300.0, connect=30.0),  # 5 min total, 30s connect
             max_retries=3,  # Auto-retry on connection errors
-        )
+        ))
         self.skill_loader = get_skill_loader()
         self.max_tool_calls = max_tool_calls
         self.history_messages = history_messages or []
@@ -108,83 +108,124 @@ class SkillAgent:
         # Script storage - put outside backend to avoid triggering file watcher
         self.script_dir = Path(__file__).parent.parent / "scripts"
         self.script_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Backend root directory (contains both skills/ and scripts/)
+        self.backend_root = Path(__file__).parent.parent
     
     def _build_system_prompt(self) -> str:
-        """Build the system prompt with skills metadata."""
-        # Use enhanced prompt that includes related docs info
-        skills_meta = self.skill_loader.build_skills_meta_prompt_enhanced()
+        """Build the system prompt with skills in XML format (Claude Code style)."""
+        # Use XML format for skills (Claude Code style)
+        skills_xml = self.skill_loader.build_skills_xml_prompt()
         
         system_prompt = f"""You are an intelligent agent that helps users accomplish tasks.
 
-## Your Capabilities
+<capabilities>
+You can help users in the following ways:
 
-1. **Direct Response**: For simple questions, explanations, or information requests, respond directly.
+1. **Direct Response**: For simple questions, explanations, or information requests, respond directly with your answer.
 
 2. **Code Execution**: For tasks requiring computation, file processing, or external operations:
-   - Generate Python code wrapped in ```python code blocks
+   - Generate Python code wrapped in ```python and ``` markers
    - The code will be executed and you'll see the results
    - Based on results, decide if the task is complete or needs more work
 
-3. **Skills**: You have access to specialized skills that provide domain-specific guidance.
-   - Review the available skills below
-   - If a skill is relevant, ask to load it using: [LOAD_SKILL: skill_name]
-   - Once loaded, follow the skill's guidance and code patterns
+3. **Skills**: You have access to specialized skills that provide domain-specific guidance and code patterns.
+</capabilities>
 
-{skills_meta}
+{skills_xml}
 
-## Code Generation Rules
-
+<code_execution_rules>
 When generating Python code:
-1. Wrap code in ```python and ``` markers
-2. The script must be self-contained and executable
-3. Use `print()` for output that you want to see
-4. For final results, print a JSON object with "status", "result", and optionally "output_file_names" keys
-5. Follow patterns from loaded skills when available
 
-**IMPORTANT: If your code generates any output files (xlsx, csv, pdf, images, etc.), you MUST include `output_file_names` in your final JSON output!**
+1. **Format**: Wrap code in ```python and ``` markers
+2. **Self-contained**: The script must be executable on its own
+3. **Output**: Use `print()` for output you want to see
+4. **Final Result**: Print a JSON object with required keys
 
-Example output format (without output files):
+<working_directory>
+Your code runs with working directory at backend root. Two key directories:
+- `skills/` - Skill resources (e.g., skills/pptx/scripts/html2pptx.js)
+- `scripts/` - User files and output files (your Python scripts also run from here)
+
+Helper functions are pre-injected in Python:
+- `skill_path("pptx", "scripts/html2pptx.js")` -> "skills/pptx/scripts/html2pptx.js"
+- `script_path("output.pptx")` -> "scripts/output.pptx"
+</working_directory>
+
+<file_rules>
+- **Input files**: Read from `scripts/<filename>` (e.g., `scripts/data.xlsx`)
+- **Output files**: Write to `scripts/<filename>` (e.g., `scripts/output.pptx`)
+- **Skill scripts**: Access via `skill_path()` or direct path like `skills/pptx/scripts/...`
+- **output_file_names**: List only the filename (NOT the path), e.g., `["output.pptx"]`
+</file_rules>
+
+<nodejs_rules>
+When generating Node.js scripts saved to `scripts/` directory:
+- Use `path.join(__dirname, '..', 'skills', ...)` to reference skill files
+- Use `path.join(__dirname, 'filename')` to reference files in scripts/
+- Example: `require(path.join(__dirname, '..', 'skills', 'pptx', 'scripts', 'html2pptx.js'))`
+- NEVER use `./skills/...` - Node.js require() resolves relative to script file, not cwd
+</nodejs_rules>
+
+<pptx_html_rules>
+When generating HTML for PowerPoint (html2pptx):
+- **Backgrounds/borders/shadows**: ONLY on `<div>`, NEVER on `<h1>`-`<h6>`, `<p>`, `<ul>`, `<ol>`
+  ✗ Wrong: `<h2 style="border-bottom: 3pt solid #fff;">`
+  ✓ Right: `<div style="border-bottom: 3pt solid #fff;"><h2>Title</h2></div>`
+- **No CSS gradients**: `linear-gradient`, `radial-gradient` don't work. Use solid colors.
+- **Text must be in tags**: All text must be inside `<p>`, `<h1>`-`<h6>`, `<ul>`, `<ol>`. Text directly in `<div>` will be lost.
+- **Web-safe fonts only**: Arial, Helvetica, Times New Roman, Georgia, Verdana, Tahoma
+</pptx_html_rules>
+
+<output_format_examples>
+Example 1 - Without output files:
 ```python
 import json
 # ... your code ...
 print(json.dumps({{"status": "success", "result": "任务完成的描述"}}))
 ```
 
-Example output format (with output files):
+Example 2 - With output files:
 ```python
 import json
 # ... your code that generates files ...
-output_files = ["report.xlsx", "chart.png"]  # List all generated files
+# Write to scripts/ directory
+output_path = script_path("report.xlsx")  # -> "scripts/report.xlsx"
+# ... save file to output_path ...
 print(json.dumps({{
     "status": "success", 
     "result": "任务完成的描述",
-    "output_file_names": output_files
+    "output_file_names": ["report.xlsx"]  # Only filename, not full path
 }}))
 ```
+</output_format_examples>
+</code_execution_rules>
 
-## Skill Helper Scripts
+<skill_usage>
+When a skill is loaded:
+- The skill's SKILL.md documentation will be added to context
+- Use relative paths: `skills/<skill_name>/...`
+- Follow the skill's patterns and error handling guidance
 
-When a skill is loaded, you can use its helper scripts. The skill directory path will be provided.
-Example: `subprocess.run(['python', 'path/to/skill/recalc.py', 'file.xlsx'])`
+Example using skill scripts:
+```python
+# Python script in skill
+subprocess.run(['python', skill_path('xlsx', 'recalc.py'), 'scripts/data.xlsx'])
 
-## Decision Flow
+# Node.js script in skill  
+subprocess.run(['node', skill_path('pptx', 'scripts/html2pptx.js'), ...])
+```
+</skill_usage>
 
-After seeing code execution results:
-- If successful and task complete → Provide final response to user
-- If error occurred → Analyze error, generate corrected code (follow skill's error handling guidance)
-- If partial success → Generate additional code to complete the task
-"""
-        
-        # Add loaded skills content
-        if self.loaded_skills:
-            system_prompt += "\n\n## Loaded Skill Documentation\n"
-            for skill_name, content in self.loaded_skills.items():
-                system_prompt += f"\n### Skill: {skill_name}\n"
-                system_prompt += content
-                skill_dir = self.skill_loader.get_skill_directory(skill_name)
-                if skill_dir:
-                    system_prompt += f"\n\n**Skill Directory**: {skill_dir}\n"
-        
+<decision_flow>
+After seeing code execution results, decide your next action:
+
+1. **Task Complete**: If successful and the user's request is fulfilled → Provide a final response summarizing what was done
+2. **Error Occurred**: If there was an error → Analyze it, refer to loaded skill's error handling guidance if available, then generate corrected code
+3. **Partial Success**: If more work is needed → Generate additional code to complete the task
+4. **Need More Info**: If skill documentation would help → Load the relevant skill first
+</decision_flow>
+"""        
         return system_prompt
     
     def _parse_agent_response(self, response_text: str) -> AgentAction:
@@ -259,87 +300,25 @@ After seeing code execution results:
         """
         Build the skill_helpers module code to inject into execution environment.
         
-        This provides convenient functions for accessing skill resources during code execution.
+        All paths are RELATIVE to the execution cwd (backend root).
+        Two root directories: skills/ and scripts/
         """
-        skills_dir = str(self.skill_loader.skills_dir.absolute())
-        
-        return f'''
+        return '''
 # === Skill Helpers (auto-injected) ===
-class SkillHelpers:
-    """Access skill resources during code execution."""
-    
-    SKILLS_DIR = r"{skills_dir}"
-    
-    @staticmethod
-    def get_file_path(skill_name: str, relative_path: str) -> str:
-        """
-        Get absolute path to a file in skill directory.
-        
-        Args:
-            skill_name: Name of the skill (e.g., "pptx", "xlsx")
-            relative_path: Path relative to skill directory (e.g., "scripts/html2pptx.js")
-            
-        Returns:
-            Absolute path to the file
-            
-        Raises:
-            FileNotFoundError: If file doesn't exist
-        """
-        from pathlib import Path
-        path = Path(SkillHelpers.SKILLS_DIR) / skill_name / relative_path
-        if path.exists():
-            return str(path.absolute())
-        raise FileNotFoundError(f"Skill file not found: {{skill_name}}/{{relative_path}}")
-    
-    @staticmethod
-    def get_script_path(skill_name: str, script_name: str) -> str:
-        """
-        Get path to a script in skill's scripts/ directory.
-        
-        Args:
-            skill_name: Name of the skill
-            script_name: Script filename (e.g., "html2pptx.js", "recalc.py")
-            
-        Returns:
-            Absolute path to the script
-        """
-        return SkillHelpers.get_file_path(skill_name, f"scripts/{{script_name}}")
-    
-    @staticmethod
-    def get_skill_dir(skill_name: str) -> str:
-        """
-        Get absolute path to a skill's root directory.
-        
-        Args:
-            skill_name: Name of the skill
-            
-        Returns:
-            Absolute path to skill directory
-        """
-        from pathlib import Path
-        path = Path(SkillHelpers.SKILLS_DIR) / skill_name
-        if path.exists():
-            return str(path.absolute())
-        raise FileNotFoundError(f"Skill not found: {{skill_name}}")
-    
-    @staticmethod
-    def list_scripts(skill_name: str) -> list:
-        """
-        List all scripts in a skill's scripts/ directory.
-        
-        Args:
-            skill_name: Name of the skill
-            
-        Returns:
-            List of script filenames
-        """
-        from pathlib import Path
-        scripts_dir = Path(SkillHelpers.SKILLS_DIR) / skill_name / "scripts"
-        if not scripts_dir.exists():
-            return []
-        return [f.name for f in scripts_dir.iterdir() if f.is_file()]
+# Working directory is backend root, containing: skills/ and scripts/
 
-skill_helpers = SkillHelpers()
+SKILLS_ROOT = "skills"
+SCRIPTS_ROOT = "scripts"
+
+def skill_path(skill_name: str, *parts) -> str:
+    """Get relative path: skills/<skill_name>/[parts...]"""
+    import os
+    return os.path.join(SKILLS_ROOT, skill_name, *parts)
+
+def script_path(*parts) -> str:
+    """Get relative path: scripts/[parts...]"""
+    import os
+    return os.path.join(SCRIPTS_ROOT, *parts)
 # === End Skill Helpers ===
 '''
 
@@ -354,8 +333,8 @@ skill_helpers = SkillHelpers()
         Returns:
             Dict with execution results
         """
-        # Build skill helpers injection
-        # skill_helpers_code = self._build_skill_helpers_code()
+        # Build skill helpers injection (provides skill_path() and script_path())
+        skill_helpers_code = self._build_skill_helpers_code()
         
         # Wrap code with proper structure
         wrapped_code = f'''import sys
@@ -363,22 +342,23 @@ import json
 import os
 import subprocess
 from pathlib import Path
+{skill_helpers_code}
 {code}
 '''
         
-        # Save script
+        # Save script to scripts/ directory
         script_name = f"{session_id}_{self.tool_call_count:02d}_{uuid.uuid4().hex[:6]}.py"
-        script_path = self.script_dir / script_name
-        script_path.write_text(wrapped_code)
+        script_file = self.script_dir / script_name
+        script_file.write_text(wrapped_code)
         
-        # Execute and collect output
+        # Execute and collect output (cwd = backend root, so scripts/ and skills/ are both accessible)
         output_lines = []
         error_lines = []
         result = None
         status = "success"
         
         try:
-            async for log in run_script(str(script_path), cwd=str(self.script_dir)):
+            async for log in run_script(str(script_file), cwd=str(self.backend_root)):
                 if log.get("stream") == "stdout":
                     content = log.get("content", "")
                     output_lines.append(content)
@@ -402,8 +382,9 @@ from pathlib import Path
             "stdout": "\n".join(output_lines),
             "stderr": "\n".join(error_lines),
             "result": result,
-            "script_path": str(script_path)
+            "script_path": str(script_file)
         }
+    
     
     async def run(
         self,
@@ -436,17 +417,17 @@ from pathlib import Path
         # Build initial user message with file context
         full_user_message = user_message
         
-        # 使用 file_names，文件就在当前工作目录 (scripts/) 下
+        # 使用 file_names，文件在 scripts/ 目录下
         if file_names:
-            full_user_message += "\n\n## 用户上传的文件（在当前目录下）:\n"
+            full_user_message += "\n\n## 用户上传的文件:\n"
             for name in file_names:
-                full_user_message += f"- {name}\n"
+                full_user_message += f"- scripts/{name}\n"
         elif file_urls:
             # 兜底：如果只有 URL，从 URL 中解析文件名
-            full_user_message += "\n\n## 用户上传的文件（在当前目录下）:\n"
+            full_user_message += "\n\n## 用户上传的文件:\n"
             for url in file_urls:
                 filename = url.split("/")[-1]
-                full_user_message += f"- {filename}\n"
+                full_user_message += f"- scripts/{filename}\n"
         
         # Initialize conversation
         # Start from persisted history (Cursor-like session memory)
@@ -475,7 +456,7 @@ from pathlib import Path
                         {"role": "system", "content": system_prompt},
                         *self.messages
                     ],
-                    #max_tokens=,
+                    max_tokens=16384,  # Increased to handle large code generation
                 )
                 # Reset connection retry counter on successful request
                 connection_retries = 0
@@ -494,6 +475,7 @@ from pathlib import Path
                     continue
 
                 msg = getattr(choices[0], "message", None)
+                finish_reason = getattr(choices[0], "finish_reason", None)
                 assistant_message = getattr(msg, "content", None)
                 if isinstance(assistant_message, list):
                     # Normalize list-of-parts to string
@@ -521,6 +503,23 @@ from pathlib import Path
 
                 # Reset retry counter on successful response
                 empty_response_retries = 0
+                
+                # Handle truncated response (finish_reason='length')
+                # If code block is incomplete, ask model to continue
+                if finish_reason == 'length':
+                    has_code_start = "```python" in assistant_message
+                    has_code_end = assistant_message.count("```") >= 2  # At least open and close
+                    
+                    if has_code_start and not has_code_end:
+                        # Code block was truncated - ask to continue
+                        logger.warning("[Agent] Response truncated mid-code, asking to continue...")
+                        self.messages.append({"role": "assistant", "content": assistant_message})
+                        self.messages.append({
+                            "role": "user",
+                            "content": "[System Feedback] Your code was truncated due to length limit. Please continue from where you left off. Start with the remaining code (no need to repeat what you already wrote)."
+                        })
+                        continue
+                
                 self.messages.append({"role": "assistant", "content": assistant_message})
             
             except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException) as e:

@@ -626,6 +626,71 @@ class SkillLoader:
             lines.append("")
         
         return "\n".join(lines)
+    
+    def build_skills_xml_prompt(self) -> str:
+        """
+        Build skills section in Claude Code XML format for system prompt.
+        
+        Uses <skills_instructions> and <available_skills> XML tags
+        following the Claude Code skill system format.
+        
+        Returns:
+            XML formatted string containing skills instructions and available skills
+        """
+        skills = self.scan_skills()
+        
+        if not skills:
+            return ""
+        
+        # Build available skills section
+        skills_xml_parts = []
+        for skill in skills:
+            # Build description with related docs info
+            description = skill.description
+            
+            # Find related docs
+            links = self.parse_skill_links(skill.name)
+            existing_docs = [link.path for link in links if link.exists and link.path.endswith('.md')]
+            if existing_docs:
+                description += f" Related docs: {', '.join(existing_docs[:3])}."
+            
+            # Check for scripts
+            skill_dir = Path(self.get_skill_directory(skill.name))
+            if (skill_dir / "scripts").exists():
+                description += " Has helper scripts."
+            
+            skills_xml_parts.append(f"""<skill>
+<name>{skill.name}</name>
+<description>{description}</description>
+</skill>""")
+        
+        available_skills_xml = "\n\n".join(skills_xml_parts)
+        
+        # Build full XML prompt
+        xml_prompt = f"""<skills_instructions>
+When users ask you to perform tasks, check if any of the available skills below can help complete the task more effectively.
+
+How to use skills:
+- Invoke skills using [LOAD_SKILL: <actual_skill_name>] to load the skill's detailed documentation
+  Example: [LOAD_SKILL: pptx] or [LOAD_SKILL: xlsx]
+- When you invoke a skill, the skill's prompt will expand and provide detailed instructions
+- Use [READ_SKILL_FILE: <actual_skill_name>, <filepath>] to read specific files
+  Example: [READ_SKILL_FILE: pptx, html2pptx.md]
+- Use [LIST_SKILL_TREE: <actual_skill_name>] to see the full directory structure
+  Example: [LIST_SKILL_TREE: pptx]
+
+Important:
+- ALWAYS use actual skill names from <available_skills> below (e.g., pptx, xlsx), NOT placeholders
+- Always load a skill before using its patterns or helpers
+- Follow the loaded skill's guidance closely for complex tasks
+- Skills may include error handling patterns and best practices
+</skills_instructions>
+
+<available_skills>
+{available_skills_xml}
+</available_skills>"""
+        
+        return xml_prompt
 
 
 # Singleton instance for global access
