@@ -31,7 +31,17 @@
 
 ```bash
 cd backend
-python -m uvicorn app.main:app --reload --port 8001
+uv sync # 首次运行安装依赖
+./start_server.sh # 启动后端
+```
+由于pptx依赖于nodejs，所以需要先安装nodejs。
+```bash
+brew install node
+```
+然后安装依赖
+```bash
+cd backend
+npm install
 ```
 
 ### 2. 启动前端
@@ -39,7 +49,7 @@ python -m uvicorn app.main:app --reload --port 8001
 ```bash
 cd frontend
 npm install  # 首次运行
-npm run dev
+npm run dev # 启动前端
 ```
 
 ### 3. 访问应用

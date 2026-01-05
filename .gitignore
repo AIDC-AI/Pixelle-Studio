@@ -18,6 +18,8 @@ backend/logs/
 backend/storage/
 .backend/app/storage/
 
+backend/node_modules/
+
 mcp-server-test/.idea/
 
 # next.js

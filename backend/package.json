@@ -1,0 +1,15 @@
+{
+  "name": "mcp-workflow-backend",
+  "version": "1.0.0",
+  "description": "Backend Node.js dependencies for skills (pptx, etc.)",
+  "private": true,
+  "dependencies": {
+    "pptxgenjs": "^3.12.0",
+    "playwright": "^1.40.0",
+    "sharp": "^0.33.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.0.0"
+  }
+}
+
