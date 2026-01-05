@@ -2,10 +2,17 @@
 
 import { useState } from 'react'
 import { MessageSquare, Wrench } from 'lucide-react'
-import CollaspeButton from './components/collapseButton'
-import TabButton from './components/tabButton'
+import CollaspeButton from '../../ui/collapseButton'
+import TabButton from '../../ui/tabButton'
 import ChatPanel from './chatPanel'
 import SkillsPanel from './skillsPanel'
+import { Session } from '@/types/session'
+
+interface IProps {
+  sessions?: Session[]
+  handleShowSkillEditor?: () => void
+  handleDeleteSession?: (id: string) => void
+}
 
 export type TAB_TYPE = 'chat' | 'skills'
 
@@ -22,7 +29,9 @@ const TABS = [
   }
 ]
 
-const LeftPanel = () => {    
+const LeftPanel: React.FC<IProps> = (props) => {
+    const { sessions, handleShowSkillEditor, handleDeleteSession } = props
+
     const [isCollapsed, setIsCollapsed] = useState<boolean>(false)
     const [currentTab, setCurrentTab] = useState<TAB_TYPE>('chat')
 
@@ -33,9 +42,14 @@ const LeftPanel = () => {
 	const renderTabPanel = () => {
 		switch (currentTab) {
 			case 'chat':
-				return <ChatPanel />
+				return <ChatPanel 
+          sessions={sessions} 
+          handleDeleteSession={handleDeleteSession}
+        />
 			case 'skills':
-				return <SkillsPanel />
+				return <SkillsPanel 
+          handleShowSkillEditor={handleShowSkillEditor} 
+        />
 		}
 	}
 
@@ -61,7 +75,7 @@ const LeftPanel = () => {
     }
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+    <div className="min-w-64 max-w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">

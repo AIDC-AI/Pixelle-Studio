@@ -12,6 +12,26 @@ import asyncio
 router = APIRouter(prefix="/api/mcp-servers", tags=["MCP Servers"])
 
 
+class MCPServerWithStatus(BaseModel):
+    # 基本信息
+    id: str
+    name: str
+    transport: str
+    url: str | None
+    command: str | None
+    args: str | None
+    error: str | None
+    uid: str
+    created_at: str
+    updated_at: str
+    
+    # 状态信息
+    status: str  # 'connected', 'disconnected', 'error', 'checking'
+    message: str
+    response_time: float
+    tools: List[dict] = []
+
+
 class ConnectionStatus(BaseModel):
     server_id: str
     server_name: str
@@ -21,16 +41,150 @@ class ConnectionStatus(BaseModel):
     tools: List[dict] = []  # 添加 tools 字段
 
 
-@router.get("", response_model=List[MCPServerResponse])
-def get_all_servers(
+async def _check_single_server_status(server: MCPServer) -> dict:
+    """检查单个服务器的状态和工具"""
+    import time
+    start_time = time.time()
+    
+    try:
+        # 映射 transport 类型
+        transport_mapping = {
+            'streamable-http': 'http',
+            'sse': 'sse',
+            'stdio': 'stdio'
+        }
+        
+        server_type = transport_mapping.get(server.transport, server.transport)
+        
+        # 根据不同类型构建不同的 config
+        if server_type == 'sse':
+            config_data = {"url": server.url}
+        elif server_type == 'http':
+            config_data = {"endpoint": server.url}
+        elif server_type == 'stdio':
+            config_data = {
+                "command": server.command,
+                "args": server.args.split(',') if server.args else []
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"Unsupported transport type: {server.transport}",
+                "response_time": 0,
+                "tools": []
+            }
+        
+        # 构建 MCP 服务器配置
+        mcp_server = {
+            "id": server.id,
+            "name": server.name,
+            "type": server_type,
+            "config": config_data,
+            "enabled": True,
+            "headers": None
+        }
+        
+        config = AggregatorConfig(servers=[mcp_server])
+        aggregator = MCPAggregator()
+        
+        # 设置 3 秒超时（列表页面需要快速响应）
+        try:
+            tools = await asyncio.wait_for(aggregator.fetch_tools(config), timeout=3.0)
+            response_time = (time.time() - start_time) * 1000
+            
+            return {
+                "status": "connected",
+                "message": f"Found {len(tools)} tools",
+                "response_time": round(response_time, 2),
+                "tools": tools
+            }
+        except asyncio.TimeoutError:
+            response_time = (time.time() - start_time) * 1000
+            return {
+                "status": "error",
+                "message": "Connection timeout (3s)",
+                "response_time": round(response_time, 2),
+                "tools": []
+            }
+    except Exception as e:
+        response_time = (time.time() - start_time) * 1000
+        return {
+            "status": "disconnected",
+            "message": f"Connection failed: {str(e)}",
+            "response_time": round(response_time, 2),
+            "tools": []
+        }
+
+
+@router.get("", response_model=List[MCPServerWithStatus])
+async def get_all_servers(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    check_status: bool = True  # 查询参数：是否检查状态
 ):
-    """Get all MCP servers for current user (requires authentication)"""
+    """Get all MCP servers for current user with status and tools"""
     servers = db.query(MCPServer).filter(
         MCPServer.uid == current_user.uid
     ).order_by(MCPServer.created_at.desc()).all()
-    return servers
+    
+    if not check_status:
+        # 如果不需要检查状态，只返回基本信息
+        return [
+            MCPServerWithStatus(
+                id=s.id,
+                name=s.name,
+                transport=s.transport,
+                url=s.url,
+                command=s.command,
+                args=s.args,
+                error=s.error,
+                uid=s.uid,
+                created_at=s.created_at.isoformat(),
+                updated_at=s.updated_at.isoformat(),
+                status="unknown",
+                message="Status check disabled",
+                response_time=0,
+                tools=[]
+            )
+            for s in servers
+        ]
+    
+    # 并发检查所有服务器的状态
+    status_tasks = [_check_single_server_status(server) for server in servers]
+    status_results = await asyncio.gather(*status_tasks, return_exceptions=True)
+    
+    # 组合结果
+    result = []
+    for server, status_data in zip(servers, status_results):
+        # 如果检查失败，使用默认值
+        if isinstance(status_data, Exception):
+            status_data = {
+                "status": "error",
+                "message": str(status_data),
+                "response_time": 0,
+                "tools": []
+            }
+        
+        result.append(
+            MCPServerWithStatus(
+                id=server.id,
+                name=server.name,
+                transport=server.transport,
+                url=server.url,
+                command=server.command,
+                args=server.args,
+                error=server.error,
+                uid=server.uid,
+                created_at=server.created_at.isoformat(),
+                updated_at=server.updated_at.isoformat(),
+                status=status_data["status"],
+                message=status_data["message"],
+                response_time=status_data["response_time"],
+                tools=status_data["tools"]
+            )
+        )
+    
+    return result
 
 
 @router.get("/{server_id}", response_model=MCPServerResponse)

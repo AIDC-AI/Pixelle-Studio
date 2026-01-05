@@ -17,9 +17,13 @@ export interface ConnectionStatus {
 }
 
 export const mcpServerAPI = {
-    // 获取所有服务器
-    async getServers(): Promise<MCPServer[]> {
-        const response = await fetch(`${API_BASE}/mcp-servers`, {
+    // 获取所有服务器（包含状态和工具）
+    async getServers(checkStatus: boolean = true): Promise<MCPServer[]> {
+        const url = checkStatus 
+            ? `${API_BASE}/mcp-servers?check_status=true`
+            : `${API_BASE}/mcp-servers?check_status=false`;
+            
+        const response = await fetch(url, {
             headers: getAuthHeaders()
         });
         if (!response.ok) {

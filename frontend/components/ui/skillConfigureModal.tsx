@@ -2,51 +2,37 @@
 
 import { useApp } from "@/context";
 import { api } from "@/lib/api";
-import { Form, Input, Modal } from "antd";
+import { ScriptItem, Skill } from "@/types/skill";
+import { Checkbox, Col, Drawer, Flex, Form, Input, Row } from "antd";
 import { useEffect } from "react";
 
 interface IProps {
     open: boolean
-    setOpen: React.Dispatch<React.SetStateAction<boolean>>
-    setSelectedIndex: React.Dispatch<React.SetStateAction<number>>
-    skillName?: string
-    reload?: () => void
+    skill?: Skill
+    scripts?: ScriptItem[]
+    onSuccess?: () => void // 添加成功回调
+    onClose?: () => void   // 关闭回调
 }
 
 type FieldType = {
-    name?: string;
+    name?: string
+    description?: string
     content?: string
 };
 
 const SkillConfigureModal: React.FC<IProps> = (props) => {
-    const { open, setOpen, skillName, reload, setSelectedIndex} = props;
+    const { open, skill, scripts, onSuccess, onClose} = props;
     const { messageApi } = useApp()
     
     const [form] = Form.useForm();
 
-    const handleGetSkillContent = async (name: string) => {
-        if (!name || name === '') 
-            return
-        try {
-            const response = await api.getSkillContent(name)
-            if (!!response) {
-                const content = response?.full_content || ''
-                form?.setFieldsValue({
-                    name: skillName,
-                    content
-                });
-            }
-        }
-        catch (error) {
-            console.error(`Failed to get skill ${name}:`, error);
-        }
-    }
-
     useEffect(() => {
-        if (skillName) {
-            handleGetSkillContent(skillName)
+        if (!!skill) {
+            form?.setFieldsValue({
+                ...skill
+            });
         }
-    }, [skillName]);
+    }, [skill]);
     
     const handleOk = async () => {
         const values = await form.validateFields();
@@ -54,7 +40,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
             const response = await api.createSkill(values.name, values.content)
             if (!!response) {
                 messageApi.success('Successed!', 1)
-                reload?.()
+                onSuccess?.()
                 handleCancel()
             }
         }
@@ -64,48 +50,83 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
     }
 
     const handleCancel = () => {
-        setSelectedIndex?.(-1)
         form?.resetFields()
-        setOpen(false)
+        onClose?.()
     }
     
-    return <Modal
-        title={`${(!!skillName && skillName !== '') ? 'Update Skill' : 'Add Skill'}`}
+    return <Drawer
+        title={`${!!skill ? 'Update Skill' : 'Add Skill'}`}
+        placement="left"
+        size={window.innerWidth / 2}
         closable={{ 'aria-label': 'Custom Close Button' }}
         open={open}
-        onOk={handleOk}
-        onCancel={handleCancel}
-        width="50%"
+        onClose={handleCancel}
         destroyOnHidden
     >
         <Form
             name="server"
             form={form}
-            labelCol={{ span: 8 }}
+            layout="vertical"
             autoComplete="off"
         >
             <Form.Item<FieldType>
-                label="Skill Name"
+                label="名称（创建后不可修改）"
                 name="name"
                 rules={[{ required: true, message: 'please input skill name!' }]}
             >
-                <Input placeholder="e.g., My MCP Server" size="small" allowClear />
+                <Input placeholder="e.g., My Skill" allowClear />
             </Form.Item>
 
             <Form.Item<FieldType>
-                label="Skill Content"
+                label="描述"
+                name="description"
+                rules={[{ required: true, message: 'please input skill description!' }]}
+            >
+                <Input.TextArea 
+                    placeholder="Enter skill description"
+                    rows={3}
+                    allowClear 
+                    style={{ resize: 'none' }}
+                />
+            </Form.Item>
+
+            {/* <Form.Item 
+                label="脚本文件"
+                name="scripts"
+            >
+                <Checkbox.Group>
+                    <Flex wrap gap='small'>
+                        {
+                            scripts?.map((script) => <Checkbox 
+                                key={`${script.serverId}-${script.toolName}`}
+                                value={`${script.serverId}-${script.toolName}`}
+                            >
+                                <div
+                                    className="items-center gap-2 p-2 rounded-lg border border-gray-200 transition-colors"
+                                >
+                                    <p className="text-sm text-gray-700 truncate">{script.toolName}</p>
+                                    <p className="text-xs text-gray-500 truncate">{script.serverName}</p>
+                                </div>
+                            </Checkbox>)
+                        }
+                    </Flex>
+                </Checkbox.Group>
+            </Form.Item> */}
+
+            <Form.Item<FieldType>
+                label="详细内容（Markdown）"
                 name="content"
                 rules={[{ required: true, message: 'please input skill content!' }]}
             >
                 <Input.TextArea 
-                    className="h-128"
-                    placeholder='Enter skill content' 
-                    size="small" 
-                    allowClear 
+                    placeholder='Enter skill content in Markdown format' 
+                    allowClear
+                    rows={24}
                 />
             </Form.Item>
+            
         </Form>
-    </Modal>
+    </Drawer>
 }
 
 export default SkillConfigureModal
