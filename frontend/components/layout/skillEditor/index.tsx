@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, Save, Upload, Trash2, FileCode, Link, GripVertical, Plus, ArrowUpRight, Play } from 'lucide-react'
+import { getAuthHeaders } from '@/lib/data'
+import { useApp } from '@/context'
 
 interface Script {
   name: string
@@ -44,8 +46,6 @@ interface IProps {
   skill?: Skill | null
   isNew: boolean
   onSave: (skill: Skill, scripts: Script[]) => Promise<void>
-  onClose: () => void
-  token: string | null
   mcpTools: McpTool[]
   onTest?: (skillName: string) => void  // 测试回调
 }
@@ -57,11 +57,12 @@ const SkillEditor: React.FC<IProps> = (props) => {
         skill,
         isNew,
         onSave: _onSave, // 保留接口兼容但内部不使用
-        onClose,
-        token,
         mcpTools,
         onTest
     } = props 
+
+    const { setSkillEditored } = useApp()
+    
   void _onSave // 消除 TS 警告
   // Skill 表单状态
   const [name, setName] = useState(skill?.name || '')
@@ -93,12 +94,9 @@ const SkillEditor: React.FC<IProps> = (props) => {
   // 是否为新建模式（考虑已保存状态）
   const isNewMode = isNew && !isSaved
 
-  const getAuthHeaders = useCallback(() => {
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    }
-  }, [token])
+  const handleClose = () => {
+    setSkillEditored(false)
+  }
 
   // 加载脚本列表（接受可选的 skillId 参数，用于立即加载）
   const fetchScripts = useCallback(async (skillIdOverride?: string) => {
@@ -344,14 +342,13 @@ const SkillEditor: React.FC<IProps> = (props) => {
         .join('\n')
       
       instruction = `请调用 ${reference} 来执行操作。
+        **参数说明:**
+        ${paramDesc}
 
-**参数说明:**
-${paramDesc}
-
-**参数示例:**
-\`\`\`json
-${paramExample}
-\`\`\``
+        **参数示例:**
+        \`\`\`json
+        ${paramExample}
+        \`\`\``
     } else {
       // 无参数的工具
       instruction = `请调用 ${reference} 来执行操作（无需参数）`
@@ -560,7 +557,7 @@ ${paramExample}
           )}
           
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5 text-gray-500" />
@@ -609,9 +606,8 @@ ${paramExample}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="输入技能的详细说明（支持 Markdown 格式）
-
-提示：使用 # script_name.py # 格式引用脚本
-例如：请调用 # time.py # 来获取当前时间"
+                    提示：使用 # script_name.py # 格式引用脚本
+                    例如：请调用 # time.py # 来获取当前时间"
               disabled={isReadOnly}
               className={`flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none font-mono text-sm ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             />
@@ -639,7 +635,7 @@ ${paramExample}
                     key={script.name}
                     className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-200 group"
                   >
-                    <FileCode className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <FileCode className="w-4 h-4 text-green-600 shrink-0" />
                     <span className="flex-1 text-sm text-gray-700 truncate">{script.name}</span>
                     <button
                       onClick={() => insertScriptReference(script.name)}
@@ -665,7 +661,7 @@ ${paramExample}
                     key={`pending-${index}`}
                     className="flex items-center gap-2 p-2 bg-yellow-50 rounded-lg border border-yellow-200 group"
                   >
-                    <FileCode className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                    <FileCode className="w-4 h-4 text-yellow-600 shrink-0" />
                     <span className="flex-1 text-sm text-gray-700 truncate">{pending.scriptName}</span>
                     <span className="text-xs text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded">待保存</span>
                     <button
@@ -716,18 +712,18 @@ ${paramExample}
             </div>
             
             {/* MCP Tools 列表 */}
-            {mcpTools.length === 0 ? (
+            {mcpTools?.length === 0 ? (
               <p className="text-xs text-gray-500">暂无可用工具</p>
             ) : (
               <div className="space-y-2">
-                {mcpTools.map((tool, index) => (
+                {mcpTools?.map((tool, index) => (
                   <div
                     key={`${tool.server_id}-${tool.name}-${index}`}
                     draggable
                     onDragStart={(e) => handleToolDragStart(e, tool)}
                     className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-200 cursor-grab hover:border-gray-400 transition-colors group"
                   >
-                    <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-700 truncate">{tool.name}</p>
                       <p className="text-xs text-gray-500 truncate">{tool.server_name}</p>

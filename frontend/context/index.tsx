@@ -7,8 +7,11 @@ import { MessageInstance } from 'antd/es/message/interface';
 import { UserResponse } from '@/types/user';
 import { userAPI } from '@/lib/userApi';
 import { useRouter, usePathname } from 'next/navigation';
+import { Skill } from '@/types/skill';
 
 type IProps = {
+    messageApi: MessageInstance
+
     user: UserResponse | null
     setUser: React.Dispatch<React.SetStateAction<UserResponse | null>>
 
@@ -18,7 +21,11 @@ type IProps = {
     activeSessionId: string
     setActiveSessionId: React.Dispatch<React.SetStateAction<string>>
 
-    messageApi: MessageInstance
+    skillEditored: boolean 
+    setSkillEditored: React.Dispatch<React.SetStateAction<boolean>>
+
+    currentSkill: Skill | null
+    setCurrentSkill: React.Dispatch<React.SetStateAction<Skill | null>>
 
     login: (email: string, password: string) => Promise<void>
     register: (username: string, email: string, password: string) => Promise<boolean>
@@ -32,10 +39,16 @@ const PUBLIC_ROUTES = ['/auth']
 export function AppProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
+
+    const [messageApi, contextHolder] = message.useMessage();
+
     const [user, setUser] = useState<UserResponse | null>(null)
     const [token, setToken] = useState<string | null>(null)
+
     const [activeSessionId, setActiveSessionId] = useState<string>('');
-    const [messageApi, contextHolder] = message.useMessage();
+
+    const [skillEditored, setSkillEditored] = useState<boolean>(false)
+    const [currentSkill, setCurrentSkill] = useState<Skill | null>(null)
 
     const login = async (email: string, password: string) => {
         try {
@@ -107,13 +120,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return <AppContext.Provider
         value={
             {
+                messageApi,
                 user, 
                 setUser,
                 token, 
                 setToken,
                 activeSessionId, 
                 setActiveSessionId, 
-                messageApi,
+                skillEditored, 
+                setSkillEditored,
+                currentSkill, 
+                setCurrentSkill,
                 login,
                 register,
                 logout

@@ -16,6 +16,7 @@ const Chat = () => {
     const { 
       activeSessionId, 
       setActiveSessionId,
+      skillEditored
     } = useApp();
 
     const { 
@@ -124,16 +125,7 @@ const Chat = () => {
           ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             const _messages: Message[] = []
-            // Remove "Processing your request..." message when we get first real response
-            const removeProcessingMessage = () => {
-              // const processingIndex = messages.findIndex(m => 
-              //   m.type === 'system' && m.content === 'Processing your request...'
-              // );
-              // if (processingIndex !== -1) {
-              //   messages.splice(processingIndex, 1);
-              // }
-            };
-    
+
             if (data.type === 'iteration_start') {
               _messages.push({ 
                 type: 'iteration', 
@@ -159,7 +151,6 @@ const Chat = () => {
               })
             } else if (data.type === 'code') {
               // NEW: Handle code generation event
-              removeProcessingMessage(); // Remove loading message
               currentExecCount = data.execution_count || currentExecCount + 1;
               _messages.push({
                 type: 'code',
@@ -203,7 +194,6 @@ const Chat = () => {
               }
             } else if (data.type === 'response') {
               // NEW: Handle direct response from agent
-              removeProcessingMessage(); // Remove loading message
               _messages.push({
                 type: 'response',
                 content: data.content,
@@ -243,7 +233,6 @@ const Chat = () => {
               })
             } else if (data.type === 'final_result') {
               // 最终结果 - 现在才关闭连接
-              removeProcessingMessage(); // Remove loading message
               // Skip adding final_result message if it's just a direct response (no code execution)
               // currentExecCount === -1 means we had a direct response
               // currentExecCount === 0 means no code was executed
@@ -274,7 +263,6 @@ const Chat = () => {
                 timestamp: Date.now()
               })
             } else if (data.type === 'error') {
-              removeProcessingMessage(); // Remove loading message
               _messages.push({
                 type: 'error', 
                 content: data.content, 
@@ -341,7 +329,10 @@ const Chat = () => {
               handleSubmit={handleSubmit}
             />
         </div>
-        {/* <SkillEditor /> */}
+        {
+          skillEditored && <SkillEditor />
+        }
+        
       </div>
     );
 };

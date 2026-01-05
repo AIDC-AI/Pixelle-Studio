@@ -7,24 +7,28 @@ import ExpandeBox from "@/components/ui/expandeBox";
 import { useApp } from "@/context";
 import { mcpServerAPI } from "@/lib/mcpServerApi";
 import ToolConfigureModal from "@/components/ui/toolConfigureModal";
-import { MCPServer, MCPTool } from "@/types/server";
+import { MCPServer } from "@/types/server";
 import ServerCard from "@/components/ui/serverCard";
 import { Skeleton } from "antd";
 
 const SkillsPanel = () => {
-    const { messageApi } = useApp()
+    const { messageApi, setSkillEditored } = useApp()
 
     const [loading, setLoading] = useState<boolean>(false);
 
     const [mcpServers, setMcpServers] = useState<MCPServer[]>([])
-    const [toolConfigureOpen, setToolConfigureOpen] = useState<boolean>(false);
+    const [skillConfigureOpen, setSkillConfigureOpen] = useState<boolean>(false)
+    const [toolConfigureOpen, setToolConfigureOpen] = useState<boolean>(false)
     const [skills, setSkills] = useState<Skill[]>([])
-    const [skillConfigureOpen, setSkillConfigureOpen] = useState<boolean>(false);
 
     const [selectedIndex, setSelectedIndex] = useState<number>(-1)
     const [selectedSkillIndex, setSelectedSkillIndex] = useState<number>(-1)
     const [selectedMcpServerIndex, setSelectedMcpServerIndex] = useState<number>(-1)
-    const [currentServer, setCurrentServer] = useState<MCPServer | null>(null);
+
+    const handleShowSkillEditor = () => {
+        // setSkillEditored(true)
+        setSkillConfigureOpen(true)
+    }
 
     const handleGetSkills = async () => {
         setLoading(true);
@@ -136,15 +140,14 @@ const SkillsPanel = () => {
                             <span className="text-xs text-gray-400">({skills?.length || 0})</span>
                         </div>
                     }
-                    onAdd={() => setSkillConfigureOpen(true)}
+                    onAdd={handleShowSkillEditor}
                 >
                     <div className="p-4 space-y-2">
                         {
                             skills?.map((skill, index) => <div
                                 key={skill.id}
                                 onClick={() => {
-                                    
-                                    setSkillConfigureOpen(true)
+                                    handleShowSkillEditor()
                                 }}
                                 className="group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                             >
@@ -192,7 +195,7 @@ const SkillsPanel = () => {
                 </ExpandeBox>  
             </>
         }
-        
+
         <SkillConfigureModal 
             open={skillConfigureOpen}
             skill={skills[selectedSkillIndex] || null}

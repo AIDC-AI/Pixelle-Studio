@@ -90,7 +90,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                 />
             </Form.Item>
 
-            <Form.Item 
+            {/* <Form.Item 
                 label="脚本文件"
                 name="scripts"
             >
@@ -111,7 +111,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                         }
                     </Flex>
                 </Checkbox.Group>
-            </Form.Item>
+            </Form.Item> */}
 
             <Form.Item<FieldType>
                 label="详细内容（Markdown）"
