@@ -193,6 +193,7 @@ async def process_with_agent(
     
     The agent handles everything:
     - Deciding whether to answer directly or execute code
+    - Calling MCP tools for external services
     - Loading skills when needed
     - Executing code and evaluating results
     - Continuing until task is complete
@@ -228,10 +229,30 @@ async def process_with_agent(
 
                 if assistant_text:
                     history_messages.append({"role": "assistant", "content": assistant_text})
+            
+            # Load first enabled MCP server for tool calls
+            from app.database.models import MCPServer as DBMCPServer
+            mcp_server_url = None
+            mcp_server_type = "sse"
+            
+            mcp_server = db.query(DBMCPServer).first()  # Get first available server
+            if mcp_server:
+                mcp_server_url = mcp_server.url
+                transport_mapping = {
+                    'streamable-http': 'http',
+                    'sse': 'sse',
+                }
+                mcp_server_type = transport_mapping.get(mcp_server.transport, 'sse')
+                log.info(f"Using MCP server: {mcp_server.name} ({mcp_server_url})")
         finally:
             db.close()
 
-        agent = SkillAgent(max_tool_calls=10, history_messages=history_messages)
+        agent = SkillAgent(
+            max_tool_calls=10, 
+            history_messages=history_messages,
+            mcp_server_url=mcp_server_url,
+            mcp_server_type=mcp_server_type
+        )
         
         step_index = 0
         final_response_text: Optional[str] = None

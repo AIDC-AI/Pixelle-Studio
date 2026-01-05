@@ -56,7 +56,7 @@ pip install -e .
 ### As sse MCP Server
 
 ```bash
-python server.py
+fastmcp run server.py --transport sse --port 8002
 ```
 
 ### Testing with MCP Inspector

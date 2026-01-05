@@ -77,17 +77,27 @@ class SkillAgent:
     The agent maintains a conversation history and decides at each step:
     - Answer directly (for simple questions)
     - Generate and execute Python code (for tasks requiring computation)
+    - Call MCP tools for external services (via call_tool())
     - Read a skill for detailed guidance
     
     The agent loop continues until the agent decides the task is complete.
     """
     
-    def __init__(self, max_tool_calls: int = 10, history_messages: Optional[List[Dict[str, str]]] = None):
+    def __init__(
+        self, 
+        max_tool_calls: int = 10, 
+        history_messages: Optional[List[Dict[str, str]]] = None,
+        mcp_server_url: Optional[str] = None,
+        mcp_server_type: str = "sse"
+    ):
         """
         Initialize the agent.
         
         Args:
             max_tool_calls: Maximum number of code executions (safety limit)
+            history_messages: Previous conversation history
+            mcp_server_url: URL of the MCP server to use for tool calls
+            mcp_server_type: Type of MCP server ("sse" or "http")
         """
         # Configure client with longer timeout for large requests
         self.client = wrappers.wrap_openai(AsyncOpenAI(
@@ -99,6 +109,8 @@ class SkillAgent:
         self.skill_loader = get_skill_loader()
         self.max_tool_calls = max_tool_calls
         self.history_messages = history_messages or []
+        self.mcp_server_url = mcp_server_url
+        self.mcp_server_type = mcp_server_type
         
         # Conversation state
         self.messages: List[Dict[str, str]] = []
@@ -117,6 +129,14 @@ class SkillAgent:
         # Use XML format for skills (Claude Code style)
         skills_xml = self.skill_loader.build_skills_xml_prompt()
         
+        # Build loaded skills context if any
+        loaded_skills_context = ""
+        if self.loaded_skills:
+            loaded_skills_context = "\n<loaded_skills_context>\n"
+            for skill_name, content in self.loaded_skills.items():
+                loaded_skills_context += f"The skill '{skill_name}' is loaded. Follow its documentation exactly.\n"
+            loaded_skills_context += "</loaded_skills_context>\n"
+        
         system_prompt = f"""You are an intelligent agent that helps users accomplish tasks.
 
 <capabilities>
@@ -129,10 +149,15 @@ You can help users in the following ways:
    - The code will be executed and you'll see the results
    - Based on results, decide if the task is complete or needs more work
 
-3. **Skills**: You have access to specialized skills that provide domain-specific guidance and code patterns.
+3. **MCP Tool Calling**: For tasks that need external services (like image generation, audio synthesis, etc.):
+   - Use the pre-injected `call_tool(tool_name, args)` function in your Python code
+   - This allows you to call any MCP tool registered in the system
+
+4. **Skills**: You have access to specialized skills that provide domain-specific guidance and code patterns.
 </capabilities>
 
 {skills_xml}
+{loaded_skills_context}
 
 <code_execution_rules>
 When generating Python code:
@@ -142,86 +167,72 @@ When generating Python code:
 3. **Output**: Use `print()` for output you want to see
 4. **Final Result**: Print a JSON object with required keys
 
-<working_directory>
-Your code runs with working directory at backend root. Two key directories:
-- `skills/` - Skill resources (e.g., skills/pptx/scripts/html2pptx.js)
-- `scripts/` - User files and output files (your Python scripts also run from here)
+<pre_injected_helpers>
+The following helper functions are automatically available in your Python code:
 
-Helper functions are pre-injected in Python:
-- `skill_path("pptx", "scripts/html2pptx.js")` -> "skills/pptx/scripts/html2pptx.js"
-- `script_path("output.pptx")` -> "scripts/output.pptx"
+**File Path Helpers:**
+- `skill_path("skill_name", "relative/path")` - Get path to skill resources
+- `script_path("filename")` - Get path to user files in scripts/ directory
+
+**MCP Tool Calling (async):**
+- `await call_tool("tool_name", {{"arg1": value1, ...}})` - Call an MCP tool
+- Use `asyncio.run(main())` pattern for async code
+
+Example using MCP tools:
+```python
+import asyncio
+import json
+
+async def main():
+    # Call MCP tools as documented in the loaded skill
+    result = await call_tool('some_tool', {{'input': 'value'}})
+    print(json.dumps({{"status": "success", "result": result}}))
+
+asyncio.run(main())
+```
+</pre_injected_helpers>
+
+<working_directory>
+Your code runs with working directory at backend root. Key directories:
+- `skills/` - Skill resources and helper scripts
+- `scripts/` - User files and output files
 </working_directory>
 
 <file_rules>
-- **Input files**: Read from `scripts/<filename>` (e.g., `scripts/data.xlsx`)
-- **Output files**: Write to `scripts/<filename>` (e.g., `scripts/output.pptx`)
-- **Skill scripts**: Access via `skill_path()` or direct path like `skills/pptx/scripts/...`
+- **Input files**: Read from `scripts/<filename>`
+- **Output files**: Write to `scripts/<filename>`
 - **output_file_names**: List only the filename (NOT the path), e.g., `["output.pptx"]`
 </file_rules>
 
-<nodejs_rules>
-When generating Node.js scripts saved to `scripts/` directory:
-- Use `path.join(__dirname, '..', 'skills', ...)` to reference skill files
-- Use `path.join(__dirname, 'filename')` to reference files in scripts/
-- Example: `require(path.join(__dirname, '..', 'skills', 'pptx', 'scripts', 'html2pptx.js'))`
-- NEVER use `./skills/...` - Node.js require() resolves relative to script file, not cwd
-</nodejs_rules>
-
-<pptx_html_rules>
-When generating HTML for PowerPoint (html2pptx):
-- **Backgrounds/borders/shadows**: ONLY on `<div>`, NEVER on `<h1>`-`<h6>`, `<p>`, `<ul>`, `<ol>`
-  ✗ Wrong: `<h2 style="border-bottom: 3pt solid #fff;">`
-  ✓ Right: `<div style="border-bottom: 3pt solid #fff;"><h2>Title</h2></div>`
-- **No CSS gradients**: `linear-gradient`, `radial-gradient` don't work. Use solid colors.
-- **Text must be in tags**: All text must be inside `<p>`, `<h1>`-`<h6>`, `<ul>`, `<ol>`. Text directly in `<div>` will be lost.
-- **Web-safe fonts only**: Arial, Helvetica, Times New Roman, Georgia, Verdana, Tahoma
-</pptx_html_rules>
-
-<output_format_examples>
-Example 1 - Without output files:
+<output_format>
+Always end your code with a JSON status output:
 ```python
-import json
-# ... your code ...
-print(json.dumps({{"status": "success", "result": "任务完成的描述"}}))
-```
-
-Example 2 - With output files:
-```python
-import json
-# ... your code that generates files ...
-# Write to scripts/ directory
-output_path = script_path("report.xlsx")  # -> "scripts/report.xlsx"
-# ... save file to output_path ...
 print(json.dumps({{
-    "status": "success", 
-    "result": "任务完成的描述",
-    "output_file_names": ["report.xlsx"]  # Only filename, not full path
+    "status": "success",  # or "error"
+    "result": "Description of what was done",
+    "output_file_names": ["file.ext"]  # Optional: only filenames, not paths
 }}))
 ```
-</output_format_examples>
+</output_format>
 </code_execution_rules>
 
 <skill_usage>
-When a skill is loaded:
-- The skill's SKILL.md documentation will be added to context
-- Use relative paths: `skills/<skill_name>/...`
-- Follow the skill's patterns and error handling guidance
+**IMPORTANT**: When a skill is loaded, follow its documentation exactly!
 
-Example using skill scripts:
-```python
-# Python script in skill
-subprocess.run(['python', skill_path('xlsx', 'recalc.py'), 'scripts/data.xlsx'])
-
-# Node.js script in skill  
-subprocess.run(['node', skill_path('pptx', 'scripts/html2pptx.js'), ...])
-```
+1. Read the skill's SKILL.md carefully - it contains the correct implementation pattern
+2. Different skills have different execution modes:
+   - Some skills use MCP tool calling (e.g., call_tool())
+   - Some skills use local scripts (subprocess with skill_path())
+   - Some skills use Python libraries directly
+3. Follow the skill's "Implementation Pattern" or "Basic Workflow" section
+4. Do NOT assume a skill needs Node.js or local scripts unless the skill explicitly says so
 </skill_usage>
 
 <decision_flow>
 After seeing code execution results, decide your next action:
 
-1. **Task Complete**: If successful and the user's request is fulfilled → Provide a final response summarizing what was done
-2. **Error Occurred**: If there was an error → Analyze it, refer to loaded skill's error handling guidance if available, then generate corrected code
+1. **Task Complete**: If successful and the user's request is fulfilled → Provide a final response
+2. **Error Occurred**: If there was an error → Analyze it, refer to loaded skill's guidance, then generate corrected code
 3. **Partial Success**: If more work is needed → Generate additional code to complete the task
 4. **Need More Info**: If skill documentation would help → Load the relevant skill first
 </decision_flow>
@@ -242,10 +253,11 @@ After seeing code execution results, decide your next action:
             AgentAction with type and content
         """
         import re
-        
+
         # Check for skill load request: [LOAD_SKILL: name]
         if "[LOAD_SKILL:" in response_text:
-            match = re.search(r'\[LOAD_SKILL:\s*(\w+)\s*\]', response_text)
+            # 支持 skill 名中包含 - 等字符
+            match = re.search(r'\[LOAD_SKILL:\s*([\w-]+)\s*\]', response_text)
             if match:
                 skill_name = match.group(1)
                 return AgentAction(
@@ -253,10 +265,10 @@ After seeing code execution results, decide your next action:
                     content=response_text,
                     skill_name=skill_name
                 )
-        
+
         # Check for read skill file request: [READ_SKILL_FILE: name, path]
         if "[READ_SKILL_FILE:" in response_text:
-            match = re.search(r'\[READ_SKILL_FILE:\s*(\w+)\s*,\s*([^\]]+)\]', response_text)
+            match = re.search(r'\[READ_SKILL_FILE:\s*([\w-]+)\s*,\s*([^\]]+)\]', response_text)
             if match:
                 skill_name = match.group(1)
                 file_path = match.group(2).strip()
@@ -266,10 +278,10 @@ After seeing code execution results, decide your next action:
                     skill_name=skill_name,
                     file_path=file_path
                 )
-        
+
         # Check for list skill tree request: [LIST_SKILL_TREE: name]
         if "[LIST_SKILL_TREE:" in response_text:
-            match = re.search(r'\[LIST_SKILL_TREE:\s*(\w+)\s*\]', response_text)
+            match = re.search(r'\[LIST_SKILL_TREE:\s*([\w-]+)\s*\]', response_text)
             if match:
                 skill_name = match.group(1)
                 return AgentAction(
@@ -301,9 +313,28 @@ After seeing code execution results, decide your next action:
         Build the skill_helpers module code to inject into execution environment.
         
         All paths are RELATIVE to the execution cwd (backend root).
-        Two root directories: skills/ and scripts/
+        Provides:
+        - skill_path() and script_path() for file paths
+        - call_tool() for MCP tool calling (async)
         """
-        return '''
+        # Build MCP server registration if configured
+        mcp_setup = ""
+        if self.mcp_server_url:
+            mcp_setup = f'''
+# Register default MCP server for all tools
+_DEFAULT_MCP_SERVER = "{self.mcp_server_url}"
+_DEFAULT_MCP_TYPE = "{self.mcp_server_type}"
+
+# Wrap call_tool to use default server if tool not registered
+_original_call_tool = call_tool
+async def call_tool(tool_name: str, args: dict = None):
+    from app.mcp_client import _TOOL_SERVER_MAP, register_tool_server
+    if tool_name not in _TOOL_SERVER_MAP:
+        register_tool_server(tool_name, _DEFAULT_MCP_SERVER, _DEFAULT_MCP_TYPE)
+    return await _original_call_tool(tool_name, args)
+'''
+        
+        return f'''
 # === Skill Helpers (auto-injected) ===
 # Working directory is backend root, containing: skills/ and scripts/
 
@@ -319,6 +350,12 @@ def script_path(*parts) -> str:
     """Get relative path: scripts/[parts...]"""
     import os
     return os.path.join(SCRIPTS_ROOT, *parts)
+
+# MCP Tool Calling Support
+import sys
+sys.path.insert(0, '.')
+from app.mcp_client import call_tool
+{mcp_setup}
 # === End Skill Helpers ===
 '''
 
@@ -552,7 +589,7 @@ from pathlib import Path
                 return
             
             elif action.action_type == "read_skill":
-                # Load skill's SKILL.md
+                # Load skill's SKILL.md and inject its FULL content into context
                 skill_name = action.skill_name
                 yield {"type": "status", "content": f"Loading skill: {skill_name}"}
                 
@@ -564,18 +601,17 @@ from pathlib import Path
                     links = self.skill_loader.parse_skill_links(skill_name)
                     referenced_docs = [link.path for link in links if link.exists and link.path.endswith('.md')]
                     
-                    # Build guidance message
-                    guidance = f"[System Notification] Skill '{skill_name}' SKILL.md has been loaded.\n\n"
+                    # Build guidance message with FULL SKILL.md content
+                    guidance = f"[System Notification] Skill '{skill_name}' SKILL.md content:\n\n"
+                    guidance += f"```markdown\n{skill_content}\n```\n\n"
                     
                     if referenced_docs:
-                        guidance += "**Important**: The SKILL.md references these detailed documentation files:\n"
+                        guidance += "**Note**: The SKILL.md references these detailed documentation files:\n"
                         for doc in referenced_docs[:5]:  # Limit to 5
                             guidance += f"- {doc}\n"
-                        guidance += "\nFor file creation tasks, you should read the relevant detailed docs before generating code. "
-                        guidance += f"Use `[READ_SKILL_FILE: {skill_name}, <filename>]` to read them.\n\n"
-                        guidance += "Review the SKILL.md to understand which workflow applies to your task, then read the corresponding detailed documentation."
-                    else:
-                        guidance += "Please proceed with the task following the skill's guidance."
+                        guidance += f"\nUse `[READ_SKILL_FILE: {skill_name}, <filename>]` to read them if needed.\n\n"
+                    
+                    guidance += "Please proceed with the task following the skill's guidance exactly."
                     
                     self.messages.append({"role": "user", "content": guidance})
                     yield {"type": "skill_loaded", "skill_name": skill_name, "referenced_docs": referenced_docs}
