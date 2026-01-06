@@ -49,6 +49,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     session_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    uid = Column(String, nullable=True, index=True)  # User ID for multi-tenancy
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

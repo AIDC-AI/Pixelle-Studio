@@ -88,7 +88,8 @@ class SkillAgent:
         max_tool_calls: int = 10, 
         history_messages: Optional[List[Dict[str, str]]] = None,
         mcp_server_url: Optional[str] = None,
-        mcp_server_type: str = "sse"
+        mcp_server_type: str = "sse",
+        user_id: Optional[str] = None
     ):
         """
         Initialize the agent.
@@ -98,6 +99,7 @@ class SkillAgent:
             history_messages: Previous conversation history
             mcp_server_url: URL of the MCP server to use for tool calls
             mcp_server_type: Type of MCP server ("sse" or "http")
+            user_id: User ID for isolation and personalization
         """
         # Configure client with longer timeout for large requests
         self.client = wrappers.wrap_openai(AsyncOpenAI(
@@ -111,14 +113,17 @@ class SkillAgent:
         self.history_messages = history_messages or []
         self.mcp_server_url = mcp_server_url
         self.mcp_server_type = mcp_server_type
+        self.user_id = user_id
         
         # Conversation state
         self.messages: List[Dict[str, str]] = []
         self.tool_call_count = 0
         self.loaded_skills: Dict[str, str] = {}  # skill_name -> content
         
-        # Script storage - put outside backend to avoid triggering file watcher
-        self.script_dir = Path(__file__).parent.parent / "scripts"
+        # Script storage - scripts/<user_id>/
+        # Put outside backend to avoid triggering file watcher
+        script_subdir = self.user_id if self.user_id else "default"
+        self.script_dir = Path(__file__).parent.parent / "scripts" / script_subdir
         self.script_dir.mkdir(parents=True, exist_ok=True)
         
         # Backend root directory (contains both skills/ and scripts/)
@@ -127,7 +132,7 @@ class SkillAgent:
     def _build_system_prompt(self) -> str:
         """Build the system prompt with skills in XML format (Claude Code style)."""
         # Use XML format for skills (Claude Code style)
-        skills_xml = self.skill_loader.build_skills_xml_prompt()
+        skills_xml = self.skill_loader.build_skills_xml_prompt(self.user_id)
         
         # Build loaded skills context if any
         loaded_skills_context = ""
@@ -199,8 +204,9 @@ Your code runs with working directory at backend root. Key directories:
 </working_directory>
 
 <file_rules>
-- **Input files**: Read from `scripts/<filename>`
-- **Output files**: Write to `scripts/<filename>`
+**CRITICAL**: File paths are dynamic based on user context.
+- **NEVER** use hardcoded paths like `scripts/filename.ext`.
+- **ALWAYS** use `script_path("filename.ext")` to access input files and write output files.
 - **output_file_names**: List only the filename (NOT the path), e.g., `["output.pptx"]`
 </file_rules>
 
@@ -334,21 +340,35 @@ async def call_tool(tool_name: str, args: dict = None):
     return await _original_call_tool(tool_name, args)
 '''
         
+        # Get skill paths map for current user to handle split directories
+        # user_id is handled in scan_skills
+        skills = self.skill_loader.scan_skills(self.user_id)
+        # Map skill_name -> directory_path (e.g. "skills/default/pptx" or "skills/uid/pptx")
+        skill_paths_map = {s.name: s.directory for s in skills}
+        
+        script_subdir = self.user_id if self.user_id else "default"
+        
         return f'''
 # === Skill Helpers (auto-injected) ===
 # Working directory is backend root, containing: skills/ and scripts/
 
-SKILLS_ROOT = "skills"
-SCRIPTS_ROOT = "scripts"
+import os
+import json
+
+# Map of skill name to its actual path (default vs user)
+_SKILL_PATHS = {json.dumps(skill_paths_map)}
+SCRIPTS_ROOT = "scripts/{script_subdir}"
 
 def skill_path(skill_name: str, *parts) -> str:
-    """Get relative path: skills/<skill_name>/[parts...]"""
-    import os
-    return os.path.join(SKILLS_ROOT, skill_name, *parts)
+    """Get relative path: skills/<source>/<skill_name>/[parts...]"""
+    base_path = _SKILL_PATHS.get(skill_name)
+    if not base_path:
+        # Fallback (should not happen if skill is loaded)
+        return os.path.join("skills", "default", skill_name, *parts)
+    return os.path.join(base_path, *parts)
 
 def script_path(*parts) -> str:
-    """Get relative path: scripts/[parts...]"""
-    import os
+    """Get relative path: scripts/<user_id>/[parts...]"""
     return os.path.join(SCRIPTS_ROOT, *parts)
 
 # MCP Tool Calling Support
@@ -456,15 +476,17 @@ from pathlib import Path
         
         # 使用 file_names，文件在 scripts/ 目录下
         if file_names:
-            full_user_message += "\n\n## 用户上传的文件:\n"
+            full_user_message += "\n\n## User Uploaded Files:\n"
+            full_user_message += "You must access these files using `script_path('filename')`:\n"
             for name in file_names:
-                full_user_message += f"- scripts/{name}\n"
+                full_user_message += f"- {name}\n"
         elif file_urls:
             # 兜底：如果只有 URL，从 URL 中解析文件名
-            full_user_message += "\n\n## 用户上传的文件:\n"
+            full_user_message += "\n\n## User Uploaded Files:\n"
+            full_user_message += "You must access these files using `script_path('filename')`:\n"
             for url in file_urls:
                 filename = url.split("/")[-1]
-                full_user_message += f"- scripts/{filename}\n"
+                full_user_message += f"- {filename}\n"
         
         # Initialize conversation
         # Start from persisted history (Cursor-like session memory)
@@ -593,12 +615,12 @@ from pathlib import Path
                 skill_name = action.skill_name
                 yield {"type": "status", "content": f"Loading skill: {skill_name}"}
                 
-                skill_content = self.skill_loader.read_skill(skill_name)
+                skill_content = self.skill_loader.read_skill(skill_name, self.user_id)
                 if skill_content:
                     self.loaded_skills[skill_name] = skill_content
                     
                     # Find referenced documents in SKILL.md
-                    links = self.skill_loader.parse_skill_links(skill_name)
+                    links = self.skill_loader.parse_skill_links(skill_name, self.user_id)
                     referenced_docs = [link.path for link in links if link.exists and link.path.endswith('.md')]
                     
                     # Build guidance message with FULL SKILL.md content
@@ -630,7 +652,7 @@ from pathlib import Path
                 file_path = action.file_path
                 yield {"type": "status", "content": f"Reading skill file: {skill_name}/{file_path}"}
                 
-                file_content = self.skill_loader.read_skill_file(skill_name, file_path)
+                file_content = self.skill_loader.read_skill_file(skill_name, file_path, self.user_id)
                 if file_content:
                     # Add file content to context
                     self.messages.append({
@@ -651,7 +673,7 @@ from pathlib import Path
                 skill_name = action.skill_name
                 yield {"type": "status", "content": f"Listing skill tree: {skill_name}"}
                 
-                tree = self.skill_loader.list_skill_tree(skill_name)
+                tree = self.skill_loader.list_skill_tree(skill_name, self.user_id)
                 if tree:
                     import json
                     tree_json = json.dumps(tree, indent=2, ensure_ascii=False)
@@ -692,7 +714,8 @@ from pathlib import Path
                             file_path = self.script_dir / file_name
                             if file_path.exists():
                                 # Generate LAN URL
-                                file_url = f"http://{LOCAL_IP}:{SERVER_PORT}/f/{file_name}"
+                                path_prefix = f"{self.user_id}/" if self.user_id else "default/"
+                                file_url = f"http://{LOCAL_IP}:{SERVER_PORT}/f/{path_prefix}{file_name}"
                                 output_files.append({
                                     "file_name": file_name,
                                     "file_url": file_url,
@@ -750,7 +773,8 @@ Based on this result, either:
 async def run_agent(
     user_message: str,
     file_urls: List[str] = None,
-    session_id: str = None
+    session_id: str = None,
+    user_id: str = None
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Convenience function to run the agent.
@@ -759,11 +783,12 @@ async def run_agent(
         user_message: User's input
         file_urls: Optional file URLs
         session_id: Optional session ID
+        user_id: Optional user ID for isolation
         
     Yields:
         Agent events
     """
-    agent = SkillAgent()
+    agent = SkillAgent(user_id=user_id)
     async for event in agent.run(
         user_message=user_message,
         file_urls=file_urls,

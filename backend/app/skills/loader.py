@@ -160,24 +160,57 @@ class SkillLoader:
         else:
             self.skills_dir = Path(skills_dir)
         
-        self._skills_cache: Dict[str, SkillMeta] = {}
-        self._content_cache: Dict[str, str] = {}
+        # Cache structure: user_id -> skill_name -> data
+        # Use "default" as key for no user_id
+        self._skills_cache: Dict[str, Dict[str, SkillMeta]] = {}
+        self._content_cache: Dict[str, Dict[str, str]] = {}
     
-    def scan_skills(self) -> List[SkillMeta]:
+    def _get_cache_key(self, user_id: Optional[str]) -> str:
+        return user_id or "default"
+
+    def scan_skills(self, user_id: Optional[str] = None) -> List[SkillMeta]:
         """
         Scan skills directory and extract metadata from all SKILL.md files.
+        Supports layered loading: default -> user (override).
         
+        Args:
+            user_id: Optional user ID to load custom skills for
+            
         Returns:
-            List of SkillMeta objects
+            List of SkillMeta objects (merged)
         """
-        skills = []
+        cache_key = self._get_cache_key(user_id)
+        
+        # Reset cache for this user to ensure fresh scan
+        self._skills_cache[cache_key] = {}
+        
+        skills_map: Dict[str, SkillMeta] = {}
         
         if not self.skills_dir.exists():
             print(f"[SkillLoader] Skills directory not found: {self.skills_dir}")
-            return skills
+            return []
+            
+        # 1. Scan default directory
+        default_dir = self.skills_dir / "default"
+        if default_dir.exists() and default_dir.is_dir():
+            self._scan_dir(default_dir, skills_map)
+            
+        # 2. Scan user directory if provided
+        if user_id:
+            user_skill_dir = self.skills_dir / user_id
+            if user_skill_dir.exists() and user_skill_dir.is_dir():
+                self._scan_dir(user_skill_dir, skills_map)
         
-        # Iterate through subdirectories
-        for skill_dir in self.skills_dir.iterdir():
+        # Update cache
+        self._skills_cache[cache_key] = skills_map
+        
+        skills = list(skills_map.values())
+        print(f"[SkillLoader] Total skills loaded for {cache_key}: {len(skills)}")
+        return skills
+
+    def _scan_dir(self, base_dir: Path, skills_map: Dict[str, SkillMeta]):
+        """Helper to scan a directory and update skills map."""
+        for skill_dir in base_dir.iterdir():
             if not skill_dir.is_dir():
                 continue
             
@@ -188,14 +221,10 @@ class SkillLoader:
             try:
                 meta = self._extract_metadata(skill_md_path, skill_dir)
                 if meta:
-                    skills.append(meta)
-                    self._skills_cache[meta.name] = meta
-                    print(f"[SkillLoader] Loaded skill: {meta.name}")
+                    skills_map[meta.name] = meta
+                    print(f"[SkillLoader] Found skill '{meta.name}' in {base_dir.name}")
             except Exception as e:
                 print(f"[SkillLoader] Error loading skill from {skill_dir}: {e}")
-        
-        print(f"[SkillLoader] Total skills loaded: {len(skills)}")
-        return skills
     
     def _extract_metadata(self, skill_md_path: Path, skill_dir: Path) -> Optional[SkillMeta]:
         """
@@ -243,23 +272,26 @@ class SkillLoader:
             license=frontmatter.get('license')
         )
     
-    def get_skill_meta(self, skill_name: str) -> Optional[SkillMeta]:
+    def get_skill_meta(self, skill_name: str, user_id: Optional[str] = None) -> Optional[SkillMeta]:
         """
         Get metadata for a specific skill.
         
         Args:
             skill_name: Name of the skill
+            user_id: Optional user ID context
             
         Returns:
             SkillMeta if found, None otherwise
         """
-        # Ensure skills are loaded
-        if not self._skills_cache:
-            self.scan_skills()
+        cache_key = self._get_cache_key(user_id)
         
-        return self._skills_cache.get(skill_name)
+        # Ensure skills are loaded for this user context
+        if cache_key not in self._skills_cache or not self._skills_cache[cache_key]:
+            self.scan_skills(user_id)
+        
+        return self._skills_cache[cache_key].get(skill_name)
     
-    def read_skill(self, skill_name: str) -> Optional[str]:
+    def read_skill(self, skill_name: str, user_id: Optional[str] = None) -> Optional[str]:
         """
         Read full content of a skill's SKILL.md file.
         
@@ -267,18 +299,21 @@ class SkillLoader:
         
         Args:
             skill_name: Name of the skill
+            user_id: Optional user ID context
             
         Returns:
             Full SKILL.md content if found, None otherwise
         """
+        cache_key = self._get_cache_key(user_id)
+        
         # Check content cache first
-        if skill_name in self._content_cache:
-            return self._content_cache[skill_name]
+        if cache_key in self._content_cache and skill_name in self._content_cache[cache_key]:
+            return self._content_cache[cache_key][skill_name]
         
         # Get meta to find path
-        meta = self.get_skill_meta(skill_name)
+        meta = self.get_skill_meta(skill_name, user_id)
         if not meta:
-            print(f"[SkillLoader] Skill not found: {skill_name}")
+            print(f"[SkillLoader] Skill not found: {skill_name} (user: {user_id})")
             return None
         
         # Read full content
@@ -288,11 +323,16 @@ class SkillLoader:
             return None
         
         content = skill_md_path.read_text(encoding='utf-8')
-        self._content_cache[skill_name] = content
+        
+        # Initialize sub-dict if needed
+        if cache_key not in self._content_cache:
+            self._content_cache[cache_key] = {}
+            
+        self._content_cache[cache_key][skill_name] = content
         
         return content
     
-    def get_skill_directory(self, skill_name: str) -> Optional[str]:
+    def get_skill_directory(self, skill_name: str, user_id: Optional[str] = None) -> Optional[str]:
         """
         Get the absolute path to a skill's directory.
         
@@ -300,28 +340,30 @@ class SkillLoader:
         
         Args:
             skill_name: Name of the skill
+            user_id: Optional user ID context
             
         Returns:
             Absolute path to skill directory if found, None otherwise
         """
-        meta = self.get_skill_meta(skill_name)
+        meta = self.get_skill_meta(skill_name, user_id)
         if not meta:
             return None
         
         skill_dir = self.skills_dir.parent / meta.directory
         return str(skill_dir.absolute())
     
-    def list_skill_files(self, skill_name: str) -> List[str]:
+    def list_skill_files(self, skill_name: str, user_id: Optional[str] = None) -> List[str]:
         """
         List all files in a skill's directory.
         
         Args:
             skill_name: Name of the skill
+            user_id: Optional user ID context
             
         Returns:
             List of filenames in the skill directory
         """
-        skill_dir = self.get_skill_directory(skill_name)
+        skill_dir = self.get_skill_directory(skill_name, user_id)
         if not skill_dir:
             return []
         
@@ -331,14 +373,14 @@ class SkillLoader:
         
         return [f.name for f in skill_path.iterdir() if f.is_file()]
     
-    def build_skills_meta_prompt(self) -> str:
+    def build_skills_meta_prompt(self, user_id: Optional[str] = None) -> str:
         """
         Build skills metadata section for system prompt.
         
         Returns:
             Formatted string containing all skills' metadata
         """
-        skills = self.scan_skills()
+        skills = self.scan_skills(user_id)
         
         if not skills:
             return "No skills available."
@@ -351,7 +393,7 @@ class SkillLoader:
             lines.append(f"**Path**: {skill.path}")
             
             # List helper scripts
-            files = self.list_skill_files(skill.name)
+            files = self.list_skill_files(skill.name, user_id)
             helper_scripts = [f for f in files if f.endswith('.py') and f != '__init__.py']
             if helper_scripts:
                 lines.append(f"**Helper Scripts**: {', '.join(helper_scripts)}")
@@ -369,18 +411,19 @@ class SkillLoader:
     # New Methods for Progressive Disclosure Level 3
     # =========================================================================
     
-    def list_skill_tree(self, skill_name: str, max_depth: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def list_skill_tree(self, skill_name: str, user_id: Optional[str] = None, max_depth: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """
         Recursively list all files and directories in a skill folder.
         
         Args:
             skill_name: Name of the skill
+            user_id: Optional user ID context
             max_depth: Maximum recursion depth (default: SkillLoaderConfig.MAX_TREE_DEPTH)
             
         Returns:
             Dictionary representing the directory tree, or None if skill not found
         """
-        skill_dir = self.get_skill_directory(skill_name)
+        skill_dir = self.get_skill_directory(skill_name, user_id)
         if not skill_dir:
             print(f"[SkillLoader] Skill not found: {skill_name}")
             return None
@@ -430,18 +473,19 @@ class SkillLoader:
         root = build_tree(skill_path)
         return root.to_dict()
     
-    def _validate_skill_path(self, skill_name: str, relative_path: str) -> Optional[Path]:
+    def _validate_skill_path(self, skill_name: str, relative_path: str, user_id: Optional[str] = None) -> Optional[Path]:
         """
         Validate that a relative path is safe and within the skill directory.
         
         Args:
             skill_name: Name of the skill
             relative_path: Relative path within the skill directory
+            user_id: Optional user ID context
             
         Returns:
             Absolute Path if valid, None otherwise
         """
-        skill_dir = self.get_skill_directory(skill_name)
+        skill_dir = self.get_skill_directory(skill_name, user_id)
         if not skill_dir:
             return None
         
@@ -461,7 +505,7 @@ class SkillLoader:
         
         return target
     
-    def read_skill_file(self, skill_name: str, relative_path: str) -> Optional[str]:
+    def read_skill_file(self, skill_name: str, relative_path: str, user_id: Optional[str] = None) -> Optional[str]:
         """
         Read a specific file from the skill directory.
         
@@ -471,11 +515,12 @@ class SkillLoader:
         Args:
             skill_name: Name of the skill
             relative_path: Path relative to skill directory (e.g., "html2pptx.md" or "scripts/html2pptx.js")
+            user_id: Optional user ID context
             
         Returns:
             File content as string, or None if not found/not readable
         """
-        target = self._validate_skill_path(skill_name, relative_path)
+        target = self._validate_skill_path(skill_name, relative_path, user_id)
         if not target:
             return None
         
@@ -505,7 +550,7 @@ class SkillLoader:
             print(f"[SkillLoader] Error reading file: {e}")
             return None
     
-    def get_skill_file_path(self, skill_name: str, relative_path: str) -> Optional[str]:
+    def get_skill_file_path(self, skill_name: str, relative_path: str, user_id: Optional[str] = None) -> Optional[str]:
         """
         Get the absolute path to a file in the skill directory.
         
@@ -514,11 +559,12 @@ class SkillLoader:
         Args:
             skill_name: Name of the skill
             relative_path: Path relative to skill directory (e.g., "scripts/html2pptx.js")
+            user_id: Optional user ID context
             
         Returns:
             Absolute path as string if file exists, None otherwise
         """
-        target = self._validate_skill_path(skill_name, relative_path)
+        target = self._validate_skill_path(skill_name, relative_path, user_id)
         if not target:
             return None
         
@@ -528,7 +574,7 @@ class SkillLoader:
         
         return str(target)
     
-    def parse_skill_links(self, skill_name: str) -> List[LinkInfo]:
+    def parse_skill_links(self, skill_name: str, user_id: Optional[str] = None) -> List[LinkInfo]:
         """
         Parse markdown links in SKILL.md to discover related resources.
         
@@ -536,15 +582,16 @@ class SkillLoader:
         
         Args:
             skill_name: Name of the skill
+            user_id: Optional user ID context
             
         Returns:
             List of LinkInfo objects for all relative links found
         """
-        skill_content = self.read_skill(skill_name)
+        skill_content = self.read_skill(skill_name, user_id)
         if not skill_content:
             return []
         
-        skill_dir = self.get_skill_directory(skill_name)
+        skill_dir = self.get_skill_directory(skill_name, user_id)
         if not skill_dir:
             return []
         
@@ -585,7 +632,7 @@ class SkillLoader:
         
         return links
     
-    def build_skills_meta_prompt_enhanced(self) -> str:
+    def build_skills_meta_prompt_enhanced(self, user_id: Optional[str] = None) -> str:
         """
         Build enhanced skills metadata section for system prompt.
         
@@ -594,7 +641,7 @@ class SkillLoader:
         Returns:
             Formatted string containing all skills' metadata with related docs
         """
-        skills = self.scan_skills()
+        skills = self.scan_skills(user_id)
         
         if not skills:
             return "No skills available."
@@ -611,13 +658,13 @@ class SkillLoader:
             lines.append(f"**Description**: {skill.description}")
             
             # Find related docs
-            links = self.parse_skill_links(skill.name)
+            links = self.parse_skill_links(skill.name, user_id)
             existing_docs = [link.path for link in links if link.exists and link.path.endswith('.md')]
             if existing_docs:
                 lines.append(f"**Related Docs**: {', '.join(existing_docs[:5])}")
             
             # Check for scripts/resources directories
-            skill_dir = Path(self.get_skill_directory(skill.name))
+            skill_dir = Path(self.get_skill_directory(skill.name, user_id))
             if (skill_dir / "scripts").exists():
                 lines.append("**Has Scripts**: Yes")
             if (skill_dir / "resources").exists():
@@ -627,7 +674,7 @@ class SkillLoader:
         
         return "\n".join(lines)
     
-    def build_skills_xml_prompt(self) -> str:
+    def build_skills_xml_prompt(self, user_id: Optional[str] = None) -> str:
         """
         Build skills section in Claude Code XML format for system prompt.
         
@@ -637,7 +684,7 @@ class SkillLoader:
         Returns:
             XML formatted string containing skills instructions and available skills
         """
-        skills = self.scan_skills()
+        skills = self.scan_skills(user_id)
         
         if not skills:
             return ""
@@ -649,13 +696,13 @@ class SkillLoader:
             description = skill.description
             
             # Find related docs
-            links = self.parse_skill_links(skill.name)
+            links = self.parse_skill_links(skill.name, user_id)
             existing_docs = [link.path for link in links if link.exists and link.path.endswith('.md')]
             if existing_docs:
                 description += f" Related docs: {', '.join(existing_docs[:3])}."
             
             # Check for scripts
-            skill_dir = Path(self.get_skill_directory(skill.name))
+            skill_dir = Path(self.get_skill_directory(skill.name, user_id))
             if (skill_dir / "scripts").exists():
                 description += " Has helper scripts."
             

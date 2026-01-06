@@ -54,9 +54,9 @@ app.add_middleware(
 )
 
 # Storage directory for uploaded files
-# STORAGE_DIR = Path(__file__).parent.parent / "storage" / "files"
-STORAGE_DIR = Path(__file__).parent.parent / "scripts"
-STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+# STORAGE_DIR is now dynamic based on user_id, see upload_file
+# STORAGE_DIR = Path(__file__).parent.parent / "scripts"
+# STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def get_local_ip():
@@ -91,6 +91,7 @@ class ChatRequest(BaseModel):
     file_urls: Optional[List[str]] = None
     file_names: Optional[List[str]] = None  # 上传后的文件名（如 9120.xlsx）
     session_id: Optional[str] = None  # 可选：复用同一会话（Cursor-like）
+    user_id: Optional[str] = None  # 用户ID，用于多租户隔离
 
 
 class ChatResponse(BaseModel):
@@ -108,11 +109,15 @@ async def create_chat(request: ChatRequest):
         if session_id:
             session = db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
             if not session:
-                session = ChatSession(session_id=session_id)
+                session = ChatSession(session_id=session_id, uid=request.user_id)
                 db.add(session)
                 db.commit()
+            elif request.user_id and not session.uid:
+                # Update existing session with uid if missing
+                session.uid = request.user_id
+                db.commit()
         else:
-            session = ChatSession()
+            session = ChatSession(uid=request.user_id)
             db.add(session)
             db.commit()
             db.refresh(session)
@@ -131,8 +136,7 @@ async def create_chat(request: ChatRequest):
         db.add(turn)
         db.commit()
 
-        log.info(f"Created turn {chat_id} (session {session_id[:8]}): {request.message[:50]}...")
-        log.info(f"[DEBUG] session_id: {session_id}, file_urls: {request.file_urls}, file_names: {request.file_names}")
+        log.info(f"Created turn {chat_id} (session {session_id[:8]}, user {request.user_id}): {request.message[:50]}...")
         return {"chat_id": chat_id, "session_id": session_id}
     finally:
         db.close()
@@ -165,10 +169,15 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
             file_urls = json.loads(turn.file_urls_json) if turn.file_urls_json else []
             file_names = json.loads(turn.file_names_json) if turn.file_names_json else []
             session_id = turn.session_id
+            
+            # Retrieve user_id from session
+            session = db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
+            user_id = session.uid if session else None
+            
         finally:
             db.close()
 
-        await process_with_agent(websocket, chat_id, session_id, user_message, file_urls, file_names)
+        await process_with_agent(websocket, chat_id, session_id, user_message, file_urls, file_names, user_id)
     
     except WebSocketDisconnect:
         log.info(f"WebSocket disconnected: {chat_id}")
@@ -186,7 +195,8 @@ async def process_with_agent(
     session_id: str,
     user_message: str,
     file_urls: List[str],
-    file_names: List[str] = None
+    file_names: List[str] = None,
+    user_id: str = None
 ):
     """
     Process a user message using the single agent.
@@ -251,7 +261,8 @@ async def process_with_agent(
             max_tool_calls=10, 
             history_messages=history_messages,
             mcp_server_url=mcp_server_url,
-            mcp_server_type=mcp_server_type
+            mcp_server_type=mcp_server_type,
+            user_id=user_id
         )
         
         step_index = 0
@@ -381,29 +392,38 @@ async def get_skill_detail(skill_name: str):
 # ============================================================================
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...), request: Request = None):
+async def upload_file(file: UploadFile = File(...), request: Request = None, user_id: Optional[str] = None):
     """Upload a file and return a URL for access."""
     try:
+        # Determine storage directory based on user_id
+        script_root = Path(__file__).parent.parent / "scripts"
+        target_subdir = user_id if user_id else "default"
+        storage_dir = script_root / target_subdir
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        
         file_id = str(uuid.uuid4())[:4]
         file_extension = Path(file.filename).suffix if file.filename else ""
         unique_filename = f"{file_id}{file_extension}"
         
-        file_path = STORAGE_DIR / unique_filename
+        file_path = storage_dir / unique_filename
 
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        log.info(f"File uploaded: {file.filename} -> {unique_filename}")
+        log.info(f"File uploaded: {file.filename} -> {unique_filename} (scope: {target_subdir})")
         
         port = request.url.port if request and request.url.port else 8001
-        lan_url = f"http://{LOCAL_IP}:{port}/f/{unique_filename}"
+        # Include user_id in URL path for retrieval
+        url_path = f"{target_subdir}/{unique_filename}"
+        lan_url = f"http://{LOCAL_IP}:{port}/f/{url_path}"
 
         return {
             "success": True,
             "url": lan_url,
-            "file_name": unique_filename,  # 保存后的文件名（如 9120.xlsx），供 Agent 使用
+            "file_name": unique_filename,  # 保存后的文件名
             "original_name": file.filename,  # 原始文件名
-            "size": file_path.stat().st_size
+            "size": file_path.stat().st_size,
+            "scope": target_subdir
         }
 
     except Exception as e:
@@ -411,11 +431,29 @@ async def upload_file(file: UploadFile = File(...), request: Request = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/f/{user_id}/{filename}")
+async def get_user_file(user_id: str, filename: str):
+    """Serve uploaded files for a specific user."""
+    script_root = Path(__file__).parent.parent / "scripts"
+    file_path = script_root / user_id / filename
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(file_path)
+
+
 @app.get("/f/{filename}")
 async def get_file(filename: str):
-    """Serve uploaded files."""
-    file_path = STORAGE_DIR / filename
+    """Serve uploaded files (legacy/default)."""
+    # Default to 'default' directory
+    script_root = Path(__file__).parent.parent / "scripts"
+    file_path = script_root / "default" / filename
 
+    # Fallback to root scripts dir for backward compatibility
+    if not file_path.exists():
+        file_path = script_root / filename
+        
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -436,133 +474,42 @@ async def health_check():
         "skills_loaded": len(skills_list)
     }
 @app.get("/api/skills")
-async def get_skills():
-    """
-    Get all skills from the skillset folder.
-    Returns a list of skill names (folder names).
-    """
+async def get_skills(user_id: Optional[str] = None):
+    """Get all available skills metadata (merged view for user)."""
     try:
-        skillset_dir = Path(__file__).parent.parent / "skillset"
-        
-        if not skillset_dir.exists():
-            return {"skills": []}
-        
-        # Get all subdirectories in skillset folder
-        skills = []
-        for item in skillset_dir.iterdir():
-            if item.is_dir() and not item.name.startswith('.'):
-                # Check if SKILL.md exists
-                skill_md = item / "SKILL.md"
-                skill_info = {
-                    "name": item.name,
-                    "path": str(item.relative_to(skillset_dir.parent)),
-                    "has_description": skill_md.exists()
-                }
-                
-                # Parse SKILL.md front matter if exists
-                if skill_md.exists():
-                    try:
-                        with open(skill_md, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            
-                            # Parse YAML front matter
-                            if content.startswith('---'):
-                                parts = content.split('---', 2)
-                                if len(parts) >= 3:
-                                    front_matter = parts[1].strip()
-                                    # Simple parsing for description field
-                                    for line in front_matter.split('\n'):
-                                        if line.strip().startswith('description:'):
-                                            # Extract description value (handle quotes)
-                                            desc = line.split('description:', 1)[1].strip()
-                                            # Remove surrounding quotes if present
-                                            if desc.startswith('"') and desc.endswith('"'):
-                                                desc = desc[1:-1]
-                                            elif desc.startswith("'") and desc.endswith("'"):
-                                                desc = desc[1:-1]
-                                            skill_info["description"] = desc
-                                            break
-                    except Exception as e:
-                        log.warning(f"Failed to read SKILL.md for {item.name}: {e}")
-                        skill_info["description"] = ""
-                
-                skills.append(skill_info)
-        
-        return {"skills": skills}
-    
+        skills = skill_loader.scan_skills(user_id)
+        return {
+            "skills": [s.to_dict() for s in skills],
+            "count": len(skills)
+        }
     except Exception as e:
         log.error(f"Error getting skills: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/skills/{skill_name}")
-async def get_skill_detail(skill_name: str):
-    """
-    Get detailed content of a specific skill.
-    Returns the full SKILL.md content and metadata.
-    """
+async def get_skill_detail(skill_name: str, user_id: Optional[str] = None):
+    """Get full content of a specific skill."""
     try:
-        skillset_dir = Path(__file__).parent.parent / "skillset"
-        skill_dir = skillset_dir / skill_name
-        
-        if not skill_dir.exists() or not skill_dir.is_dir():
+        content = skill_loader.read_skill(skill_name, user_id)
+        if content is None:
             raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
         
-        skill_md = skill_dir / "SKILL.md"
-        
-        if not skill_md.exists():
-            raise HTTPException(status_code=404, detail=f"SKILL.md not found for '{skill_name}'")
-        
-        # Read full content
-        with open(skill_md, 'r', encoding='utf-8') as f:
-            full_content = f.read()
-        
-        # Parse front matter and body
-        metadata = {}
-        body = full_content
-        
-        if full_content.startswith('---'):
-            parts = full_content.split('---', 2)
-            if len(parts) >= 3:
-                front_matter = parts[1].strip()
-                body = parts[2].strip()
-                
-                # Parse front matter fields
-                for line in front_matter.split('\n'):
-                    if ':' in line:
-                        key, value = line.split(':', 1)
-                        key = key.strip()
-                        value = value.strip()
-                        # Remove quotes
-                        if value.startswith('"') and value.endswith('"'):
-                            value = value[1:-1]
-                        elif value.startswith("'") and value.endswith("'"):
-                            value = value[1:-1]
-                        metadata[key] = value
-        
-        # Get list of files in skill directory
-        files = []
-        for file in skill_dir.iterdir():
-            if file.is_file():
-                files.append({
-                    "name": file.name,
-                    "size": file.stat().st_size,
-                    "path": str(file.relative_to(skillset_dir.parent))
-                })
+        meta = skill_loader.get_skill_meta(skill_name, user_id)
+        files = skill_loader.list_skill_files(skill_name, user_id)
         
         return {
             "name": skill_name,
-            "metadata": metadata,
-            "content": body,
-            "full_content": full_content,
+            "meta": meta.to_dict() if meta else None,
+            "content": content,
             "files": files
         }
-    
     except HTTPException:
         raise
     except Exception as e:
         log.error(f"Error getting skill detail for {skill_name}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 class CreateSkillRequest(BaseModel):
@@ -576,19 +523,23 @@ class UpdateSkillRequest(BaseModel):
 
 
 @app.post("/api/skills")
-async def create_skill(request: CreateSkillRequest):
+async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = None):
     """
     Create a new skill.
+    If user_id provided, create in skills/<user_id>, else in skills/default.
     """
     try:
-        skillset_dir = Path(__file__).parent.parent / "skillset"
+        # Determine target directory
+        skills_root = Path(__file__).parent.parent / "skills"
+        target_subdir = user_id if user_id else "default"
+        skillset_dir = skills_root / target_subdir
         skillset_dir.mkdir(parents=True, exist_ok=True)
         
         skill_dir = skillset_dir / request.name
         
-        # Check if skill already exists
+        # Check if skill already exists in this scope
         if skill_dir.exists():
-            raise HTTPException(status_code=400, detail=f"Skill '{request.name}' already exists")
+            raise HTTPException(status_code=400, detail=f"Skill '{request.name}' already exists in {target_subdir}")
         
         # Create skill directory
         skill_dir.mkdir(parents=True)
@@ -598,12 +549,16 @@ async def create_skill(request: CreateSkillRequest):
         with open(skill_md, 'w', encoding='utf-8') as f:
             f.write(request.content)
         
-        log.info(f"Created skill: {request.name}")
+        # Clear loader cache to reflect changes
+        skill_loader.clear_cache()
+        
+        log.info(f"Created skill: {request.name} (scope: {target_subdir})")
         
         return {
             "success": True,
             "name": request.name,
-            "path": str(skill_dir.relative_to(skillset_dir.parent))
+            "path": str(skill_dir.relative_to(skills_root.parent)),
+            "scope": target_subdir
         }
     
     except HTTPException:
@@ -614,17 +569,20 @@ async def create_skill(request: CreateSkillRequest):
 
 
 @app.put("/api/skills/{skill_name}")
-async def update_skill(skill_name: str, request: UpdateSkillRequest):
+async def update_skill(skill_name: str, request: UpdateSkillRequest, user_id: Optional[str] = None):
     """
     Update an existing skill.
-    Can rename the skill and/or update its content.
+    Must provide user_id to update user-specific skills.
     """
     try:
-        skillset_dir = Path(__file__).parent.parent / "skillset"
+        skills_root = Path(__file__).parent.parent / "skills"
+        target_subdir = user_id if user_id else "default"
+        skillset_dir = skills_root / target_subdir
+        
         skill_dir = skillset_dir / skill_name
         
         if not skill_dir.exists() or not skill_dir.is_dir():
-            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found in {target_subdir}")
         
         # Handle rename if new_name is provided
         if request.new_name and request.new_name != skill_name:
@@ -637,20 +595,23 @@ async def update_skill(skill_name: str, request: UpdateSkillRequest):
             # Rename directory
             skill_dir.rename(new_skill_dir)
             skill_dir = new_skill_dir
-            log.info(f"Renamed skill from '{skill_name}' to '{request.new_name}'")
+            log.info(f"Renamed skill from '{skill_name}' to '{request.new_name}' (scope: {target_subdir})")
         
         # Update SKILL.md content
         skill_md = skill_dir / "SKILL.md"
         with open(skill_md, 'w', encoding='utf-8') as f:
             f.write(request.content)
         
+        skill_loader.clear_cache()
+        
         final_name = request.new_name if request.new_name else skill_name
-        log.info(f"Updated skill: {final_name}")
+        log.info(f"Updated skill: {final_name} (scope: {target_subdir})")
         
         return {
             "success": True,
             "name": final_name,
-            "path": str(skill_dir.relative_to(skillset_dir.parent))
+            "path": str(skill_dir.relative_to(skills_root.parent)),
+            "scope": target_subdir
         }
     
     except HTTPException:
@@ -661,21 +622,26 @@ async def update_skill(skill_name: str, request: UpdateSkillRequest):
 
 
 @app.delete("/api/skills/{skill_name}")
-async def delete_skill(skill_name: str):
+async def delete_skill(skill_name: str, user_id: Optional[str] = None):
     """
     Delete a skill and all its files.
     """
     try:
-        skillset_dir = Path(__file__).parent.parent / "skillset"
+        skills_root = Path(__file__).parent.parent / "skills"
+        target_subdir = user_id if user_id else "default"
+        skillset_dir = skills_root / target_subdir
+        
         skill_dir = skillset_dir / skill_name
         
         if not skill_dir.exists() or not skill_dir.is_dir():
-            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found in {target_subdir}")
         
         # Delete the entire skill directory
         shutil.rmtree(skill_dir)
         
-        log.info(f"Deleted skill: {skill_name}")
+        skill_loader.clear_cache()
+        
+        log.info(f"Deleted skill: {skill_name} (scope: {target_subdir})")
         
         return {
             "success": True,
