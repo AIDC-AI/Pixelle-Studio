@@ -1,6 +1,6 @@
 # frontend/Dockerfile
 # 阶段 1: 构建
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 # 配置 npm 使用国内镜像源（可选，如果网络好可以注释掉）
@@ -24,7 +24,7 @@ ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 RUN npm run build
 
 # 阶段 2: 运行
-FROM node:18-alpine AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
