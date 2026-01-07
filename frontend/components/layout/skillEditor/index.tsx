@@ -35,7 +35,7 @@ interface PendingMcpTool {
 interface Skill {
   id: string
   name: string
-  description: string
+  description?: string
   content?: string
   full_content?: string
   folder?: string
