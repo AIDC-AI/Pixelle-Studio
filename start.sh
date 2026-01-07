@@ -3,16 +3,22 @@
 # 遇到错误立即退出
 set -e
 
-# 启用 Docker BuildKit 加速构建
-export DOCKER_BUILDKIT=1
-export COMPOSE_DOCKER_CLI_BUILD=1
-
 echo "=== MCP Workflow 服务启动 ==="
 
 # 1. 检查必要工具
 if ! command -v docker &> /dev/null; then
     echo "错误: 未找到 docker 命令"
     exit 1
+fi
+
+# 检测并启用 BuildKit（如果 buildx 可用）
+if docker buildx version &> /dev/null 2>&1; then
+    echo "检测到 Docker buildx，启用 BuildKit 加速构建..."
+    export DOCKER_BUILDKIT=1
+    export COMPOSE_DOCKER_CLI_BUILD=1
+else
+    echo "未检测到 Docker buildx，使用标准构建模式"
+    echo "提示: 安装 buildx 可加速构建，运行: docker buildx install"
 fi
 
 # 自动检测 docker-compose 命令
