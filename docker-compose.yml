@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mcp-backend
+    ports:
+      - "8001:8001"
+    volumes:
+      # 挂载日志目录，方便查看日志
+      - ./backend/logs:/app/logs
+      # 挂载脚本目录，以便持久化生成的脚本
+      - ./backend/scripts:/app/scripts
+      # 挂载存储目录
+      - ./backend/storage:/app/storage
+      # 挂载数据库文件 (如果使用 SQLite)
+      - ./backend/app.db:/app/app.db
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_BASE_URL=http://localhost:8001
+    container_name: mcp-frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    environment:
+      # 这里的 URL 需要是用户浏览器能访问到的地址
+      # 如果是在服务器部署，填 http://<你的服务器IP>:8001
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8001
+    depends_on:
+      - backend
+
