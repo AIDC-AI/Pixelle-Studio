@@ -11,13 +11,18 @@ import LeftPanel from "../leftPanel";
 import SkillEditor from "../skillEditor";
 import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
+import useMCPServer from "@/hooks/useMCPServer";
 
 const Chat = () => {
     const { 
       activeSessionId, 
       setActiveSessionId,
-      skillEditored
+      skillEditored,
+      currentSkill,
+      setSkillEditored
     } = useApp();
+
+    const { tools: mcpTools } = useMCPServer();
 
     const { 
       messages, 
@@ -333,7 +338,15 @@ const Chat = () => {
             />
         </div>
         {
-          skillEditored && <SkillEditor />
+          skillEditored && <SkillEditor 
+            isNew={!currentSkill?.id}
+            skill={currentSkill}
+            mcpTools={mcpTools}
+            onSave={async () => {
+              // 刷新逻辑可能在这里，但目前似乎不需要特别操作，因为 Context 会更新
+              setSkillEditored(false)
+            }}
+          />
         }
         
       </div>
