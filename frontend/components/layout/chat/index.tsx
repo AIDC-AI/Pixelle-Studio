@@ -11,7 +11,7 @@ import LeftPanel from "../leftPanel";
 import SkillEditor from "../skillEditor";
 import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
-import useMCPServer from "@/hooks/useMCPServer";
+import { useMCPServer } from "@/hooks/useMCPServer";
 
 const Chat = () => {
     const { 
