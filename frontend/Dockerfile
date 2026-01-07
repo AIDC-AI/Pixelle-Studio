@@ -17,8 +17,10 @@ COPY . .
 
 # 设置构建时的环境变量 (重要：如果你的 Next.js 代码里用了 ENV，需要在构建时传入，或者在运行时通过 next.config.js 暴露)
 # 注意：这里先给一个占位符，实际部署时通常在浏览器端直接请求后端 URL
-ARG NEXT_PUBLIC_API_BASE_URL
-ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+ARG NEXT_PUBLIC_API_BASE
+ARG NEXT_PUBLIC_WS_BASE
+ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
+ENV NEXT_PUBLIC_WS_BASE=${NEXT_PUBLIC_WS_BASE}
 
 # 构建 Next.js 应用（使用缓存）
 RUN npm run build
