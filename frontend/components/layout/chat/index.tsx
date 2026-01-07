@@ -88,217 +88,220 @@ const Chat = () => {
         setIsProcessing(true);
         setCurrentScript(null);
         
-        // 找到当前session
-        let currentSession = sessions.find(s => s.id === activeSessionId)
-        // 如果没有，新建一个
-        if (!currentSession) {
-          currentSession = await addNewSession(input)
-        }
-        const backendSessionId = currentSession.backendSessionId
-        // 保存当前message
-        addMessages(currentSession.id, [{ 
-          type: 'user', 
-          content: input, 
-          outputFiles,
-          timestamp: Date.now() 
-        }])
-        
-        let currentExecCount = 0;
-        
-        try {
-          // 1. Create Chat (backend will auto-select tools)
-          const { chat_id, session_id } = await api.createChat(
-            input,
-            currentFileUrls,
-            currentFileNames,
-            backendSessionId
-          );
+    // 找到当前session
+    let session = sessions.find(s => s.id === activeSessionId)
+    // 如果没有，新建一个
+    if (!session) {
+      session = await addNewSession(input)
+    }
+    const currentSession = session;
+    const currentSessionId = currentSession.id;
 
-          // Bind backend session id to this local session for future turns
-          if (!backendSessionId && session_id) {
-            await updateSessionBackendId(currentSession.id, session_id)
-          }
+    const backendSessionId = currentSession.backendSessionId
+    // 保存当前message
+    addMessages(currentSessionId, [{ 
+      type: 'user', 
+      content: input, 
+      outputFiles,
+      timestamp: Date.now() 
+    }])
     
-          // 2. Connect WebSocket
-          const ws = new WebSocket(api.getWebSocketUrl(chat_id));
+    let currentExecCount = 0;
+    
+    try {
+      // 1. Create Chat (backend will auto-select tools)
+      const { chat_id, session_id } = await api.createChat(
+        input,
+        currentFileUrls,
+        currentFileNames,
+        backendSessionId
+      );
 
-          ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            const _messages: Message[] = []
+      // Bind backend session id to this local session for future turns
+      if (!backendSessionId && session_id) {
+        await updateSessionBackendId(currentSessionId, session_id)
+      }
 
-            if (data.type === 'iteration_start') {
-              _messages.push({ 
-                type: 'iteration', 
-                content: `🔄 Starting iteration ${data.iteration}/${data.max_iterations}`, 
-                timestamp: Date.now(),
-                iteration: data.iteration
-              })
-            } else if (data.type === 'iteration_end') {
-              const statusEmoji = data.status === 'success' ? '✅' : data.status === 'failed' ? '❌' : '🔁';
-              _messages.push({
-                type: 'iteration', 
-                content: `${statusEmoji} Iteration ${data.iteration} ${data.status}`, 
-                timestamp: Date.now(),
-                iteration: data.iteration
-              })
-            } else if (data.type === 'script') {
-              setCurrentScript(data.content);
-              _messages.push({
-                type: 'system', 
-                content: `📝 Generated script (iteration ${data.iteration})`, 
-                timestamp: Date.now(),
-                iteration: data.iteration
-              })
-            } else if (data.type === 'code') {
-              // NEW: Handle code generation event
-              currentExecCount = data.execution_count || currentExecCount + 1;
-              _messages.push({
-                type: 'code',
-                content: data.content,
-                timestamp: Date.now(),
-                codeData: {
-                  code: data.content,
-                  executionCount: currentExecCount,
-                  reasoning: data.reasoning
-                }
-              })
-            } else if (data.type === 'execution_result') {
-              // NEW: Handle execution result event
-              const outputFiles: OutputFile[] = data.output_files || [];
-              const execResult: ExecutionResult = {
-                status: data.status,
-                stdout: data.stdout || '',
-                stderr: data.stderr || '',
-                result: data.result,
-                output_files: outputFiles
-              };
-              _messages.push({
-                type: 'execution_result',
-                content: execResult,
-                timestamp: Date.now(),
-                executionResult: execResult,
-                codeData: {
-                  code: '',
-                  executionCount: currentExecCount
-                }
-              })
-              
-              // If there are output files, add a separate output_files message
-              if (outputFiles.length > 0) {
-                _messages.push({
-                  type: 'output_files',
-                  content: `${outputFiles.length} 个文件已生成`,
-                  timestamp: Date.now(),
-                  outputFiles: outputFiles
-                })
-              }
-            } else if (data.type === 'response') {
-              // NEW: Handle direct response from agent
-              _messages.push({
-                type: 'response',
-                content: data.content,
-                timestamp: Date.now()
-              })
-              // Mark that we received a direct response
-              // So we don't show duplicate content in final_result
-              currentExecCount = -1; // Use -1 as a flag for direct response
-            } else if (data.type === 'skill_loaded') {
-              // NEW: Handle skill loaded event
-              _messages.push({
-                type: 'skill_loaded',
-                content: data.skill_name,
-                timestamp: Date.now(),
-                skillName: data.skill_name
-              })
-            } else if (data.type === 'log') {
-              _messages.push({
-                type: 'log', 
-                content: `[${data.stream || 'LOG'}] ${data.content}`, 
-                timestamp: Date.now() 
-              })
-            } else if (data.type === 'evaluation_result') {
-              const emoji = data.meets_requirement ? '✅' : '⚠️';
-              _messages.push({
-                type: 'evaluation', 
-                content: `${emoji} Evaluation (iteration ${data.iteration}): ${data.meets_requirement ? 'PASS' : 'FAIL'} (confidence: ${(data.confidence_score * 100).toFixed(0)}%)\nReason: ${data.reason}`, 
-                timestamp: Date.now(),
-                iteration: data.iteration
-              })
-            } else if (data.type === 'revision_advice') {
-              _messages.push({
-                type: 'advice', 
-                content: `💡 Revision advice (iteration ${data.iteration}):\n${data.advice.advice || JSON.stringify(data.advice, null, 2)}`, 
-                timestamp: Date.now(),
-                iteration: data.iteration
-              })
-            } else if (data.type === 'final_result') {
-              // 最终结果 - 现在才关闭连接
-              // Skip adding final_result message if it's just a direct response (no code execution)
-              // currentExecCount === -1 means we had a direct response
-              // currentExecCount === 0 means no code was executed
-              const hadDirectResponse = currentExecCount === -1;
-              const hadCodeExecution = currentExecCount > 0;
-              
-              // Only show final result card if:
-              // 1. There was code execution, OR
-              // 2. There was an error, OR  
-              // 3. No direct response was sent before
-              if (hadCodeExecution || data.status === 'error' || data.status === 'failed' || !hadDirectResponse) {
-                // For direct responses, the content is already shown, so skip it
-                if (!hadDirectResponse || hadCodeExecution) {
-                  _messages.push({
-                    type: 'result', 
-                    content: data.result || data.error || '',
-                    timestamp: Date.now()
-                  })
-                }
-              }
-              setIsProcessing(false);
-              ws.close();
-            } else if (data.type === 'result') {
-              // 兼容旧的 result 消息（如果有的话）
+      // 2. Connect WebSocket
+      const ws = new WebSocket(api.getWebSocketUrl(chat_id));
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        const _messages: Message[] = []
+
+        if (data.type === 'iteration_start') {
+          _messages.push({ 
+            type: 'iteration', 
+            content: `🔄 Starting iteration ${data.iteration}/${data.max_iterations}`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          })
+        } else if (data.type === 'iteration_end') {
+          const statusEmoji = data.status === 'success' ? '✅' : data.status === 'failed' ? '❌' : '🔁';
+          _messages.push({
+            type: 'iteration', 
+            content: `${statusEmoji} Iteration ${data.iteration} ${data.status}`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          })
+        } else if (data.type === 'script') {
+          setCurrentScript(data.content);
+          _messages.push({
+            type: 'system', 
+            content: `📝 Generated script (iteration ${data.iteration})`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          })
+        } else if (data.type === 'code') {
+          // NEW: Handle code generation event
+          currentExecCount = data.execution_count || currentExecCount + 1;
+          _messages.push({
+            type: 'code',
+            content: data.content,
+            timestamp: Date.now(),
+            codeData: {
+              code: data.content,
+              executionCount: currentExecCount,
+              reasoning: data.reasoning
+            }
+          })
+        } else if (data.type === 'execution_result') {
+          // NEW: Handle execution result event
+          const outputFiles: OutputFile[] = data.output_files || [];
+          const execResult: ExecutionResult = {
+            status: data.status,
+            stdout: data.stdout || '',
+            stderr: data.stderr || '',
+            result: data.result,
+            output_files: outputFiles
+          };
+          _messages.push({
+            type: 'execution_result',
+            content: execResult,
+            timestamp: Date.now(),
+            executionResult: execResult,
+            codeData: {
+              code: '',
+              executionCount: currentExecCount
+            }
+          })
+          
+          // If there are output files, add a separate output_files message
+          if (outputFiles.length > 0) {
+            _messages.push({
+              type: 'output_files',
+              content: `${outputFiles.length} 个文件已生成`,
+              timestamp: Date.now(),
+              outputFiles: outputFiles
+            })
+          }
+        } else if (data.type === 'response') {
+          // NEW: Handle direct response from agent
+          _messages.push({
+            type: 'response',
+            content: data.content,
+            timestamp: Date.now()
+          })
+          // Mark that we received a direct response
+          // So we don't show duplicate content in final_result
+          currentExecCount = -1; // Use -1 as a flag for direct response
+        } else if (data.type === 'skill_loaded') {
+          // NEW: Handle skill loaded event
+          _messages.push({
+            type: 'skill_loaded',
+            content: data.skill_name,
+            timestamp: Date.now(),
+            skillName: data.skill_name
+          })
+        } else if (data.type === 'log') {
+          _messages.push({
+            type: 'log', 
+            content: `[${data.stream || 'LOG'}] ${data.content}`, 
+            timestamp: Date.now() 
+          })
+        } else if (data.type === 'evaluation_result') {
+          const emoji = data.meets_requirement ? '✅' : '⚠️';
+          _messages.push({
+            type: 'evaluation', 
+            content: `${emoji} Evaluation (iteration ${data.iteration}): ${data.meets_requirement ? 'PASS' : 'FAIL'} (confidence: ${(data.confidence_score * 100).toFixed(0)}%)\nReason: ${data.reason}`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          })
+        } else if (data.type === 'revision_advice') {
+          _messages.push({
+            type: 'advice', 
+            content: `💡 Revision advice (iteration ${data.iteration}):\n${data.advice.advice || JSON.stringify(data.advice, null, 2)}`, 
+            timestamp: Date.now(),
+            iteration: data.iteration
+          })
+        } else if (data.type === 'final_result') {
+          // 最终结果 - 现在才关闭连接
+          // Skip adding final_result message if it's just a direct response (no code execution)
+          // currentExecCount === -1 means we had a direct response
+          // currentExecCount === 0 means no code was executed
+          const hadDirectResponse = currentExecCount === -1;
+          const hadCodeExecution = currentExecCount > 0;
+          
+          // Only show final result card if:
+          // 1. There was code execution, OR
+          // 2. There was an error, OR  
+          // 3. No direct response was sent before
+          if (hadCodeExecution || data.status === 'error' || data.status === 'failed' || !hadDirectResponse) {
+            // For direct responses, the content is already shown, so skip it
+            if (!hadDirectResponse || hadCodeExecution) {
               _messages.push({
                 type: 'result', 
-                content: data.content, 
-                timestamp: Date.now()
-              })
-            } else if (data.type === 'error') {
-              _messages.push({
-                type: 'error', 
-                content: data.content, 
-                timestamp: Date.now()
-              })
-              setIsProcessing(false);
-              ws.close();
-            } else if (data.type === 'status') {
-              _messages.push({
-                type: 'system', 
-                content: data.content, 
+                content: data.result || data.error || '',
                 timestamp: Date.now()
               })
             }
-            addMessages(currentSession.id, _messages)
-          };
-    
-          ws.onerror = (err) => {
-            console.error('WebSocket error:', err);
-            addMessages(currentSession.id, [{
-              type: 'error', 
-              content: 'Connection error', 
-              timestamp: Date.now()
-            }])
-            setIsProcessing(false);
-          };
-    
-        } catch (err) {
-          console.error(err);
-          addMessages(currentSession.id, [{
-            type: 'error', 
-            content: 'Failed to start chat', 
-            timestamp: Date.now()
-          }])
+          }
           setIsProcessing(false);
+          ws.close();
+        } else if (data.type === 'result') {
+          // 兼容旧的 result 消息（如果有的话）
+          _messages.push({
+            type: 'result', 
+            content: data.content, 
+            timestamp: Date.now()
+          })
+        } else if (data.type === 'error') {
+          _messages.push({
+            type: 'error', 
+            content: data.content, 
+            timestamp: Date.now()
+          })
+          setIsProcessing(false);
+          ws.close();
+        } else if (data.type === 'status') {
+          _messages.push({
+            type: 'system', 
+            content: data.content, 
+            timestamp: Date.now()
+          })
         }
+        addMessages(currentSessionId, _messages)
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+        addMessages(currentSessionId, [{
+          type: 'error', 
+          content: 'Connection error', 
+          timestamp: Date.now()
+        }])
+        setIsProcessing(false);
+      };
+
+    } catch (err) {
+      console.error(err);
+      addMessages(currentSessionId, [{
+        type: 'error', 
+        content: 'Failed to start chat', 
+        timestamp: Date.now()
+      }])
+      setIsProcessing(false);
+    }
     };
 
     useEffect(() => {
