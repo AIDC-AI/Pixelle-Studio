@@ -1,4 +1,3 @@
-import { Tool } from "@/lib/api"
 import { ChevronDown, ChevronUp, Plus } from "lucide-react"
 import { useState } from "react"
 

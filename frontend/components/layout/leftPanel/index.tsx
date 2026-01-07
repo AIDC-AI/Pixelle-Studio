@@ -47,9 +47,7 @@ const LeftPanel: React.FC<IProps> = (props) => {
           handleDeleteSession={handleDeleteSession}
         />
 			case 'skills':
-				return <SkillsPanel 
-          handleShowSkillEditor={handleShowSkillEditor} 
-        />
+				return <SkillsPanel />
 		}
 	}
 

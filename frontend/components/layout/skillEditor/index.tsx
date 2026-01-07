@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { X, Save, Upload, Trash2, FileCode, Link, GripVertical, Plus, ArrowUpRight, Play } from 'lucide-react'
 import { getAuthHeaders } from '@/lib/data'
 import { useApp } from '@/context'
+import { MCPTool, MCPToolInputSchema } from '@/types/server'
 
 interface Script {
   name: string
@@ -9,26 +10,8 @@ interface Script {
   type: string
 }
 
-interface McpToolInputSchema {
-  type?: string
-  properties?: Record<string, {
-    type?: string
-    description?: string
-  }>
-  required?: string[]
-}
-
-interface McpTool {
-  server_id: string
-  server_name: string
-  server_url: string
-  name: string
-  description: string
-  inputSchema?: McpToolInputSchema
-}
-
 interface PendingMcpTool {
-  tool: McpTool
+  tool: MCPTool
   scriptName: string
 }
 
@@ -46,7 +29,7 @@ interface IProps {
   skill?: Skill | null
   isNew: boolean
   onSave: (skill: Skill, scripts: Script[]) => Promise<void>
-  mcpTools: McpTool[]
+  mcpTools: MCPTool[]
   onTest?: (skillName: string) => void  // 测试回调
 }
 
@@ -224,7 +207,7 @@ const SkillEditor: React.FC<IProps> = (props) => {
       const toolData = e.dataTransfer.getData('application/json')
       if (!toolData) return
       
-      const tool: McpTool = JSON.parse(toolData)
+      const tool: MCPTool = JSON.parse(toolData)
       const scriptName = `mcp_${tool.name.replace(/[^a-zA-Z0-9]/g, '_')}.py`
       
       // 在内容中插入工具占位符
@@ -251,7 +234,7 @@ const SkillEditor: React.FC<IProps> = (props) => {
   }
 
   // 创建 MCP Tool 脚本
-  const createMcpToolScript = async (tool: McpTool, insertReference: boolean = false) => {
+  const createMcpToolScript = async (tool: MCPTool, insertReference: boolean = false) => {
     const skillId = currentSkillId || skill?.id
     const scriptName = `mcp_${tool.name.replace(/[^a-zA-Z0-9]/g, '_')}.py`
     
@@ -299,12 +282,12 @@ const SkillEditor: React.FC<IProps> = (props) => {
   }
 
   // 添加 MCP Tool 并插入引用
-  const handleAddMcpTool = async (tool: McpTool) => {
+  const handleAddMcpTool = async (tool: MCPTool) => {
     await createMcpToolScript(tool, true)
   }
 
   // 生成参数示例字符串
-  const generateParamExample = (inputSchema?: McpToolInputSchema): string => {
+  const generateParamExample = (inputSchema?: MCPToolInputSchema): string => {
     if (!inputSchema?.properties) return '{}'
     
     const example: Record<string, unknown> = {}
@@ -330,7 +313,7 @@ const SkillEditor: React.FC<IProps> = (props) => {
   }
 
   // 插入脚本引用到内容（包含参数示例）
-  const insertScriptReference = (scriptName: string, inputSchema?: McpToolInputSchema) => {
+  const insertScriptReference = (scriptName: string, inputSchema?: MCPToolInputSchema) => {
     const reference = `# ${scriptName} #`
     const paramExample = generateParamExample(inputSchema)
     
@@ -503,7 +486,7 @@ const SkillEditor: React.FC<IProps> = (props) => {
   }
 
   // 开始拖拽 MCP Tool
-  const handleToolDragStart = (e: React.DragEvent, tool: McpTool) => {
+  const handleToolDragStart = (e: React.DragEvent, tool: MCPTool) => {
     e.dataTransfer.setData('application/json', JSON.stringify(tool))
     e.dataTransfer.effectAllowed = 'copy'
   }

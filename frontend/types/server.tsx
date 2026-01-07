@@ -1,11 +1,21 @@
+export interface MCPToolInputSchema {
+    type?: string;
+    properties?: Record<string, {
+        type?: string;
+        description?: string;
+    }>;
+    required?: string[];
+}
+
 export interface MCPTool {
     name: string;
     description: string;
-    inputSchema?: any;
+    inputSchema?: MCPToolInputSchema | any;
     outputSchema?: any;
     server_id?: string;
     server_url?: string;
     server_type?: string;
+    server_name?: string;
 }
 
 export interface MCPServer {
