@@ -3,6 +3,10 @@
 # 遇到错误立即退出
 set -e
 
+# 启用 Docker BuildKit 加速构建
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 echo "=== MCP Workflow 服务启动 ==="
 
 # 1. 检查必要工具
@@ -42,8 +46,15 @@ $DC_CMD down --remove-orphans 2>/dev/null || true
 
 # 5. 启动服务
 echo "构建并启动服务..."
-# 增加 --build 确保代码变更生效
-$DC_CMD up -d --build
+# 检查是否需要强制重建（如果传入 --rebuild 参数）
+if [ "$1" == "--rebuild" ]; then
+    echo "强制重建所有镜像..."
+    $DC_CMD build --no-cache
+    $DC_CMD up -d
+else
+    # 默认只构建变更的部分，使用缓存加速
+    $DC_CMD up -d --build
+fi
 
 # 6. 显示状态
 echo "=== 服务已启动 ==="

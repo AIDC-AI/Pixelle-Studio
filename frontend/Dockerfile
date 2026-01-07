@@ -3,11 +3,14 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
+# 配置 npm 使用国内镜像源（可选，如果网络好可以注释掉）
+RUN npm config set registry https://registry.npmmirror.com
+
 # 复制依赖文件
 COPY package.json package-lock.json* ./
 
-# 安装依赖
-RUN npm install
+# 安装依赖（使用缓存和离线优先）
+RUN npm install --prefer-offline --no-audit
 
 # 复制源码
 COPY . .
@@ -17,7 +20,7 @@ COPY . .
 ARG NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
-# 构建 Next.js 应用
+# 构建 Next.js 应用（使用缓存）
 RUN npm run build
 
 # 阶段 2: 运行
