@@ -214,9 +214,11 @@ const SkillEditor = () => {
       }
       setSkillEditored(false)
       setIsChangeSkill(true)
+      return null
     } catch (e) {
       console.error('保存请求失败:', e)
       messageApi.error((e as Error).message || '保存失败')
+      return null
     } finally {
       setSaving(false)
     }

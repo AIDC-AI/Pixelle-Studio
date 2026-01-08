@@ -94,14 +94,17 @@ const Chat = () => {
       setCurrentScript(null);
       
       // 找到当前session
-      let currentSession = sessions.find(s => s.id === activeSessionId)
+      let session = sessions.find(s => s.id === activeSessionId)
       // 如果没有，新建一个
-      if (!currentSession) {
-        currentSession = await addNewSession(input)
+      if (!session) {
+        session = await addNewSession(input)
       }
+      const currentSession = session;
+      const currentSessionId = currentSession.id;
+
       const backendSessionId = currentSession.backendSessionId
       // 保存当前message
-      addMessages(currentSession.id, [{ 
+      addMessages(currentSessionId, [{ 
         type: 'user', 
         content: input, 
         outputFiles,
@@ -122,7 +125,7 @@ const Chat = () => {
 
         // Bind backend session id to this local session for future turns
         if (!backendSessionId && session_id) {
-          await updateSessionBackendId(currentSession.id, session_id)
+          await updateSessionBackendId(currentSessionId, session_id)
         }
 
         // 2. Connect WebSocket
@@ -283,12 +286,12 @@ const Chat = () => {
               timestamp: Date.now()
             })
           }
-          addMessages(currentSession.id, _messages)
+          addMessages(currentSessionId, _messages)
         };
 
         ws.onerror = (err) => {
           console.error('WebSocket error:', err);
-          addMessages(currentSession.id, [{
+          addMessages(currentSessionId, [{
             type: 'error', 
             content: 'Connection error', 
             timestamp: Date.now()
@@ -298,7 +301,7 @@ const Chat = () => {
 
       } catch (err) {
         console.error(err);
-        addMessages(currentSession.id, [{
+        addMessages(currentSessionId, [{
           type: 'error', 
           content: 'Failed to start chat', 
           timestamp: Date.now()
