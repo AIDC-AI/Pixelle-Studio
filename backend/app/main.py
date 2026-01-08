@@ -357,37 +357,6 @@ async def process_with_agent(
 
 
 # ============================================================================
-# Skills API
-# ============================================================================
-
-@app.get("/api/skills")
-async def get_skills():
-    """Get all available skills metadata."""
-    return {
-        "skills": [s.to_dict() for s in skills_list],
-        "count": len(skills_list)
-    }
-
-
-@app.get("/api/skills/{skill_name}")
-async def get_skill_detail(skill_name: str):
-    """Get full content of a specific skill."""
-    content = skill_loader.read_skill(skill_name)
-    if content is None:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
-    
-    meta = skill_loader.get_skill_meta(skill_name)
-    files = skill_loader.list_skill_files(skill_name)
-    
-    return {
-        "name": skill_name,
-        "meta": meta.to_dict() if meta else None,
-        "content": content,
-        "files": files
-    }
-
-
-# ============================================================================
 # File Upload API
 # ============================================================================
 
@@ -473,6 +442,12 @@ async def health_check():
         "architecture": "single_agent",
         "skills_loaded": len(skills_list)
     }
+
+
+# ============================================================================
+# Skills API
+# ============================================================================
+
 @app.get("/api/skills")
 async def get_skills(user_id: Optional[str] = None):
     """Get all available skills metadata (merged view for user)."""
