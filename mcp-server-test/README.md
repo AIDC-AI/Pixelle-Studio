@@ -53,10 +53,10 @@ pip install -e .
 
 ## Running the Server
 
-### As stdio MCP Server
+### As sse MCP Server
 
 ```bash
-python server.py
+fastmcp run server.py --transport sse --port 8002
 ```
 
 ### Testing with MCP Inspector

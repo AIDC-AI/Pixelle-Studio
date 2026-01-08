@@ -18,13 +18,15 @@ class ContextManager:
         chat_id: str,
         user_message: str,
         selected_tools: list,
-        max_iterations: int = 3
+        max_iterations: int = 3,
+        file_urls: list = None
     ) -> ExecutionContext:
         """Initialize a new execution context."""
         context = ExecutionContext(
             chat_id=chat_id,
             user_message=user_message,
             selected_tools=selected_tools,
+            file_urls=file_urls or [],
             max_iterations=max_iterations,
             current_iteration=0,
             status="initializing"

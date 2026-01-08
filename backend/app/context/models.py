@@ -125,6 +125,9 @@ class ExecutionContext:
     user_message: str
     selected_tools: List[Dict[str, Any]]
     
+    # File URLs uploaded by user
+    file_urls: List[str] = field(default_factory=list)
+    
     # Iteration history
     iterations: List[IterationRecord] = field(default_factory=list)
     
@@ -141,6 +144,7 @@ class ExecutionContext:
             "chat_id": self.chat_id,
             "user_message": self.user_message,
             "selected_tools": self.selected_tools,
+            "file_urls": self.file_urls,
             "iterations": [iter.to_dict() for iter in self.iterations],
             "max_iterations": self.max_iterations,
             "current_iteration": self.current_iteration,
@@ -154,6 +158,7 @@ class ExecutionContext:
             chat_id=data["chat_id"],
             user_message=data["user_message"],
             selected_tools=data["selected_tools"],
+            file_urls=data.get("file_urls", []),
             iterations=[IterationRecord.from_dict(iter_data) for iter_data in data.get("iterations", [])],
             max_iterations=data.get("max_iterations", 3),
             current_iteration=data.get("current_iteration", 0),

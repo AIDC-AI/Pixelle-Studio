@@ -17,8 +17,8 @@
   - 异步脚本执行引擎
   - LLM 脚本生成（当前为 Mock 实现）
 
-### 前端 (React + TypeScript + Vite)
-- **端口**: 5173
+### 前端 (React + TypeScript + Next.js + Tailwind)
+- **端口**: 3000
 - **核心功能**:
   - 聊天界面用于自然语言交互
   - 工具选择侧边栏
@@ -31,7 +31,17 @@
 
 ```bash
 cd backend
-uv run python -m uvicorn app.main:app --reload --port 8001
+uv sync # 首次运行安装依赖
+./start_server.sh # 启动后端
+```
+由于pptx依赖于nodejs，所以需要先安装nodejs。
+```bash
+brew install node
+```
+然后安装依赖
+```bash
+cd backend
+npm install
 ```
 
 ### 2. 启动前端
@@ -39,12 +49,12 @@ uv run python -m uvicorn app.main:app --reload --port 8001
 ```bash
 cd frontend
 npm install  # 首次运行
-npm run dev
+npm run dev # 启动前端
 ```
 
 ### 3. 访问应用
 
-打开浏览器访问: http://localhost:5173
+打开浏览器访问: http://localhost:3000
 
 ## 使用方法
 
@@ -102,7 +112,7 @@ mcp-workflow/
 **前端**:
 - React 19
 - TypeScript 5.3
-- Vite 5 (降级以兼容 Node 20.5)
+- Next.js 15
 
 ## 当前状态
 

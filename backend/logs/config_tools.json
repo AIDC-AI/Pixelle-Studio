@@ -1,0 +1,3307 @@
+[
+    {
+        "name": "createInnerApp",
+        "description": "创建企业内部应用，支持H5微应用和小程序两种类型",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "opUnionId": {
+                    "type": "string",
+                    "description": "操作人的unionId，该用户必须是拥有应用管理权限的管理员"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "应用名称，长度范围要求2-20个字符"
+                },
+                "desc": {
+                    "type": "string",
+                    "description": "应用描述，最大长度200个字符"
+                },
+                "icon": {
+                    "type": "string",
+                    "description": "应用图标media_id"
+                },
+                "homepageLink": {
+                    "type": "string",
+                    "description": "应用首页地址，H5微应用时必传"
+                },
+                "pcHomepageLink": {
+                    "type": "string",
+                    "description": "应用PC端地址"
+                },
+                "ompLink": {
+                    "type": "string",
+                    "description": "应用管理后台地址"
+                },
+                "ipWhiteList": {
+                    "type": "array",
+                    "description": "服务器出口IP白名单列表，最大值50",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scopeType": {
+                    "type": "string",
+                    "description": "权限类型，目前只支持BASE"
+                },
+                "developType": {
+                    "type": "number",
+                    "description": "创建的内部应用类型，0为H5微应用，1为小程序，默认为0"
+                }
+            },
+            "required": [
+                "opUnionId",
+                "name",
+                "desc"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateInnerApp",
+        "description": "更新企业内部应用信息，包括应用名称、描述、图标、链接等",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "number",
+                    "description": "应用的agentId"
+                },
+                "opUnionId": {
+                    "type": "string",
+                    "description": "操作更新的员工unionId，必须有该应用的管理权限"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "应用名称，长度范围要求2-20个字符"
+                },
+                "desc": {
+                    "type": "string",
+                    "description": "应用描述，最大长度200个字符"
+                },
+                "icon": {
+                    "type": "string",
+                    "description": "应用图标media_id"
+                },
+                "homepageLink": {
+                    "type": "string",
+                    "description": "应用首页地址"
+                },
+                "pcHomepageLink": {
+                    "type": "string",
+                    "description": "应用PC端地址"
+                },
+                "ompLink": {
+                    "type": "string",
+                    "description": "应用管理后台地址"
+                },
+                "ipWhiteList": {
+                    "type": "array",
+                    "description": "服务器出口ip白名单",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "agentId",
+                "opUnionId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listAllApp",
+        "description": "获取企业所有应用列表，包括基础应用、自建应用和第三方应用",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listAllInnerApps",
+        "description": "获取企业内部所有应用列表，仅限内部开发的应用",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listUserVilebleApp",
+        "description": "获取指定用户可使用的企业应用列表及应用信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "用户的userId值"
+                }
+            },
+            "required": [
+                "userId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getMicroAppScope",
+        "description": "获取企业内部应用的可使用范围信息（用户、部门、角色）",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "number",
+                    "description": "应用agentId"
+                }
+            },
+            "required": [
+                "agentId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "setMicroAppScope",
+        "description": "更新企业内部应用的可使用范围，支持增删用户、部门、角色",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "number",
+                    "description": "应用agentId"
+                },
+                "addUserIds": {
+                    "type": "array",
+                    "description": "增加的可使用用户userId列表，最大长度100",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "delUserIds": {
+                    "type": "array",
+                    "description": "删除的可使用用户userId列表，最大长度100",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "addDeptIds": {
+                    "type": "array",
+                    "description": "增加的可使用部门ID列表，最大长度100",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "delDeptIds": {
+                    "type": "array",
+                    "description": "删除的可使用部门ID列表，最大长度100",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "addRoleIds": {
+                    "type": "array",
+                    "description": "增加的可使用角色列表，最大长度100",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "delRoleIds": {
+                    "type": "array",
+                    "description": "删除的可使用角色列表，最大长度100",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "onlyAdminVisible": {
+                    "type": "boolean",
+                    "description": "是否仅管理员可使用，true为是，false为否"
+                }
+            },
+            "required": [
+                "agentId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "publishInnerAppVersion",
+        "description": "发布企业内部小程序版本，支持线上版本和体验版本",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "number",
+                    "description": "应用AgentId"
+                },
+                "appVersionId": {
+                    "type": "number",
+                    "description": "小程序版本id，用于唯一标识小程序版本信息"
+                },
+                "opUnionId": {
+                    "type": "string",
+                    "description": "操作人的unionId，该用户必须是拥有应用管理权限的管理员"
+                },
+                "publishType": {
+                    "type": "string",
+                    "description": "小程序发布类型，online为发布线上版本，experience为发布体验版本"
+                },
+                "miniAppOnPc": {
+                    "type": "boolean",
+                    "description": "是否支持PC端打开小程序，false为只发布移动端，true为既发布移动端又发布PC端"
+                }
+            },
+            "required": [
+                "agentId",
+                "appVersionId",
+                "opUnionId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "rollbackInnerAppVersion",
+        "description": "回滚企业内部小程序到历史版本",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "number",
+                    "description": "应用AgentId"
+                },
+                "versionId": {
+                    "type": "number",
+                    "description": "小程序版本id"
+                },
+                "opUnionId": {
+                    "type": "string",
+                    "description": "操作人的unionId，该用户必须是拥有应用管理权限的管理员"
+                }
+            },
+            "required": [
+                "agentId",
+                "versionId",
+                "opUnionId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listInnerAppVersion",
+        "description": "获取企业内部小程序的所有版本信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "number",
+                    "description": "应用AgentId"
+                }
+            },
+            "required": [
+                "agentId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "pageInnerAppHistoryVersion",
+        "description": "分页获取企业内部小程序历史版本列表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agentId": {
+                    "type": "number",
+                    "description": "应用AgentId"
+                },
+                "pageNumber": {
+                    "type": "number",
+                    "description": "当前页"
+                },
+                "pageSize": {
+                    "type": "number",
+                    "description": "本次读取的最大数据记录数量"
+                }
+            },
+            "required": [
+                "agentId",
+                "pageNumber",
+                "pageSize"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "createEvent",
+        "description": "创建一个新的日程，支持设置时间、地点、参与者、提醒、重复规则等",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "日程创建者的unionId"
+                },
+                "calendarId": {
+                    "type": "string",
+                    "description": "日程所属的日历ID，统一为primary，表示用户的主日历"
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "日程标题，最大不超过2048个字符"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "日程描述，最大不超过5000个字符"
+                },
+                "start": {
+                    "type": "object",
+                    "description": "日程开始时间对象。非全天日程格式示例：{\"dateTime\":\"2025-09-20T10:15:30+08:00\",\"timeZone\":\"Asia/Shanghai\"}；全天日程格式：{\"date\":\"2025-09-20\"}"
+                },
+                "end": {
+                    "type": "object",
+                    "description": "日程结束时间对象。非全天日程格式示例：{\"dateTime\":\"2025-09-20T11:15:30+08:00\",\"timeZone\":\"Asia/Shanghai\"}；全天日程格式：{\"date\":\"2025-09-21\"}（全天日程结束日期需要+1天）"
+                },
+                "isAllDay": {
+                    "type": "boolean",
+                    "description": "是否全天日程"
+                },
+                "location": {
+                    "type": "object",
+                    "description": "日程地点对象，包含displayName字段。示例：{\"displayName\":\"会议室A\"}"
+                },
+                "attendees": {
+                    "type": "array",
+                    "description": "日程参与人列表，最多支持500个参与人。数组中每个对象包含id（用户unionId）和isOptional（是否可选参与人）字段。示例：[{\"id\":\"unionId123\",\"isOptional\":false}]"
+                },
+                "reminders": {
+                    "type": "array",
+                    "description": "日程提醒设置，数组中每个对象包含method和minutes字段。如不传默认开始前15分钟提醒，传空数组表示不设提醒。method只支持\"dingtalk\"（钉钉内提醒），minutes为Integer类型表示提前N分钟提醒。示例：[{\"method\":\"dingtalk\",\"minutes\":15}]"
+                },
+                "recurrence": {
+                    "type": "object",
+                    "description": "日程循环规则对象"
+                },
+                "onlineMeetingInfo": {
+                    "type": "object",
+                    "description": "创建日程同时创建线上会议。对象包含type字段，目前只支持\"dingtalk\"（钉钉视频会议）。示例：{\"type\":\"dingtalk\"}"
+                },
+                "extra": {
+                    "type": "object",
+                    "description": "扩展配置，如noPushNotification、noChatNotification等。示例：{\"noPushNotification\":\"true\",\"noChatNotification\":\"false\"}"
+                },
+                "uiConfigs": {
+                    "type": "array",
+                    "description": "UI配置，控制日程详情页内组件的展示"
+                },
+                "richTextDescription": {
+                    "type": "object",
+                    "description": "富文本描述对象"
+                }
+            },
+            "required": [
+                "unionId",
+                "calendarId",
+                "summary",
+                "start"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateEvent",
+        "description": "修改已存在的日程信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "日程组织者的unionId"
+                },
+                "calendarId": {
+                    "type": "string",
+                    "description": "日程所属的日历ID，统一为primary"
+                },
+                "eventId": {
+                    "type": "string",
+                    "description": "要修改的日程ID"
+                },
+                "id": {
+                    "type": "string",
+                    "description": "要修改的日程ID，和eventId参数的值一样。"
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "日程标题"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "日程描述"
+                },
+                "start": {
+                    "type": "object",
+                    "description": "日程开始时间对象。非全天日程格式：{\"dateTime\":\"2021-09-20T10:15:30+08:00\",\"timeZone\":\"Asia/Shanghai\"}；全天日程格式：{\"date\":\"2021-09-20\"}"
+                },
+                "end": {
+                    "type": "object",
+                    "description": "日程结束时间对象。非全天日程格式：{\"dateTime\":\"2021-09-20T11:15:30+08:00\",\"timeZone\":\"Asia/Shanghai\"}；全天日程格式：{\"date\":\"2021-09-21\"}（全天日程结束日期需要+1天）"
+                },
+                "isAllDay": {
+                    "type": "boolean",
+                    "description": "是否全天日程"
+                },
+                "location": {
+                    "type": "object",
+                    "description": "日程地点对象，包含displayName字段。示例：{\"displayName\":\"会议室A\"}"
+                },
+                "reminders": {
+                    "type": "array",
+                    "description": "日程提醒设置，数组中每个对象包含method和minutes字段。method只支持\"dingtalk\"（钉钉内提醒），minutes为Integer类型表示提前N分钟提醒。示例：[{\"method\":\"dingtalk\",\"minutes\":15}]"
+                },
+                "recurrence": {
+                    "type": "object",
+                    "description": "日程循环规则对象"
+                },
+                "extra": {
+                    "type": "object",
+                    "description": "扩展配置，如noPushNotification、noChatNotification等。示例：{\"noPushNotification\":\"true\",\"noChatNotification\":\"false\"}"
+                }
+            },
+            "required": [
+                "unionId",
+                "calendarId",
+                "eventId",
+                "id"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "deleteEvent",
+        "description": "删除指定的日程",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "日程组织者的unionId"
+                },
+                "calendarId": {
+                    "type": "string",
+                    "description": "日程所属的日历ID，统一为primary"
+                },
+                "eventId": {
+                    "type": "string",
+                    "description": "要删除的日程ID"
+                },
+                "pushNotification": {
+                    "type": "boolean",
+                    "description": "是否发送弹窗提醒"
+                }
+            },
+            "required": [
+                "unionId",
+                "calendarId",
+                "eventId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getEvent",
+        "description": "查询单个日程的详细信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "日程组织者的unionId"
+                },
+                "calendarId": {
+                    "type": "string",
+                    "description": "日程所属的日历ID，统一为primary"
+                },
+                "eventId": {
+                    "type": "string",
+                    "description": "要查询的日程ID"
+                },
+                "maxAttendees": {
+                    "type": "number",
+                    "description": "返回的参与者列表的最大数量"
+                }
+            },
+            "required": [
+                "unionId",
+                "calendarId",
+                "eventId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "addAttendee",
+        "description": "添加日程参与者，每次最多支持操作500人",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "日程创建者的unionId"
+                },
+                "calendarId": {
+                    "type": "string",
+                    "description": "日程所属的日历ID，统一为primary"
+                },
+                "eventId": {
+                    "type": "string",
+                    "description": "日程ID"
+                },
+                "attendeesToAdd": {
+                    "type": "array",
+                    "description": "需要添加的参与人列表，数组中每个对象包含id（用户unionId）和isOptional（是否可选参与人）字段。示例：[{\"id\":\"unionId123\",\"isOptional\":false}]"
+                },
+                "pushNotification": {
+                    "type": "boolean",
+                    "description": "是否弹窗提醒"
+                },
+                "chatNotification": {
+                    "type": "boolean",
+                    "description": "是否单聊提醒"
+                }
+            },
+            "required": [
+                "unionId",
+                "calendarId",
+                "eventId",
+                "attendeesToAdd"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "removeAttendee",
+        "description": "删除日程参与者，每次最多支持操作500人",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "日程创建者的unionId"
+                },
+                "calendarId": {
+                    "type": "string",
+                    "description": "日程所属的日历ID，统一为primary"
+                },
+                "eventId": {
+                    "type": "string",
+                    "description": "日程ID"
+                },
+                "attendeesToRemove": {
+                    "type": "array",
+                    "description": "需要删除的参与人列表，数组中每个对象包含id（用户unionId）字段。示例：[{\"id\":\"unionId123\"}]"
+                },
+                "pushNotification": {
+                    "type": "boolean",
+                    "description": "是否弹窗提醒"
+                },
+                "chatNotification": {
+                    "type": "boolean",
+                    "description": "是否单聊提醒"
+                }
+            },
+            "required": [
+                "unionId",
+                "calendarId",
+                "eventId",
+                "attendeesToRemove"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getAttendees",
+        "description": "获取日程参与者列表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "日程创建者的unionId"
+                },
+                "calendarId": {
+                    "type": "string",
+                    "description": "日程所属的日历ID，统一为primary"
+                },
+                "eventId": {
+                    "type": "string",
+                    "description": "日程ID"
+                },
+                "maxResults": {
+                    "type": "number",
+                    "description": "最大返回数量，默认100，最大500"
+                },
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页标记"
+                }
+            },
+            "required": [
+                "unionId",
+                "calendarId",
+                "eventId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getCalendarView",
+        "description": "查询日程视图，按时间范围获取日程列表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "用户的unionId"
+                },
+                "calendarId": {
+                    "type": "string",
+                    "description": "日程所属的日历ID，统一为primary"
+                },
+                "timeMin": {
+                    "type": "string",
+                    "description": "查询的起始时间，格式为ISO-8601的date-time格式。"
+                },
+                "timeMax": {
+                    "type": "string",
+                    "description": "查询的结束时间，格式为ISO-8601的date-time格式。"
+                },
+                "maxAttendees": {
+                    "type": "number",
+                    "description": "返回的参与者列表的最大数量"
+                },
+                "maxResults": {
+                    "type": "number",
+                    "description": "最大返回数量"
+                },
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页标记"
+                }
+            },
+            "required": [
+                "unionId",
+                "calendarId",
+                "timeMin",
+                "timeMax"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getDepartmentCheckinRecords",
+        "description": "获取部门用户签到记录，以部门维度获取员工签到记录进行统计分析",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "department_id": {
+                    "type": "string",
+                    "description": "部门ID，1表示根部门，可通过获取部门列表接口获取dept_id参数值"
+                },
+                "start_time": {
+                    "type": "number",
+                    "description": "开始时间，Unix时间戳，单位毫秒"
+                },
+                "end_time": {
+                    "type": "number",
+                    "description": "结束时间，Unix时间戳，单位毫秒。开始时间和结束时间的间隔不能大于45天"
+                },
+                "offset": {
+                    "type": "number",
+                    "description": "支持分页查询，与size参数同时设置时才生效，此参数代表偏移量，从0开始，默认为0"
+                },
+                "size": {
+                    "type": "number",
+                    "description": "支持分页查询，与offset参数同时设置时才生效，此参数代表分页大小，最大100，默认为100"
+                },
+                "order": {
+                    "type": "string",
+                    "description": "排序方式，asc为正序，desc为倒序，默认为asc"
+                }
+            },
+            "required": [
+                "department_id",
+                "start_time",
+                "end_time"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getUserCheckinRecords",
+        "description": "获取指定用户的签到记录，可获取指定人员的签到记录进行统计分析",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userid_list": {
+                    "type": "string",
+                    "description": "需要查询的用户列表，最大列表长度为10，多个用户用逗号分隔"
+                },
+                "start_time": {
+                    "type": "number",
+                    "description": "开始时间，Unix时间戳，单位毫秒"
+                },
+                "end_time": {
+                    "type": "number",
+                    "description": "截止时间，单位毫秒。如果是取1个人的数据，时间范围最大10天；如果是取多个人的数据，时间范围最大1天"
+                },
+                "cursor": {
+                    "type": "number",
+                    "description": "分页查询的游标，最开始可以传0"
+                },
+                "size": {
+                    "type": "number",
+                    "description": "分页查询的每页大小，最大100"
+                }
+            },
+            "required": [
+                "userid_list",
+                "start_time",
+                "end_time",
+                "cursor",
+                "size"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "currentDateTime",
+        "description": "获取当前日期和时间",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "searchUser",
+        "description": "根据姓名搜索钉钉通讯录用户的userId。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "queryWord": {
+                    "type": "string",
+                    "description": "搜索关键词，可以是用户姓名、姓名拼音或英文名称。"
+                },
+                "offset": {
+                    "type": "number",
+                    "description": "分页偏移量，从0开始"
+                },
+                "size": {
+                    "type": "number",
+                    "description": "分页大小，最大50"
+                },
+                "fullMatchField": {
+                    "type": "number",
+                    "description": "是否精确匹配，1：精确匹配用户名称。"
+                }
+            },
+            "required": [
+                "queryWord"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getUserDetailByUserId",
+        "description": "查询用户详情 - 根据userId获取用户的详细信息，包含用户的unionId。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userid": {
+                    "type": "string",
+                    "description": "用户的userId。"
+                },
+                "language": {
+                    "type": "string",
+                    "description": "语言。 * **zh_CN** ：中文（默认值） * **en_US** ：英文"
+                }
+            },
+            "required": [
+                "userid"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getUserIdByMobile",
+        "description": "根据手机号获取用户的userId。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mobile": {
+                    "type": "string",
+                    "description": "手机号"
+                }
+            },
+            "required": [
+                "mobile"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getUserIdByUnionId",
+        "description": "根据unionId获取用户的userId。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionid": {
+                    "type": "string",
+                    "description": "unionId,员工在当前开发者企业账号范围内的唯一标识"
+                }
+            },
+            "required": [
+                "unionid"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getDepartmentUsersByDepId",
+        "description": "获取指定部门下的所有成员的userId。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dept_id": {
+                    "type": "number",
+                    "description": "部门ID"
+                }
+            },
+            "required": [
+                "dept_id"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getDepartmentDetail",
+        "description": "获取指定部门的详细信息，包括部门名称、父部门、管理员、权限设置等完整信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dept_id": {
+                    "type": "number",
+                    "description": "部门ID，根部门ID为1"
+                },
+                "language": {
+                    "type": "string",
+                    "description": "通讯录语言，zh_CN(中文)或en_US(英文)，默认zh_CN"
+                }
+            },
+            "required": [
+                "dept_id"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "searchDepartment",
+        "description": "根据部门名称搜索部门ID，支持部门名称或拼音搜索",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "queryWord": {
+                    "type": "string",
+                    "description": "部门名称或者部门名称拼音"
+                },
+                "offset": {
+                    "type": "number",
+                    "description": "分页页码，默认0"
+                },
+                "size": {
+                    "type": "number",
+                    "description": "分页大小，默认10，最大100"
+                }
+            },
+            "required": [
+                "queryWord",
+                "offset",
+                "size"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listSubDepartments",
+        "description": "获取指定部门的下一级子部门基础信息列表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dept_id": {
+                    "type": "number",
+                    "description": "父部门ID，不传则获取根部门的子部门，根部门ID为1"
+                },
+                "language": {
+                    "type": "string",
+                    "description": "通讯录语言，zh_CN(中文)或en_US(英文)，默认zh_CN"
+                }
+            },
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listSubDepartmentIds",
+        "description": "获取指定部门下的所有直属子部门ID列表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dept_id": {
+                    "type": "number",
+                    "description": "父部门ID，根部门传1"
+                }
+            },
+            "required": [
+                "dept_id"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getDepartmentParents",
+        "description": "获取指定部门的所有父部门ID列表，从当前部门到根部门的完整路径",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dept_id": {
+                    "type": "number",
+                    "description": "要查询的部门ID"
+                }
+            },
+            "required": [
+                "dept_id"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getUserDepartmentParents",
+        "description": "获取指定用户所属的所有父级部门路径，返回用户所有部门归属的层级结构",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userid": {
+                    "type": "string",
+                    "description": "要查询的用户的userid"
+                }
+            },
+            "required": [
+                "userid"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "mcp_dingtalk-honor_grantHonor",
+        "description": "给组织内的员工颁发荣誉，支持单人或多人批量颁发。\n颁发后员工会收到荣誉推送消息，可以选择佩戴荣誉挂件。\n注意：同一个颁发人不允许并发执行，需要串行调用。\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "honorId": {
+                    "type": "string",
+                    "description": "荣誉ID，可通过查询企业荣誉列表接口获取"
+                },
+                "senderUserId": {
+                    "type": "string",
+                    "description": "发送人userId。注意：同一个发送人给多个员工颁发荣誉时，请分别按顺序执行，不允许并发执行"
+                },
+                "grantReason": {
+                    "type": "string",
+                    "description": "颁奖词，最多50个字符"
+                },
+                "granterName": {
+                    "type": "string",
+                    "description": "颁奖人名字，最多15个字符"
+                },
+                "receiverUserIds": {
+                    "type": "array",
+                    "description": "接收人userId列表，最多10个",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "expirationTime": {
+                    "type": "number",
+                    "description": "荣誉有效期到期时间戳（毫秒）。不传代表永久有效。有效期时间范围要求1~366天后"
+                },
+                "noticeSingle": {
+                    "type": "boolean",
+                    "description": "是否发送单聊通知。true:发送，false:不发送"
+                },
+                "noticeAnnouncer": {
+                    "type": "boolean",
+                    "description": "是否使用官宣号通知获奖人。true:通知，false:不通知"
+                },
+                "openConversationIds": {
+                    "type": "array",
+                    "description": "接收荣誉消息的群openConversationId列表，最多5个。注意：发送人必须是群成员",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "honorId",
+                "senderUserId",
+                "grantReason",
+                "granterName",
+                "receiverUserIds"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "mcp_dingtalk-honor_queryOrgHonors",
+        "description": "查询当前企业下可颁发的荣誉列表，包括荣誉ID、名称、描述、图标等信息。\n支持分页查询，可用于展示荣誉选择列表。\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页游标。首次调用传0，非首次调用传上次返回的nextToken值"
+                },
+                "maxResults": {
+                    "type": "number",
+                    "description": "每页最大条目数，默认值20，最大值100"
+                }
+            },
+            "required": [
+                "nextToken"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "mcp_dingtalk-honor_queryUserHonors",
+        "description": "查询某个员工获得的组织荣誉记录，包括荣誉ID、名称、授予时间、发放人等信息。\n可用于展示员工的荣誉墙或荣誉历史。\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "要查询的员工userId"
+                },
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页游标。首次查询传0，非首次查询传上次返回的nextToken"
+                },
+                "maxResults": {
+                    "type": "number",
+                    "description": "每页返回的最大条目数，默认20，最大100"
+                }
+            },
+            "required": [
+                "userId",
+                "nextToken"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "mcp_dingtalk-honor_createOrgHonor",
+        "description": "创建企业荣誉勋章模板。创建后会流入钉钉后台审核，一般5个工作日内审核完毕。\n注意事项：\n1. 需要主管理员或子管理员权限\n2. 企业每周的审核次数有限制（标准版每周10次/专业版每周20次）\n3. 不允许并发调用，如需批量创建请串行执行\n4. 图片需要先调用上传媒体文件接口获取media_id\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "创建荣誉勋章模板的管理员userId，需要主管理员或子管理员角色"
+                },
+                "medalName": {
+                    "type": "string",
+                    "description": "荣誉勋章名称，最大长度10字符，不支持表情图标"
+                },
+                "medalDesc": {
+                    "type": "string",
+                    "description": "荣誉勋章描述，最大长度30字符，不支持表情图标"
+                },
+                "medalMediaId": {
+                    "type": "string",
+                    "description": "荣誉勋章图片的media_id（900x900，不超过1M，PNG格式）"
+                },
+                "avatarFrameMediaId": {
+                    "type": "string",
+                    "description": "头像挂件图片的media_id（240x240，不超过1M，PNG格式）"
+                },
+                "defaultBgColor": {
+                    "type": "string",
+                    "description": "背景颜色，可选值：#FFFBB4, #FFE7BC, #FFDAF4, #DAF6A8, #E4D7FF, #BFDFFF, #B9F2D6"
+                }
+            },
+            "required": [
+                "userId",
+                "medalName",
+                "medalDesc",
+                "medalMediaId",
+                "avatarFrameMediaId",
+                "defaultBgColor"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "mcp_dingtalk-honor_recallHonor",
+        "description": "撤销员工已获得的荣誉勋章。\n撤销后员工将无法继续佩戴该荣誉。\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "honorId": {
+                    "type": "string",
+                    "description": "要撤销的荣誉勋章ID，可通过查询员工已获得的组织荣誉接口获取"
+                },
+                "userId": {
+                    "type": "string",
+                    "description": "要撤销荣誉的员工userId"
+                }
+            },
+            "required": [
+                "honorId",
+                "userId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "notableSupportedSearchFilters",
+        "description": "AI表格/多维表支持的搜索过滤条件",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "notableSupportedFieldInfo",
+        "description": "AI表格/多维表支持的字段类型和额外属性",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "notableRecordValuesFormat",
+        "description": "AI表格/多维表记录值格式",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "queryNotables",
+        "description": "根据名称查询AI表格/多维表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId，如果找不到，可以从通讯录相关Tool中获取。"
+                },
+                "keyword": {
+                    "type": "string",
+                    "description": "AI表格/多维表名称"
+                },
+                "option": {
+                    "type": "object",
+                    "description": "查询参数",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "dentryCategories",
+                            "creatorIds"
+                        ],
+                        "properties": {
+                            "dentryCategories": {
+                                "type": "array",
+                                "enum": [
+                                    "alidoc"
+                                ],
+                                "description": "文件类别",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "creatorIds": {
+                                "type": "array",
+                                "description": "创建者的userId",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "nextToken": {
+                                "type": "string",
+                                "description": "分页游标，第一次查询不需要此值，第二次查询需要，从本接口的返回值nextToken获取，如果返回值为空则说明没有更多数据"
+                            },
+                            "maxResults": {
+                                "type": "string",
+                                "description": "分页大小，默认值10"
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "operatorId",
+                "keyword",
+                "option"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getNotableSheet",
+        "description": "获取AI表格/多维表的单个数据表的ID和名称",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getNotableAllSheets",
+        "description": "获取AI表格/多维表的所有数据表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateNotableSheetName",
+        "description": "更新AI表格/多维表的单个数据表的名称",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "数据表名称"
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName",
+                "name"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "createNotableSheet",
+        "description": "创建AI表格/多维表的数据表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "字段名称"
+                            },
+                            "type": {
+                                "type": "string",
+                                "description": "字段类型，参考「notableSupportedFieldInfo」Tool返回结果中的[类型]。"
+                            },
+                            "property": {
+                                "type": "Map<String, Any>",
+                                "description": "字段属性，具体格式请参考「notableSupportedFieldInfo」Tool返回结果中的[属性]。"
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "name",
+                "fields"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "deleteNotableSheet",
+        "description": "删除AI表格/多维表的单个数据表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listNotableRecords",
+        "description": "获取AI表格/多维表里指定数据表的多行记录",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                },
+                "maxResults": {
+                    "type": "integer",
+                    "description": "每页记录数，最大100，默认100"
+                },
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页游标"
+                },
+                "filter": {
+                    "type": "object",
+                    "description": "过滤条件",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "combination": {
+                                "type": "string",
+                                "description": "条件组合方式，可选值： || and：同时满足所有条件 || or：满足任一条件"
+                            },
+                            "conditions": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "field": {
+                                            "type": "string",
+                                            "description": "字段ID或字段名。"
+                                        },
+                                        "operator": {
+                                            "type": "string",
+                                            "description": "条件类型：equal | notEqual | greater | greaterEqual | less | lessEqual | contain | notContain | empty | notEmpty。"
+                                        },
+                                        "value": {
+                                            "type": "array",
+                                            "description": "字段值，必须是数组类型，格式需要参考「notableSupportedSearchFilters」说明。",
+                                            "items": {
+                                                "type": "any"
+                                            }
+                                        },
+                                        "required": [
+                                            "field",
+                                            "operator",
+                                            "value"
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName",
+                "filter"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getNotableRecord",
+        "description": "获取AI表格/多维表里指定数据表的单行记录",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                },
+                "recordId": {
+                    "type": "string",
+                    "description": "记录ID"
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName",
+                "recordId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "deleteNotableRecords",
+        "description": "删除AI表格/多维表里指定数据表的多行记录",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                },
+                "recordIds": {
+                    "type": "array",
+                    "description": "记录ID数组",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName",
+                "recordIds"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "insertNotableRecords",
+        "description": "在AI表格/多维表里指定数据表中新增行记录",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                },
+                "records": {
+                    "type": "array",
+                    "description": "记录数组",
+                    "items": {
+                        "type": "object",
+                        "description": "该行记录中各字段的值，具体格式请参考「notableRecordValuesFormat」Tool的结果。",
+                        "properties": {
+                            "fields": {
+                                "type": "object",
+                                "description": "字段键值对,key为字段ID或名称，value为字段设置值，格式需参考「notableRecordValuesFormat」Tool的结果。\n参考如下结构图：\n\"fields\":{\n       \"人员2\":[\n           {\n               unionId: \"oEoTOxbGV6o7AiSB5RcfrTAiEiE\"\n           }\n       ],\n       \"标题\": \"name\"\n   }\n"
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName",
+                "records"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateNotableRecords",
+        "description": "更新AI表格/多维表里指定数据表的多行记录",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                },
+                "records": {
+                    "type": "array",
+                    "description": "记录数组，每个记录包含id和fields字段",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "记录ID"
+                            },
+                            "fields": {
+                                "type": "object",
+                                "description": "字段键值对，key为字段ID，value为字段设置值，格式需参考「notableRecordValuesFormat」Tool的结果。\n参考如下结构图：\n\"fields\":{\n       \"人员2\":[\n           {\n               unionId: \"oEoTOxbGV6o7AiSB5RcfrTAiEiE\"\n           }\n       ],\n       \"标题\": \"name\"\n   }\n"
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName",
+                "records"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getNotableAllFields",
+        "description": "获取AI表格/多维表里指定数据表的所有字段",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "createNotableField",
+        "description": "在AI表格/多维表里指定数据表中创建字段",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "字段名称"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "字段类型，需要参考「notableSupportedFieldInfo」Tool的对不同类型字段的类型描述。"
+                },
+                "property": {
+                    "type": "object",
+                    "description": "字段属性，，需要参考「notableSupportedFieldInfo」Tool的对不同类型字段的属性描述。"
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName",
+                "name",
+                "type"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "deleteNotableField",
+        "description": "删除AI表格/多维表里指定数据表的字段",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                },
+                "fieldIdOrName": {
+                    "type": "string",
+                    "description": "字段ID或字段名称"
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName",
+                "fieldIdOrName"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateNotableField",
+        "description": "更新AI表格/多维表里指定数据表的字段，建议先从「getNotableAllFields」Tool中获取要更新字段的类型。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operatorId": {
+                    "type": "string",
+                    "description": "操作人的unionId"
+                },
+                "baseId": {
+                    "type": "string",
+                    "description": "AI表格/多维表ID，从「根据名称查询AI表格/多维表」Tool中的结果字段「dentryUuid」获取。"
+                },
+                "sheetIdOrName": {
+                    "type": "string",
+                    "description": "数据表ID或数据表名称。数据表ID可以通过调用「getNotableAllSheets」获取"
+                },
+                "fieldIdOrName": {
+                    "type": "string",
+                    "description": "字段ID或字段名称"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "字段名称"
+                },
+                "property": {
+                    "type": "object",
+                    "description": "字段属性，需要参考「notableSupportedFieldInfo」Tool的对不同类型字段的属性描述。"
+                }
+            },
+            "required": [
+                "operatorId",
+                "baseId",
+                "sheetIdOrName",
+                "fieldIdOrName",
+                "name"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "sendNotice",
+        "description": "发送工作通知消息，支持 markdown 消息类型",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userid_list": {
+                    "type": "string",
+                    "description": "接收人用户ID列表，用逗号分隔，最多5000人"
+                },
+                "dept_id_list": {
+                    "type": "string",
+                    "description": "接收部门ID列表，用逗号分隔（可选）"
+                },
+                "to_all_user": {
+                    "type": "boolean",
+                    "description": "是否发送给全员（可选，默认false）"
+                },
+                "msg.markdown.title": {
+                    "type": "string",
+                    "description": "markdown消息标题"
+                },
+                "msg.markdown.text": {
+                    "type": "string",
+                    "description": "markdown消息内容"
+                }
+            },
+            "required": [
+                "agent_id",
+                "msg.msgtype",
+                "msg.markdown.title",
+                "msg.markdown.text"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getSendResult",
+        "description": "获取工作通知消息的发送结果，查询消息发送状态和统计信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "number",
+                    "description": "发送任务ID（发送消息时返回的task_id）"
+                }
+            },
+            "required": [
+                "agent_id",
+                "task_id"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getSendProgress",
+        "description": "获取工作通知消息的发送进度，实时查询消息发送进度",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "number",
+                    "description": "发送任务ID（发送消息时返回的task_id）"
+                }
+            },
+            "required": [
+                "agent_id",
+                "task_id"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "recallNotice",
+        "description": "撤回已发送的工作通知消息，消息撤回后接收人将无法看到该消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "msg_task_id": {
+                    "type": "number",
+                    "description": "要撤回的消息任务ID"
+                }
+            },
+            "required": [
+                "agent_id",
+                "msg_task_id"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "createReport",
+        "description": "创建并发送工作日志到指定接收人。\n\n【重要提示】contents参数格式复杂，必须严格按照以下格式构造：\n\n1. 每个content对象必须包含5个字段：content_type, sort, type, content, key\n2. content_type固定为\"markdown\"\n3. sort和type的值需要从getTemplateDetail接口获取\n4. key为字段名称，content为实际填写的内容\n\n【使用流程】\n1. 先调用getTemplateDetail获取模板字段信息\n2. 根据返回的fields构造contents数组\n3. 调用本接口创建日志\n\n【完整示例】\n对于\"空白日志\"模板：\n{\n  \"template_id\": \"1740b290d90f07517b0d3b14da2b4b7b\",\n  \"contents\": [\n    {\n      \"content_type\": \"markdown\",\n      \"sort\": 0,\n      \"type\": 1,\n      \"content\": \"今天完成了项目开发工作\",\n      \"key\": \"内容\"\n    }\n  ],\n  \"userid\": \"0420131813787933\",\n  \"to_chat\": true,\n  \"dd_from\": \"MCP_ASSISTANT\",\n  \"to_userids\": [\"0420131813787933\"]\n}\n\n【常见参数组合】\n- 发送给自己：to_userids=[\"自己的userid\"], to_chat=true\n- 发送给他人：to_userids=[\"他人userid1\", \"他人userid2\"], to_chat=true\n- 发送到群：to_cids=[\"群id1\"], to_chat=false\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "template_id": {
+                    "type": "string",
+                    "description": "模板ID，从getTemplateDetail接口的result.id字段获取。\n示例值：\"1740b290d90f07517b0d3b14da2b4b7b\"\n"
+                },
+                "contents": {
+                    "type": "array",
+                    "description": "日志内容数组，必须严格按照以下JSON Schema构造：\n\n每个数组元素是一个对象，包含以下必需字段：\n- content_type: 固定值\"markdown\"\n- sort: 数字，字段排序（从模板详情获取）\n- type: 数字，字段类型（从模板详情获取，通常为1）\n- content: 字符串，实际填写的内容，支持Markdown格式，最长1000字符\n- key: 字符串，字段名称（从模板详情的field_name获取）\n\n构造方法：\n1. 调用getTemplateDetail获取模板fields\n2. 对于每个field，创建一个content对象：\n   {\n     \"content_type\": \"markdown\",\n     \"sort\": field.sort,\n     \"type\": field.type,\n     \"content\": \"你要填写的内容\",\n     \"key\": field.field_name\n   }\n",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "content_type",
+                            "sort",
+                            "type",
+                            "content",
+                            "key"
+                        ],
+                        "properties": {
+                            "content_type": {
+                                "type": "string",
+                                "enum": [
+                                    "markdown"
+                                ],
+                                "description": "内容类型，固定值\"markdown\""
+                            },
+                            "sort": {
+                                "type": "number",
+                                "description": "字段排序序号，必须从getTemplateDetail的result.fields[].sort获取"
+                            },
+                            "type": {
+                                "type": "number",
+                                "description": "字段类型，必须从getTemplateDetail的result.fields[].type获取（1=文本类型）"
+                            },
+                            "content": {
+                                "type": "string",
+                                "maxLength": 1000,
+                                "description": "实际填写的内容，支持Markdown语法，最长1000字符"
+                            },
+                            "key": {
+                                "type": "string",
+                                "description": "字段名称，必须从getTemplateDetail的result.fields[].field_name获取"
+                            }
+                        }
+                    }
+                },
+                "userid": {
+                    "type": "string",
+                    "description": "创建日志的员工userId。\n示例值：\"0420131813787933\"\n"
+                },
+                "to_userids": {
+                    "type": "array",
+                    "description": "日志发送到的员工userId列表（可选）。\n如果不指定，日志只保存不发送。\n示例值：[\"0420131813787933\", \"其他userid\"]\n",
+                    "items": {
+                        "type": "string",
+                        "description": "员工的userId"
+                    }
+                },
+                "to_chat": {
+                    "type": "boolean",
+                    "description": "发送日志到员工时是否发送单聊消息。\n- true: 发送日志消息给指定用户\n- false: 不单独发送消息\n通常设置为true以确保接收人能收到通知。\n"
+                },
+                "to_cids": {
+                    "type": "array",
+                    "description": "日志要发送到的群ID列表（可选）。\n注意：群必须是在日志模板中预先配置好的接收群。\n示例值：[\"群id1\", \"群id2\"]\n",
+                    "items": {
+                        "type": "string",
+                        "description": "群聊的ID"
+                    }
+                },
+                "dd_from": {
+                    "type": "string",
+                    "description": "日志来源标识，自定义的唯一来源标识。\n建议使用有意义的标识，如\"MCP_ASSISTANT\"、\"AUTO_REPORT\"等。\n示例值：\"MCP_ASSISTANT\"\n"
+                }
+            },
+            "required": [
+                "template_id",
+                "contents",
+                "userid",
+                "to_chat",
+                "dd_from"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "saveReportDraft",
+        "description": "保存日志内容供后续编辑和发送（草稿功能）。\n\n此接口用于保存日志内容但不立即发送，可以后续在钉钉中编辑和发送。\ncontents参数格式与「createReport」相同，必须包含完整的字段结构。\n\n【使用场景】\n- 需要保存日志但暂不发送\n- 创建模板供后续使用\n- 批量准备多个日志内容\n\n【参数格式】与createLog的contents参数完全相同\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "template_id": {
+                    "type": "string",
+                    "description": "模板ID，从getTemplateDetail接口的result.id字段获取。\n示例值：\"1740b290d90f07517b0d3b14da2b4b7b\"\n"
+                },
+                "contents": {
+                    "type": "array",
+                    "description": "日志内容数组，格式与createLog接口的contents参数完全相同。\n\n每个数组元素必须包含：\n- content_type: \"markdown\"\n- sort: 从模板详情获取的字段排序\n- type: 从模板详情获取的字段类型\n- content: 实际内容\n- key: 字段名称\n",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "content_type",
+                            "sort",
+                            "type",
+                            "content",
+                            "key"
+                        ],
+                        "properties": {
+                            "content_type": {
+                                "type": "string",
+                                "enum": [
+                                    "markdown"
+                                ],
+                                "description": "内容类型，固定值\"markdown\""
+                            },
+                            "sort": {
+                                "type": "number",
+                                "description": "字段排序序号"
+                            },
+                            "type": {
+                                "type": "number",
+                                "description": "字段类型（1=文本类型）"
+                            },
+                            "content": {
+                                "type": "string",
+                                "maxLength": 1000,
+                                "description": "实际填写的内容"
+                            },
+                            "key": {
+                                "type": "string",
+                                "description": "字段名称"
+                            }
+                        }
+                    }
+                },
+                "userid": {
+                    "type": "string",
+                    "description": "创建日志的员工userId。\n示例值：\"0420131813787933\"\n"
+                },
+                "dd_from": {
+                    "type": "string",
+                    "description": "日志来源标识，自定义的唯一标识。\n示例值：\"MCP_ASSISTANT\"\n"
+                }
+            },
+            "required": [
+                "template_id",
+                "contents",
+                "userid",
+                "dd_from"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getReportList",
+        "description": "查询用户发出的日志列表。\n\n可以根据时间范围、模板名称、用户等条件查询日志列表。\n支持分页查询，适用于批量处理和数据分析。\n\n【使用场景】\n- 查看个人的日志历史\n- 统计团队日志数据\n- 查找特定时间段的日志\n\n【时间参数说明】\n- start_time和end_time最多相隔180天\n- 时间格式为Unix时间戳（毫秒）\n- 可使用JavaScript的Date.now()或new Date().getTime()获取\n\n【查询示例】\n查询最近7天的所有日志：\n{\n  \"start_time\": 1703145600000,  // 7天前的时间戳\n  \"end_time\": 1703750400000,    // 当前时间戳\n  \"cursor\": 0,\n  \"size\": 10\n}\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "start_time": {
+                    "type": "number",
+                    "description": "查询的日志创建开始时间，Unix时间戳（毫秒）。\n注意：与end_time间隔不能超过180天。\n示例值：1703145600000（2023-12-21的时间戳）\n"
+                },
+                "end_time": {
+                    "type": "number",
+                    "description": "查询的日志创建结束时间，Unix时间戳（毫秒）。\n必须大于start_time，且间隔不超过180天。\n示例值：1703750400000（2023-12-28的时间戳）\n"
+                },
+                "template_name": {
+                    "type": "string",
+                    "description": "要查询的模板名称（可选）。\n不传则查询所有模板的日志。\n示例值：\"日报\"、\"周报\"、\"空白日志\"\n"
+                },
+                "userid": {
+                    "type": "string",
+                    "description": "员工的userId（可选）。\n不传则查询所有员工的日志（需要权限）。\n示例值：\"0420131813787933\"\n"
+                },
+                "cursor": {
+                    "type": "number",
+                    "description": "查询游标，用于分页。\n初始查询传入0，后续从上一次响应的next_cursor获取。\n示例值：0\n"
+                },
+                "size": {
+                    "type": "number",
+                    "description": "每页数据量，范围1-20。\n建议使用10以获得较好的性能。\n示例值：10\n"
+                },
+                "modified_start_time": {
+                    "type": "number",
+                    "description": "查询的日志修改开始时间，Unix时间戳（毫秒）（可选）。\n用于查询在特定时间段内被修改过的日志。\n"
+                },
+                "modified_end_time": {
+                    "type": "number",
+                    "description": "查询的日志修改结束时间，Unix时间戳（毫秒）（可选）。\n与modified_start_time配合使用。\n"
+                }
+            },
+            "required": [
+                "start_time",
+                "end_time",
+                "cursor",
+                "size"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getReportTemplateList",
+        "description": "获取用户可见的日志模板列表。\n\n返回当前用户有权限查看和使用的所有日志模板。\n模板包含基本信息如名称、ID等，不包含详细字段信息。\n\n【使用场景】\n- 查看可用的日志模板\n- 获取模板基本信息\n- 为用户选择提供模板列表\n\n【返回信息】\n- template_list: 模板列表\n- 每个模板包含：name（名称）、report_code（ID）等\n\n【后续操作】\n获取到模板列表后，可使用getTemplateDetail获取具体模板的字段信息。\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userid": {
+                    "type": "string",
+                    "description": "员工的userId（可选）。\n不传表示获取所有日志模板。\n传入userid则获取该用户有权限的模板。\n示例值：\"0420131813787933\"\n"
+                },
+                "offset": {
+                    "type": "number",
+                    "description": "分页偏移量，从0开始（可选）。\n用于分页查询，默认为0。\n示例值：0\n"
+                },
+                "size": {
+                    "type": "number",
+                    "description": "分页大小，范围1-100（可选）。\n默认值为100，建议使用默认值获取所有模板。\n示例值：100\n"
+                }
+            },
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getReportTemplateDetail",
+        "description": "查看日志模板的详细字段和配置信息。\n\n返回模板的完整字段定义，这是构造createLog的contents参数的关键信息。\n每个字段包含field_name、sort、type等属性，用于构造正确的日志内容。\n\n【重要性】\n此接口是使用createLog的前置条件！必须先获取模板详情才能正确构造contents参数。\n\n【返回字段说明】\n- fields数组：模板的所有字段定义\n- 每个field包含：\n  - field_name: 字段名称（用于contents的key）\n  - sort: 排序序号（用于contents的sort）\n  - type: 字段类型（用于contents的type，1=文本）\n\n【使用示例】\n1. 调用此接口获取模板详情\n2. 根据返回的fields构造contents数组\n3. 调用createLog创建日志\n\n对于\"空白日志\"模板的响应示例：\n{\n  \"fields\": [\n    {\n      \"field_name\": \"内容\",\n      \"sort\": 0,\n      \"type\": 1\n    }\n  ],\n  \"id\": \"1740b290d90f07517b0d3b14da2b4b7b\",\n  \"name\": \"空白日志\"\n}\n",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "template_name": {
+                    "type": "string",
+                    "description": "模板名称，必须是已存在的模板名称。\n可以从getTemplateList接口的返回结果中获取准确的模板名称。\n示例值：\"空白日志\"、\"日报\"、\"周报\"\n"
+                },
+                "userid": {
+                    "type": "string",
+                    "description": "操作该接口的员工userId。\n必须是有权限查看该模板的用户ID。\n示例值：\"0420131813787933\" \n"
+                }
+            },
+            "required": [
+                "template_name",
+                "userid"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "sendDINGMessageByRobot",
+        "description": "机器人发送DING消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "remindType": {
+                    "type": "string",
+                    "description": "DING消息类型。1：应用内DING，2：短信DING，3：电话DING；默认值为1。"
+                },
+                "receiverUserIdList": {
+                    "type": "array",
+                    "description": "接收人userId列表。应用内DING消息，每次接收人不能超过200个。短信DING和电话DING，每次接收人不能超过20个。",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "content": {
+                    "type": "string",
+                    "description": "DING消息内容。"
+                }
+            },
+            "required": [
+                "remindType",
+                "receiverUserIdList",
+                "content"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "recallDINGMessage",
+        "description": "撤回机器人发送DING的消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "openDingId": {
+                    "type": "string",
+                    "description": "需要被撤回的DING消息ID。"
+                }
+            },
+            "required": [
+                "openDingId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "sendGroupMessageByRobot",
+        "description": "机器人发送群消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "openConversationId": {
+                    "type": "string",
+                    "description": "会话ID。"
+                },
+                "msgParam": {
+                    "type": "object",
+                    "description": "sampleMarkdown消息内容",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "消息标题。"
+                            },
+                            "text": {
+                                "type": "string",
+                                "description": "消息内容，markdown格式。"
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "openConversationId",
+                "msgParam"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "recallGroupMessageByRobot",
+        "description": "撤回机器人发送的群消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "openConversationId": {
+                    "type": "string",
+                    "description": "会话ID。"
+                },
+                "processQueryKeys": {
+                    "type": "array",
+                    "description": "要撤回的消息ID列表。",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "openConversationId",
+                "processQueryKeys"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "batchSendUserMessageByRobot",
+        "description": "机器人批量给人发送消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userIds": {
+                    "type": "array",
+                    "description": "用户userId列表。",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "msgParam": {
+                    "type": "object",
+                    "description": "sampleMarkdown消息内容",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "消息标题。"
+                            },
+                            "text": {
+                                "type": "string",
+                                "description": "消息内容，markdown格式。"
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "userIds",
+                "msgParam"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "batchRecallUserMessageByRobot",
+        "description": "批量撤回机器人给人发送的消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "processQueryKeys": {
+                    "type": "array",
+                    "description": "要撤回的消息ID列表。",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "processQueryKeys"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "sendMessageByCustomRobot",
+        "description": "群自定义机器人发送群消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "markdown": {
+                    "type": "object",
+                    "description": "markdown消息",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "消息标题。"
+                            },
+                            "text": {
+                                "type": "string",
+                                "description": "消息内容，markdown格式。"
+                            }
+                        }
+                    }
+                },
+                "at": {
+                    "type": "object",
+                    "description": "AT群成员",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "isAtAll": {
+                                "type": "boolean",
+                                "description": "是否AT所有人，默认为false。"
+                            },
+                            "atUserIds": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "被AT的群成员userId。"
+                            }
+                        }
+                    }
+                }
+            },
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "sendServiceWindowMessage",
+        "description": "发送服务窗单人消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "用户userId"
+                },
+                "accountId": {
+                    "type": "string",
+                    "description": "服务窗帐号ID"
+                },
+                "messageTitle": {
+                    "type": "string",
+                    "description": "消息标题"
+                },
+                "messageContent": {
+                    "type": "string",
+                    "description": "markdown格式的消息内容"
+                }
+            },
+            "required": [
+                "userId",
+                "accountId",
+                "messageTitle",
+                "messageContent"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "batchSendServiceWindowMessage",
+        "description": "批量发送服务窗消息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userIdList": {
+                    "type": "array",
+                    "description": "用户userId",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "accountId": {
+                    "type": "string",
+                    "description": "服务窗帐号ID"
+                },
+                "messageTitle": {
+                    "type": "string",
+                    "description": "消息标题"
+                },
+                "messageContent": {
+                    "type": "string",
+                    "description": "markdown格式的消息内容"
+                }
+            },
+            "required": [
+                "accountId",
+                "messageTitle",
+                "messageContent"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getServiceWindowFollowerInfo",
+        "description": "获取关注服务窗的单个用户信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "string",
+                    "description": "服务窗帐号ID"
+                },
+                "userId": {
+                    "type": "string",
+                    "description": "关注服务窗用户的userId"
+                }
+            },
+            "required": [
+                "accountId",
+                "userId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listServiceWindowFollowersInfo",
+        "description": "批量获取关注服务窗用户的信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "string",
+                    "description": "服务窗帐号ID"
+                },
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页游标"
+                },
+                "maxResults": {
+                    "type": "string",
+                    "description": "每页最大条目数，最大值100"
+                }
+            },
+            "required": [
+                "accountId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "getUserFollowStatus",
+        "description": "获取用户的服务窗关注状态",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "string",
+                    "description": "服务窗帐号ID"
+                },
+                "userId": {
+                    "type": "string",
+                    "description": "关注服务窗用户的userId"
+                }
+            },
+            "required": [
+                "accountId",
+                "userId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listServiceWindows",
+        "description": "获取企业下的服务窗列表，以获取服务窗帐号IDaccountId",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "queryTasks",
+        "description": "查询钉钉待办/任务列表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "用户UnionId"
+                },
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页游标，默认为0。如果一个查询条件一次无法全部返回结果，会返回分页token，下次查询带上该token后会返回后续数据，直到分页token为null表示数据已经全部查询完毕。"
+                },
+                "isDone": {
+                    "type": "boolean",
+                    "description": "待办完成状态。true：已完成；false：未完成"
+                },
+                "roleTypes": {
+                    "type": "array",
+                    "description": "查询目标用户角色类型。executor：执行人；creator：创建人；participant：参与人。可以同时传多个值。外层list表示或的关系，内层list表示与的关系。例如：[[\"executor\"], [\"creator\"],[\"participant\"]] 表示查询用户角色为执行人或创建人或参与人的待办列表； [[\"executor\", \"creator\"]] 表示查询用户角色为执行人并且是创建人的待办列表。",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "unionId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "deleteTask",
+        "description": "删除钉钉待办",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "用户UnionId"
+                },
+                "taskId": {
+                    "type": "string",
+                    "description": "待办ID"
+                }
+            },
+            "required": [
+                "unionId",
+                "taskId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "createTask",
+        "description": "创建待办",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "待办创建者的UnionId"
+                },
+                "subject": {
+                    "type": "string",
+                    "description": "待办标题，最大长度1024"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "待办备注，最大长度4096"
+                },
+                "dueTime": {
+                    "type": "number",
+                    "description": "待办截止时间，Unix时间戳，单位毫秒。"
+                },
+                "executorIds": {
+                    "type": "array",
+                    "description": "待办执行人的UnionId",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "participantIds": {
+                    "type": "array",
+                    "description": "待办参与人的UnionId",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "unionId",
+                "subject"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateTask",
+        "description": "更新待办",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "用户UnionId"
+                },
+                "taskId": {
+                    "type": "string",
+                    "description": "待办ID"
+                },
+                "subject": {
+                    "type": "string",
+                    "description": "待办标题，最大长度1024"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "待办备注，4096"
+                },
+                "done": {
+                    "type": "boolean",
+                    "description": "完成状态。true：已完成；false：未完成"
+                },
+                "dueTime": {
+                    "type": "number",
+                    "description": "待办截止时间，Unix时间戳，单位毫秒。"
+                },
+                "executorIds": {
+                    "type": "array",
+                    "description": "待办执行人的UnionId",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "participantIds": {
+                    "type": "array",
+                    "description": "待办参与人的UnionId",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "unionId",
+                "taskId",
+                "subject"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateExecutorsTaskStatus",
+        "description": "更新执行人待办状态",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "unionId": {
+                    "type": "string",
+                    "description": "待办所属用户UnionId"
+                },
+                "taskId": {
+                    "type": "string",
+                    "description": "待办ID"
+                },
+                "executorStatusList": {
+                    "type": "array",
+                    "description": "执行者状态列表，id需传用户的unionId，最大数量1000。",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "执行者unionId"
+                            },
+                            "isDone": {
+                                "type": "boolean",
+                                "description": "执行者完成状态"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "isDone"
+                        ]
+                    }
+                }
+            },
+            "required": [
+                "unionId",
+                "taskId",
+                "executorStatusList"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "createProject",
+        "description": "创建项目",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "项目名称。"
+                }
+            },
+            "required": [
+                "userId",
+                "name"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "queryProjectsByProjectName",
+        "description": "根据项目名称模糊查询项目信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "项目名称，模糊查询指定项目名称的项目信息"
+                },
+                "maxResults": {
+                    "type": "number",
+                    "description": "分页大小，默认10，最大300"
+                },
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页标。供分页使用，下一页token，从当前查询结果中获取。"
+                }
+            },
+            "required": [
+                "userId",
+                "name"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "queryProjectStatusesByProjectId",
+        "description": "根据项目ID查询项目状态信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "projectId": {
+                    "type": "string",
+                    "description": "项目ID。"
+                }
+            },
+            "required": [
+                "userId",
+                "projectId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "queryProjectMembersByProjectId",
+        "description": "根据项目ID查询项目成员信息",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "projectId": {
+                    "type": "string",
+                    "description": "项目ID。"
+                },
+                "maxResults": {
+                    "type": "number",
+                    "description": "分页大小，默认10，最大300"
+                }
+            },
+            "required": [
+                "userId",
+                "projectId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "addProjectMembers",
+        "description": "添加项目成员",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "projectId": {
+                    "type": "string",
+                    "description": "项目ID。"
+                },
+                "userIds": {
+                    "type": "array",
+                    "description": "被添加的用户userId列表，建议一次不超过10个。",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "userId",
+                "projectId",
+                "userIds"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "removeProjectMembers",
+        "description": "添加项目成员",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "projectId": {
+                    "type": "string",
+                    "description": "项目ID。"
+                },
+                "userIds": {
+                    "type": "array",
+                    "description": "被删除的用户userId列表，建议一次不超过10个。",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "userId",
+                "projectId",
+                "userIds"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listProjectTasks",
+        "description": "查询项目中的任务列表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "projectId": {
+                    "type": "string",
+                    "description": "项目ID。"
+                },
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页游标。如果是首次调用，该参数不传。如果是非首次调用，该参数传上次接口返回的nextToken。"
+                },
+                "maxResults": {
+                    "type": "number",
+                    "description": "每页返回最大数量。默认10，最大500。"
+                }
+            },
+            "required": [
+                "userId",
+                "projectId",
+                "nextToken"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "listUserProjectTasks",
+        "description": "查询用户项目任务信息列表",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "roleTypes": {
+                    "type": "string",
+                    "description": "用户的任务角色。creator、executor、involveMember 中的一个或多个，多个以英文逗号拼接。例如：creator,executor"
+                },
+                "nextToken": {
+                    "type": "string",
+                    "description": "分页游标。如果是首次调用，该参数不传。如果是非首次调用，该参数传上次接口返回的nextToken。"
+                },
+                "maxResults": {
+                    "type": "number",
+                    "description": "每页返回最大数量。默认10，最大500。"
+                }
+            },
+            "required": [
+                "userId",
+                "roleTypes",
+                "nextToken"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "queryProjectTaskDetail",
+        "description": "查询项目任务详情",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "taskId": {
+                    "type": "string",
+                    "description": "项目任务ID"
+                }
+            },
+            "required": [
+                "userId",
+                "taskId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "createProjectTask",
+        "description": "创建项目任务",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "projectId": {
+                    "type": "string",
+                    "description": "项目id。"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "任务标题"
+                },
+                "note": {
+                    "type": "string",
+                    "description": "任务备注"
+                },
+                "startDate": {
+                    "type": "string",
+                    "description": "任务截止时间，格式：YYYY-MM-DDTHH:mm:ssZ（ISO 8601/RFC 3339）。"
+                },
+                "dueDate": {
+                    "type": "string",
+                    "description": "任务开始时间，格式：YYYY-MM-DDTHH:mm:ssZ（ISO 8601/RFC 3339）。"
+                },
+                "executorId": {
+                    "type": "string",
+                    "description": "任务执行者userId。"
+                }
+            },
+            "required": [
+                "userId",
+                "projectId",
+                "content"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "deleteProjectTask",
+        "description": "删除项目任务",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "taskId": {
+                    "type": "string",
+                    "description": "任务ID"
+                }
+            },
+            "required": [
+                "userId",
+                "taskId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateProjectTaskNote",
+        "description": "更新项目任务备注",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "taskId": {
+                    "type": "string",
+                    "description": "任务ID。"
+                },
+                "note": {
+                    "type": "string",
+                    "description": "任务备注"
+                }
+            },
+            "required": [
+                "userId",
+                "taskId",
+                "note"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateProjectTaskContent",
+        "description": "更新项目任务标题",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "taskId": {
+                    "type": "string",
+                    "description": "任务ID。"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "任务标题"
+                }
+            },
+            "required": [
+                "userId",
+                "taskId",
+                "content"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateProjectTaskExecutors",
+        "description": "更新项目任务执行者",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "taskId": {
+                    "type": "string",
+                    "description": "任务ID。"
+                },
+                "executorId": {
+                    "type": "string",
+                    "description": "任务执行者userId"
+                }
+            },
+            "required": [
+                "userId",
+                "taskId",
+                "executorId"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    },
+    {
+        "name": "updateProjectTaskInvolveMembers",
+        "description": "更新项目任务参与者",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "description": "操作者userId。"
+                },
+                "taskId": {
+                    "type": "string",
+                    "description": "任务ID。"
+                },
+                "involveMembers": {
+                    "type": "array",
+                    "description": "任务参与者userId列表",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "userId",
+                "taskId",
+                "involveMembers"
+            ]
+        },
+        "server_id": "mcp_1765266621102_s2whf91p1",
+        "server_url": "https://dashscope.aliyuncs.com/api/v1/mcps/dingtalk-mcp/sse",
+        "server_type": "sse"
+    }
+]

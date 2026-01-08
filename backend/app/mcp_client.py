@@ -37,20 +37,33 @@ async def call_tool(tool_name: str, args: dict = None) -> Any:
 
 async def _call_real_tool(tool_name: str, args: dict, config: dict) -> Any:
     """
-    Make a real MCP call via SSE.
+    Make a real MCP call via SSE or HTTP Streamable.
     """
     from mcp import ClientSession
     from mcp.client.sse import sse_client
+    from mcp.client.streamable_http import streamablehttp_client
     
     url = config["url"]
+    server_type = config.get("type", "sse")
     headers = config.get("headers", None)
+    
     # Ensure NO_PROXY for localhost
     os.environ["NO_PROXY"] = os.environ.get("NO_PROXY", "") + ",127.0.0.1,localhost"
     
-    print(f"[MCP Client] Calling real tool '{tool_name}' on {url}...")
+    print(f"[MCP Client] Calling real tool '{tool_name}' on {url} (type: {server_type})...")
     
     try:
-        async with sse_client(url, headers=headers) as (read, write):
+        # Choose the appropriate client based on server type
+        if server_type == "http":
+            client_context = streamablehttp_client(url, headers=headers)
+        else:  # Default to SSE
+            client_context = sse_client(url, headers=headers)
+        
+        async with client_context as client_tuple:
+            # For streamablehttp_client, we get (read, write, get_auth_header)
+            # For sse_client, we get (read, write)
+            read, write = client_tuple[0], client_tuple[1]
+            
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 

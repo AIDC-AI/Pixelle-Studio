@@ -1,0 +1,43 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useApp } from '@/context';
+import { Loader2 } from 'lucide-react';
+
+interface AuthGuardProps {
+    children: React.ReactNode;
+}
+
+const PUBLIC_ROUTES = ['/auth']
+
+export default function AuthGuard({ children }: AuthGuardProps) {
+    const router = useRouter();
+    const pathname = usePathname();
+    const { token } = useApp();
+    const [isChecking, setIsChecking] = useState(true);
+
+    useEffect(() => {
+        const isAuthRoute = PUBLIC_ROUTES.includes(pathname);
+        if (!token && !isAuthRoute) {
+            // token 不存在或失效，且访问受保护路由，跳转到 auth 页面
+            router.push('/auth');
+        } else if (token && isAuthRoute) {
+            // token 合法且访问 auth 页面，跳转到主页
+            router.push('/');
+        } else {
+            setIsChecking(false);
+        }
+    }, [token, pathname, router]);
+
+    // 显示加载状态
+    if (isChecking) {
+        return (
+            <div className="w-screen h-screen flex items-center justify-center bg-gray-50">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-900" />
+            </div>
+        );
+    }
+
+    return <>{children}</>;
+}
