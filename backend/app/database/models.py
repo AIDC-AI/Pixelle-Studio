@@ -2,6 +2,8 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, create_engine, Inte
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
+from pathlib import Path
+import os
 import uuid
 
 Base = declarative_base()
@@ -105,12 +107,37 @@ class ChatStep(Base):
 
 
 # Database setup
-DATABASE_URL = "sqlite:///./app.db"
+# Support DATABASE_URL from environment variable, default to ./app.db
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./app.db")
+
+# For SQLite, ensure the database file's parent directory exists
+if DATABASE_URL.startswith("sqlite:///"):
+    # Extract path from sqlite:/// URL
+    db_path_str = DATABASE_URL.replace("sqlite:///", "")
+    # Handle both relative and absolute paths
+    db_path = Path(db_path_str)
+    
+    # Ensure parent directory exists
+    db_dir = db_path.parent
+    if db_dir and str(db_dir) != ".":
+        db_dir.mkdir(parents=True, exist_ok=True)
+    
+    # If the path is a directory (from Docker mount failure), remove it and create file
+    if db_path.exists() and db_path.is_dir():
+        import shutil
+        shutil.rmtree(db_path)
+    
+    # Touch the file to ensure it exists (SQLite can create it, but we pre-create to avoid mount issues)
+    if not db_path.exists():
+        db_path.touch()
+        print(f"[Database] Created new SQLite database file: {db_path.absolute()}")
+
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+print(f"[Database] Initialized database at: {DATABASE_URL}")
 
 # Dependency
 def get_db():

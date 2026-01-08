@@ -13,13 +13,13 @@ services:
       - ./backend/logs:/app/logs
       # 挂载脚本目录，以便持久化生成的脚本
       - ./backend/scripts:/app/scripts
-      # 挂载存储目录
+      # 挂载存储目录（数据库也放在这里）
       - ./backend/storage:/app/storage
-      # 挂载数据库文件 (如果使用 SQLite)
-      - ./backend/app.db:/app/app.db
     restart: unless-stopped
     environment:
       - LOG_LEVEL=INFO
+      # 将数据库放在已挂载的 storage 目录中，避免直接挂载文件导致的问题
+      - DATABASE_URL=sqlite:///./storage/app.db
     env_file:
       - .env
 
