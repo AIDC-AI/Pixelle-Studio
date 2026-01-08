@@ -1,7 +1,7 @@
 'use client'
 
 import { Message, ExecutionResult, OutputFile } from "@/types/message";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import MessageList from "./messageList";
 import { UploadFile } from "antd";
 import { api } from "@/lib/api";
@@ -31,7 +31,8 @@ const Chat = () => {
       loadSessions, 
       createSession, 
       deleteSession,
-      updateSessionBackendId 
+      updateSessionBackendId,
+      updateSessionTitle
     } = useChatStorage(activeSessionId)
 
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -39,6 +40,16 @@ const Chat = () => {
     const [input, setInput] = useState<string>('');
     const [fileList, setFileList] = useState<UploadFile[]>([]);
     const [currentScript, setCurrentScript] = useState<string | null>(null);
+    
+    // WebSocket 引用，用于停止推理
+    const wsRef = useRef<WebSocket | null>(null);
+    
+    // 左侧面板宽度拖拽
+    const [leftPanelWidth, setLeftPanelWidth] = useState<number>(256);
+    const [isDragging, setIsDragging] = useState<boolean>(false);
+    const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false);
+    const dragStartXRef = useRef<number>(0);
+    const dragStartWidthRef = useRef<number>(256);
 
     const addNewSession = async (title: string) => {
         const session = await createSession(title)
@@ -58,6 +69,51 @@ const Chat = () => {
       setActiveSessionId(id)
       sessionAPI.setActiveSessionId(id)
     }
+    
+    // 停止推理
+    const handleStop = useCallback(() => {
+        if (wsRef.current) {
+            wsRef.current.close();
+            wsRef.current = null;
+        }
+        setIsProcessing(false);
+    }, []);
+    
+    // 拖拽处理
+    const handleDragStart = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+        dragStartXRef.current = e.clientX;
+        dragStartWidthRef.current = leftPanelWidth;
+    }, [leftPanelWidth]);
+    
+    const handleDragMove = useCallback((e: MouseEvent) => {
+        if (!isDragging) return;
+        
+        const deltaX = e.clientX - dragStartXRef.current;
+        const newWidth = Math.max(200, Math.min(500, dragStartWidthRef.current + deltaX));
+        setLeftPanelWidth(newWidth);
+    }, [isDragging]);
+    
+    const handleDragEnd = useCallback(() => {
+        setIsDragging(false);
+    }, []);
+    
+    useEffect(() => {
+        if (isDragging) {
+            document.addEventListener('mousemove', handleDragMove);
+            document.addEventListener('mouseup', handleDragEnd);
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        }
+        
+        return () => {
+            document.removeEventListener('mousemove', handleDragMove);
+            document.removeEventListener('mouseup', handleDragEnd);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+    }, [isDragging, handleDragMove, handleDragEnd]);
 
     const handleSubmit = async () => {
         if (!input.trim() || isProcessing) return;
@@ -95,12 +151,27 @@ const Chat = () => {
         
     // 找到当前session
     let session = sessions.find(s => s.id === activeSessionId)
-    // 如果没有，新建一个
+    // 如果没有，新建一个（使用临时标题，稍后更新）
+    const isNewSession = !session;
     if (!session) {
-      session = await addNewSession(input)
+      session = await addNewSession('新对话')
     }
     const currentSession = session;
     const currentSessionId = currentSession.id;
+    
+    // 如果是新会话，异步调用API生成标题（最多10个字）
+    if (isNewSession) {
+      api.generateTitle(input).then(({ title }) => {
+        // 确保标题不超过10个字
+        const finalTitle = title.length > 10 ? title.slice(0, 10) : title;
+        updateSessionTitle(currentSessionId, finalTitle);
+      }).catch(err => {
+        console.error('Failed to generate title:', err);
+        // 失败时使用输入的前10个字符作为标题
+        const fallbackTitle = input.length > 10 ? input.slice(0, 10) : input;
+        updateSessionTitle(currentSessionId, fallbackTitle);
+      });
+    }
 
     const backendSessionId = currentSession.backendSessionId
     // 保存当前message
@@ -129,6 +200,7 @@ const Chat = () => {
 
       // 2. Connect WebSocket
       const ws = new WebSocket(api.getWebSocketUrl(chat_id));
+      wsRef.current = ws;
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -262,6 +334,7 @@ const Chat = () => {
             }
           }
           setIsProcessing(false);
+          wsRef.current = null;
           ws.close();
         } else if (data.type === 'result') {
           // 兼容旧的 result 消息（如果有的话）
@@ -277,6 +350,7 @@ const Chat = () => {
             timestamp: Date.now()
           })
           setIsProcessing(false);
+          wsRef.current = null;
           ws.close();
         } else if (data.type === 'status') {
           _messages.push({
@@ -296,6 +370,11 @@ const Chat = () => {
           timestamp: Date.now()
         }])
         setIsProcessing(false);
+        wsRef.current = null;
+      };
+      
+      ws.onclose = () => {
+        wsRef.current = null;
       };
 
     } catch (err) {
@@ -319,11 +398,26 @@ const Chat = () => {
 
     return (
       <div className="w-screen h-screen flex overflow-hidden">
-        <LeftPanel 
-          sessions={sessions} 
-          handleDeleteSession={handleDeleteSession}
-        />
-        <div className="flex flex-col bg-linear-to-br from-slate-50 to-slate-100 w-full h-full overflow-x-hidden">
+        {/* Left Panel with dynamic width */}
+        <div style={{ width: isLeftPanelCollapsed ? 48 : leftPanelWidth, flexShrink: 0, transition: 'width 0.2s ease' }}>
+          <LeftPanel 
+            sessions={sessions} 
+            handleDeleteSession={handleDeleteSession}
+            isCollapsed={isLeftPanelCollapsed}
+            onCollapsedChange={setIsLeftPanelCollapsed}
+          />
+        </div>
+        
+        {/* Resizer - 只在面板展开时显示 */}
+        {!isLeftPanelCollapsed && (
+          <div 
+            className={`w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors flex-shrink-0 ${isDragging ? 'bg-blue-500' : ''}`}
+            onMouseDown={handleDragStart}
+          />
+        )}
+        
+        {/* Main Chat Area */}
+        <div className="flex flex-col bg-gray-50 flex-1 h-full overflow-x-hidden">
             <MessageList 
                 messages={messages} 
                 currentScript={currentScript} 
@@ -335,6 +429,7 @@ const Chat = () => {
               fileList={fileList}
               setFileList={setFileList}
               handleSubmit={handleSubmit}
+              onStop={handleStop}
             />
         </div>
         {

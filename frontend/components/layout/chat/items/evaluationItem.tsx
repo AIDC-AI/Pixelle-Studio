@@ -21,66 +21,57 @@ const EvalutaionItem: React.FC<IProps> = (props) => {
     const reason = reasonMatch ? reasonMatch[1].trim() : content;
 
     return (
-        <div className={`rounded-xl overflow-hidden border ${
-            isPassing 
-                ? 'bg-linear-to-br from-emerald-50 to-teal-50 border-emerald-200'
-                : 'bg-linear-to-br from-amber-50 to-orange-50 border-amber-200'
-        }`}>
+        <div 
+            className="rounded-lg overflow-hidden border bg-gray-100 border-gray-200"
+            style={{ boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)' }}
+        >
             {/* Header */}
             <div 
-                className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${
-                    isPassing ? 'hover:bg-emerald-100/50' : 'hover:bg-amber-100/50'
-                }`}
+                className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-gray-150 transition-colors"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
-                <div className="flex items-center gap-3">
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
-                        isPassing ? 'bg-emerald-200/60 text-emerald-600' : 'bg-amber-200/60 text-amber-600'
+                <div className="flex items-center gap-2">
+                    <div className={`flex items-center justify-center w-6 h-6 rounded ${
+                        isPassing ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
                     }`}>
-                        {isPassing ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                        {isPassing ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className={`font-medium ${isPassing ? 'text-emerald-800' : 'text-amber-800'}`}>
+                        <span className="text-xs font-medium text-gray-600">
                             评估结果
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
                             isPassing 
-                                ? 'bg-emerald-200/60 text-emerald-700' 
-                                : 'bg-amber-200/60 text-amber-700'
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-amber-100 text-amber-700'
                         }`}>
                             {isPassing ? '通过' : '需改进'}
                         </span>
                         {confidence !== null && (
-                            <span className={`text-xs ${isPassing ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            <span className="text-xs text-gray-500">
                                 置信度 {confidence}%
                             </span>
                         )}
                     </div>
                 </div>
-                <div className={isPassing ? 'text-emerald-600' : 'text-amber-600'}>
+                <div className="text-gray-500">
                     {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 </div>
             </div>
             
             {/* Content */}
             {isExpanded && (
-                <div className="px-4 pb-4">
-                    <div className={`rounded-lg p-3 border ${
-                        isPassing ? 'bg-white/60 border-emerald-100' : 'bg-white/60 border-amber-100'
-                    }`}>
-                        <div className="flex items-start gap-2 mb-2">
-                            <ClipboardCheck className={`w-4 h-4 mt-0.5 shrink-0 ${
-                                isPassing ? 'text-emerald-500' : 'text-amber-500'
+                <div className="px-3 pb-3">
+                    <div className="rounded p-2 border bg-white border-gray-200">
+                        <div className="flex items-start gap-1.5 mb-1">
+                            <ClipboardCheck className={`w-3 h-3 mt-0.5 shrink-0 ${
+                                isPassing ? 'text-green-500' : 'text-amber-500'
                             }`} />
-                            <span className={`text-sm font-medium ${
-                                isPassing ? 'text-emerald-700' : 'text-amber-700'
-                            }`}>
+                            <span className="text-xs font-medium text-gray-600">
                                 评估原因
                             </span>
                         </div>
-                        <p className={`text-sm leading-relaxed ${
-                            isPassing ? 'text-emerald-800' : 'text-amber-800'
-                        }`}>
+                        <p className="text-xs leading-relaxed text-gray-700">
                             {reason}
                         </p>
                     </div>

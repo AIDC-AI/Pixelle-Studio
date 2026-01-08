@@ -1,7 +1,7 @@
 'use client'
 
 import { Message } from "@/types/message";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import UserItem from "./items/userItem";
 import SystemItem from "./items/systemItem";
 import IterationItem from "./items/iterationItem";
@@ -15,19 +15,94 @@ import ExecutionResultItem from "./items/executionResultItem";
 import ResponseItem from "./items/responseItem";
 import SkillLoadedItem from "./items/skillLoadedItem";
 import OutputFilesItem from "./items/outputFilesItem";
+import SystemOperationGroup from "./items/systemOperationGroup";
 
 interface IProps {
     messages?: Message[] | null
     currentScript?: string | null
+    shouldScrollToBottom?: boolean
+}
+
+// 系统操作类型的消息
+const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system'];
+
+// 用户交互类型的消息（不放在系统容器里）
+const USER_INTERACTION_TYPES = ['user', 'response', 'result', 'output_files', 'error'];
+
+interface MessageGroup {
+    type: 'system_operations' | 'single';
+    messages: Message[];
+    isComplete?: boolean;
 }
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript } = props;  
+    const { messages, currentScript, shouldScrollToBottom = true } = props;  
 
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const lastMessageCountRef = useRef<number>(0);
     
+    // 分组消息：将连续的系统操作消息放在一起
+    const groupedMessages = useMemo(() => {
+        if (!messages || messages.length === 0) return [];
+        
+        const groups: MessageGroup[] = [];
+        let currentSystemGroup: Message[] = [];
+        
+        messages.forEach((msg, index) => {
+            const isSystemOp = SYSTEM_OPERATION_TYPES.includes(msg.type);
+            const isUserInteraction = USER_INTERACTION_TYPES.includes(msg.type);
+            
+            if (isSystemOp) {
+                // 添加到当前系统操作组
+                currentSystemGroup.push(msg);
+            } else {
+                // 如果有累积的系统操作，先添加它们
+                if (currentSystemGroup.length > 0) {
+                    // 检查下一个消息是否是用户交互类型来判断是否完成
+                    const isComplete = isUserInteraction && (msg.type === 'result' || msg.type === 'response' || msg.type === 'output_files');
+                    groups.push({
+                        type: 'system_operations',
+                        messages: [...currentSystemGroup],
+                        isComplete
+                    });
+                    currentSystemGroup = [];
+                }
+                // 添加单独的消息
+                groups.push({
+                    type: 'single',
+                    messages: [msg]
+                });
+            }
+        });
+        
+        // 处理剩余的系统操作（正在进行中）
+        if (currentSystemGroup.length > 0) {
+            groups.push({
+                type: 'system_operations',
+                messages: currentSystemGroup,
+                isComplete: false
+            });
+        }
+        
+        return groups;
+    }, [messages]);
+    
+    // 只在收到最终结果时滚动到底部
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (!messages || messages.length === 0) return;
+        
+        const lastMessage = messages[messages.length - 1];
+        const isEndMessage = lastMessage.type === 'result' || 
+                            lastMessage.type === 'response' || 
+                            lastMessage.type === 'error' ||
+                            lastMessage.type === 'output_files';
+        
+        // 只有在是最终消息或者是用户消息时才滚动
+        if (isEndMessage || lastMessage.type === 'user') {
+            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        lastMessageCountRef.current = messages.length;
     }, [messages]);
     
     const renderItem = (msg: Message, isLast: boolean) => {
@@ -73,30 +148,49 @@ const MessageList: React.FC<IProps> = (props) => {
         return null;
     }
 
-    // Calculate appropriate wrapper class based on message type
+    // 获取单独消息的样式类
     const getMessageClass = (msg: Message) => {
         if (msg.type === 'user') {
             return 'self-end max-w-[85%]';
         }
-        if (msg.type === 'code' || msg.type === 'execution_result' || msg.type === 'result' || msg.type === 'output_files') {
+        if (msg.type === 'result' || msg.type === 'output_files') {
             return 'self-start w-full max-w-[90%]';
         }
         if (msg.type === 'response') {
             return 'self-start max-w-[85%]';
         }
-        if (msg.type === 'system' || msg.type === 'skill_loaded') {
-            return 'self-center';
+        if (msg.type === 'error') {
+            return 'self-start max-w-[80%]';
         }
         return 'self-start max-w-[80%]';
     }
 
     return (
         <div className="flex flex-1 flex-col p-4 overflow-y-auto gap-4">
-            {messages?.map((msg, index) => (
-                <div key={index} className={`flex flex-col ${getMessageClass(msg)}`}>
-                    {renderItem(msg, index === messages.length - 1)}
-                </div>
-            ))}
+            {groupedMessages.map((group, groupIndex) => {
+                if (group.type === 'system_operations') {
+                    // 渲染系统操作组
+                    return (
+                        <div key={`group-${groupIndex}`} className="self-start w-full max-w-[90%]">
+                            <SystemOperationGroup isComplete={group.isComplete}>
+                                {group.messages.map((msg, msgIndex) => (
+                                    <div key={`${groupIndex}-${msgIndex}`}>
+                                        {renderItem(msg, groupIndex === groupedMessages.length - 1 && msgIndex === group.messages.length - 1)}
+                                    </div>
+                                ))}
+                            </SystemOperationGroup>
+                        </div>
+                    );
+                } else {
+                    // 渲染单独消息
+                    const msg = group.messages[0];
+                    return (
+                        <div key={`single-${groupIndex}`} className={`flex flex-col ${getMessageClass(msg)}`}>
+                            {renderItem(msg, groupIndex === groupedMessages.length - 1)}
+                        </div>
+                    );
+                }
+            })}
             {currentScript && (
                 <div className="self-start w-full max-w-[90%]">
                     <div className="bg-slate-800 rounded-xl p-4">

@@ -6,7 +6,20 @@ export interface ChatResponse {
     session_id: string;
 }
 
+export interface GenerateTitleResponse {
+    title: string;
+}
+
 export const api = {
+    generateTitle: async (message: string): Promise<GenerateTitleResponse> => {
+        const res = await fetch(`${API_BASE}/generate-title`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message }),
+        });
+        return res.json();
+    },
+
     createChat: async (
         message: string,
         fileUrls?: string[],

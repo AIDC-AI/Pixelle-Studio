@@ -12,6 +12,8 @@ interface IProps {
   sessions?: Session[]
   handleShowSkillEditor?: () => void
   handleDeleteSession?: (id: string) => void
+  isCollapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
 }
 
 export type TAB_TYPE = 'chat' | 'skills'
@@ -30,13 +32,12 @@ const TABS = [
 ]
 
 const LeftPanel: React.FC<IProps> = (props) => {
-    const { sessions, handleShowSkillEditor, handleDeleteSession } = props
+    const { sessions, handleShowSkillEditor, handleDeleteSession, isCollapsed = false, onCollapsedChange } = props
 
-    const [isCollapsed, setIsCollapsed] = useState<boolean>(false)
     const [currentTab, setCurrentTab] = useState<TAB_TYPE>('chat')
 
     const handleCollapse = () => {
-        setIsCollapsed(!isCollapsed)
+        onCollapsedChange?.(!isCollapsed)
     }
 
 	const renderTabPanel = () => {
@@ -73,7 +74,7 @@ const LeftPanel: React.FC<IProps> = (props) => {
     }
 
   return (
-    <div className="min-w-64 max-w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col">
+    <div className="w-full h-full bg-white flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">

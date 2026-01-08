@@ -16,9 +16,9 @@ const UserItem: React.FC<IProps> = (props) => {
         <div className="flex gap-3 justify-end">
             {/* Content */}
             <div className="max-w-[80%]">
-                <div className="bg-linear-to-br from-blue-500 to-indigo-600 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-lg shadow-blue-500/25">
+                <div className="bg-gray-700 text-white rounded-2xl rounded-tr-sm px-4 py-3">
                     {content && (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{content}</p>
+                        <p className="text-sm leading-relaxed">{content}</p>
                     )}
                     {files && files.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
@@ -34,8 +34,8 @@ const UserItem: React.FC<IProps> = (props) => {
             
             {/* Avatar */}
             <div className="shrink-0">
-                <div className="w-8 h-8 rounded-xl bg-linear-to-br from-slate-200 to-slate-300 flex items-center justify-center">
-                    <User className="w-5 h-5 text-slate-600" />
+                <div className="w-8 h-8 rounded-xl bg-gray-700 flex items-center justify-center">
+                    <User className="w-5 h-5 text-white" />
                 </div>
             </div>
         </div>

@@ -99,6 +99,73 @@ class ChatResponse(BaseModel):
     session_id: str
 
 
+class GenerateTitleRequest(BaseModel):
+    message: str  # 用户第一条消息
+    
+
+class GenerateTitleResponse(BaseModel):
+    title: str
+
+
+@app.post("/api/generate-title", response_model=GenerateTitleResponse)
+async def generate_title(request: GenerateTitleRequest):
+    """Generate a concise title for a conversation based on user's first message."""
+    from openai import AsyncOpenAI
+    
+    # Use the same LLM configuration as llm_adapter
+    LLM_BASE_URL="https://REDACTED_BASE_URL_HOST/v1"
+    LLM_API_KEY="REDACTED_API_KEY"
+    LLM_MODEL="us.anthropic.claude-sonnet-4-20250514-v1:0"
+    
+    try:
+        client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+        
+        response = await client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[
+                {
+                    "role": "system", 
+                    "content": """你是一个对话标题生成助手。根据用户的第一条消息，生成一个简洁的对话标题。
+                    
+规则：
+1. 标题必须在2-10个字之间，绝对不能超过10个字
+2. 标题应该概括用户请求的核心内容
+3. 使用中文
+4. 不要使用标点符号
+5. 只返回标题文本，不要任何其他内容
+
+例如：
+- "帮我分析这个Excel表格的销售数据" -> "销售数据分析"
+- "生成一个关于人工智能的PPT" -> "AI主题PPT"
+- "帮我写一段Python代码实现排序" -> "Python排序"
+- "今天天气怎么样" -> "天气查询"
+- "帮我处理一下这个文件" -> "文件处理"
+"""
+                },
+                {"role": "user", "content": request.message}
+            ],
+            temperature=0.3,
+            max_tokens=50
+        )
+        
+        title = response.choices[0].message.content.strip()
+        # 移除可能的引号
+        title = title.strip('"\'')
+        
+        # 如果标题过长，截断到10个字
+        if len(title) > 10:
+            title = title[:10]
+            
+        log.info(f"Generated title: {title} for message: {request.message[:50]}...")
+        return {"title": title}
+        
+    except Exception as e:
+        log.error(f"Failed to generate title: {e}")
+        # 失败时使用简单的截断逻辑
+        fallback_title = request.message[:15] + "..." if len(request.message) > 15 else request.message
+        return {"title": fallback_title}
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def create_chat(request: ChatRequest):
     """Create a new chat session."""

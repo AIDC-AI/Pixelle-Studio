@@ -1,7 +1,7 @@
 'use client';
 
 import { OutputFile } from '@/types/message';
-import { Download, FileSpreadsheet, FileImage, FileText, File, FolderDown } from 'lucide-react';
+import { Download, FileSpreadsheet, FileImage, FileText, File, FolderDown, Bot } from 'lucide-react';
 
 interface IProps {
     files: OutputFile[];
@@ -14,22 +14,22 @@ const getFileIcon = (fileName: string) => {
         case 'xlsx':
         case 'xls':
         case 'csv':
-            return <FileSpreadsheet className="w-5 h-5" />;
+            return <FileSpreadsheet className="w-4 h-4" />;
         case 'png':
         case 'jpg':
         case 'jpeg':
         case 'gif':
         case 'webp':
         case 'svg':
-            return <FileImage className="w-5 h-5" />;
+            return <FileImage className="w-4 h-4" />;
         case 'pdf':
         case 'doc':
         case 'docx':
         case 'txt':
         case 'md':
-            return <FileText className="w-5 h-5" />;
+            return <FileText className="w-4 h-4" />;
         default:
-            return <File className="w-5 h-5" />;
+            return <File className="w-4 h-4" />;
     }
 };
 
@@ -48,9 +48,9 @@ const getFileTypeLabel = (fileName: string): string => {
     switch (ext) {
         case 'xlsx':
         case 'xls':
-            return 'Excel 文件';
+            return 'Excel';
         case 'csv':
-            return 'CSV 文件';
+            return 'CSV';
         case 'png':
         case 'jpg':
         case 'jpeg':
@@ -58,16 +58,16 @@ const getFileTypeLabel = (fileName: string): string => {
         case 'webp':
             return '图片';
         case 'svg':
-            return 'SVG 图片';
+            return 'SVG';
         case 'pdf':
-            return 'PDF 文档';
+            return 'PDF';
         case 'doc':
         case 'docx':
-            return 'Word 文档';
+            return 'Word';
         case 'txt':
-            return '文本文件';
+            return '文本';
         case 'md':
-            return 'Markdown';
+            return 'MD';
         default:
             return '文件';
     }
@@ -88,79 +88,86 @@ const OutputFilesItem: React.FC<IProps> = ({ files }) => {
     };
 
     return (
-        <div className="bg-linear-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-2xl border-2 border-emerald-200 shadow-lg overflow-hidden">
-            {/* Header */}
-            <div className="bg-linear-to-r from-emerald-500 to-teal-500 px-5 py-4">
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm">
-                        <FolderDown className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h3 className="text-white font-bold text-lg">生成的文件</h3>
-                        <p className="text-emerald-100 text-sm">
-                            共 {files.length} 个文件可供下载
-                        </p>
-                    </div>
+        <div className="flex gap-3">
+            {/* Avatar */}
+            <div className="flex-shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-white" />
                 </div>
             </div>
-
-            {/* File List */}
-            <div className="p-4 space-y-3">
-                {files.map((file, index) => (
-                    <div
-                        key={index}
-                        className="group flex items-center justify-between p-4 bg-white rounded-xl border border-emerald-100 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer"
-                        onClick={() => handleDownload(file)}
-                    >
-                        <div className="flex items-center gap-4">
-                            {/* File Icon */}
-                            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-600 group-hover:from-emerald-200 group-hover:to-teal-200 transition-colors">
-                                {getFileIcon(file.file_name)}
-                            </div>
-                            
-                            {/* File Info */}
-                            <div className="flex flex-col">
-                                <span className="font-semibold text-slate-800 group-hover:text-emerald-700 transition-colors">
-                                    {file.file_name}
-                                </span>
-                                <div className="flex items-center gap-2 text-sm text-slate-500">
-                                    <span>{getFileTypeLabel(file.file_name)}</span>
-                                    <span>•</span>
-                                    <span>{formatFileSize(file.file_size)}</span>
-                                </div>
-                            </div>
+            
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+                <div className="bg-white rounded-2xl rounded-tl-sm border border-gray-200 overflow-hidden">
+                    {/* Header */}
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                        <div className="flex items-center gap-2">
+                            <FolderDown className="w-4 h-4 text-gray-600" />
+                            <span className="text-sm font-medium text-gray-700">生成的文件</span>
+                            <span className="text-xs text-gray-500">
+                                共 {files.length} 个
+                            </span>
                         </div>
-
-                        {/* Download Button */}
-                        <button
-                            className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-emerald-500 to-teal-500 text-white rounded-lg opacity-0 group-hover:opacity-100 hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/25"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownload(file);
-                            }}
-                        >
-                            <Download className="w-4 h-4" />
-                            <span className="font-medium">下载</span>
-                        </button>
                     </div>
-                ))}
-            </div>
 
-            {/* Download All Button (if multiple files) */}
-            {files.length > 1 && (
-                <div className="px-4 pb-4">
-                    <button
-                        className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/25 font-medium"
-                        onClick={() => files.forEach(file => handleDownload(file))}
-                    >
-                        <FolderDown className="w-5 h-5" />
-                        下载全部文件
-                    </button>
+                    {/* File List */}
+                    <div className="p-3 space-y-2">
+                        {files.map((file, index) => (
+                            <div
+                                key={index}
+                                className="group flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all cursor-pointer"
+                                onClick={() => handleDownload(file)}
+                            >
+                                <div className="flex items-center gap-3">
+                                    {/* File Icon */}
+                                    <div className="flex items-center justify-center w-8 h-8 rounded bg-gray-200 text-gray-600">
+                                        {getFileIcon(file.file_name)}
+                                    </div>
+                                    
+                                    {/* File Info */}
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-medium text-gray-800">
+                                            {file.file_name}
+                                        </span>
+                                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                            <span>{getFileTypeLabel(file.file_name)}</span>
+                                            <span>•</span>
+                                            <span>{formatFileSize(file.file_size)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Download Button */}
+                                <button
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 hover:bg-gray-800 transition-all"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownload(file);
+                                    }}
+                                >
+                                    <Download className="w-3 h-3" />
+                                    下载
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Download All Button (if multiple files) */}
+                    {files.length > 1 && (
+                        <div className="px-3 pb-3">
+                            <button
+                                className="w-full flex items-center justify-center gap-2 py-2 bg-gray-700 text-white text-sm rounded-lg hover:bg-gray-800 transition-all"
+                                onClick={() => files.forEach(file => handleDownload(file))}
+                            >
+                                <FolderDown className="w-4 h-4" />
+                                下载全部
+                            </button>
+                        </div>
+                    )}
                 </div>
-            )}
+            </div>
         </div>
     );
 };
 
 export default OutputFilesItem;
-

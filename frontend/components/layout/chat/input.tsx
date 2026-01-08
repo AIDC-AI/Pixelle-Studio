@@ -1,7 +1,6 @@
 import { API_BASE } from "@/lib/data"
 import { Upload, UploadFile, UploadProps } from "antd"
-import { Loader2, Plus, Send, Trash2 } from "lucide-react"
-import { useState } from "react"
+import { Loader2, Plus, Send, Trash2, Square } from "lucide-react"
 
 interface IProps {
     isProcessing?: boolean
@@ -10,10 +9,11 @@ interface IProps {
     fileList?: UploadFile[]
     setFileList?: React.Dispatch<React.SetStateAction<UploadFile[]>>
     handleSubmit?: () => void
+    onStop?: () => void
 }
 
 const Input: React.FC<IProps> = (props) => {
-    const { isProcessing, input, setInput, fileList = [], setFileList, handleSubmit } = props 
+    const { isProcessing, input, setInput, fileList = [], setFileList, handleSubmit, onStop } = props 
 
     const beforeUpload = () => {
         if (fileList.length >= 5) {
@@ -39,20 +39,20 @@ const Input: React.FC<IProps> = (props) => {
     return (
         <div className="px-4 pb-4">
             {/* Uploaded Files */}
-            <div className="flex flex-col bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50">
+            <div className="flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm">
                 {fileList.length > 0 && (
-                    <div className="flex flex-wrap p-2 gap-2 border-b border-slate-100">
+                    <div className="flex flex-wrap p-2 gap-2 border-b border-gray-100">
                         {fileList.map((file, index) => (
                             <div
                                 key={index}
-                                className="bg-linear-to-r from-blue-50 to-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 cursor-pointer border border-indigo-100 hover:border-indigo-200 transition-colors"
+                                className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 cursor-pointer border border-gray-200 hover:border-gray-300 transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     window.open(file.url, '_blank')
                                 }}
                             >
                                 <span className="font-medium">{file.name}</span>
-                                {file?.size && <span className="text-indigo-400 text-xs">({(file.size / 1024 / 1024).toFixed(2)}MB)</span>}
+                                {file?.size && <span className="text-gray-500 text-xs">({(file.size / 1024 / 1024).toFixed(2)}MB)</span>}
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation()
@@ -78,10 +78,10 @@ const Input: React.FC<IProps> = (props) => {
                         disabled={isProcessing}
                     >
                         <button 
-                            className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors flex-shrink-0 border border-slate-200"
+                            className="p-2.5 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors flex-shrink-0 border border-gray-200"
                             disabled={isProcessing}
                         >
-                            <Plus className="w-5 h-5 text-slate-500" />
+                            <Plus className="w-5 h-5 text-gray-500" />
                         </button>
                     </Upload>
                     
@@ -95,25 +95,35 @@ const Input: React.FC<IProps> = (props) => {
                             }
                         }}
                         placeholder="输入消息...（支持文本和文件）"
-                        className="flex-1 h-full resize-none bg-transparent px-3 py-3 focus:outline-none text-slate-800 placeholder-slate-400"
+                        className="flex-1 h-full resize-none bg-transparent px-3 py-3 focus:outline-none text-gray-800 placeholder-gray-400"
                         rows={1}
                         disabled={isProcessing}
                     />
                     
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault()
-                            handleSubmit?.()
-                        }}
-                        disabled={isProcessing || (!input?.trim() && fileList.length === 0) || fileList.some(f => f.status === 'uploading')}
-                        className="p-2.5 bg-linear-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-300 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shrink-0 shadow-lg shadow-blue-500/25 disabled:shadow-none"
-                    >
-                        {isProcessing ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                        ) : (
+                    {isProcessing ? (
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault()
+                                onStop?.()
+                            }}
+                            className="p-2.5 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all shrink-0 flex items-center gap-2"
+                            title="停止推理"
+                        >
+                            <Square className="w-4 h-4 fill-current" />
+                            <span className="text-sm font-medium">Stop</span>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault()
+                                handleSubmit?.()
+                            }}
+                            disabled={(!input?.trim() && fileList.length === 0) || fileList.some(f => f.status === 'uploading')}
+                            className="p-2.5 bg-gray-700 text-white rounded-xl hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed transition-all shrink-0"
+                        >
                             <Send className="w-5 h-5" />
-                        )}
-                    </button>
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
