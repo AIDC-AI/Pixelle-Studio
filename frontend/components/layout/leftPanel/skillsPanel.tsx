@@ -1,40 +1,47 @@
 import { Book, Trash2, Wrench } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import { ScriptItem, Skill } from "@/types/skill";
-import { api } from "@/lib/api";
+import { useEffect, useState } from "react"
+import { SkillMeta } from "@/types/skill";
 import SkillConfigureModal from "@/components/ui/skillConfigureModal";
 import ExpandeBox from "@/components/ui/expandeBox";
 import { useApp } from "@/context";
 import { mcpServerAPI } from "@/lib/mcpServerApi";
 import ToolConfigureModal from "@/components/ui/toolConfigureModal";
-import { MCPServer } from "@/types/server";
+import { MCPServer, MCPTool } from "@/types/server";
 import ServerCard from "@/components/ui/serverCard";
 import { Skeleton } from "antd";
+import { skillAPI } from "@/lib/skillApi";
 
 const SkillsPanel = () => {
-    const { messageApi, setSkillEditored } = useApp()
+    const { 
+        messageApi,
+        user, 
+        setSkillEditored, 
+        setCurrentSkillName,
+        mcpTools, 
+        setMcpTools,
+        isChangeSkill,
+        setIsChangeSkill
+    } = useApp()
 
     const [loading, setLoading] = useState<boolean>(false);
 
     const [mcpServers, setMcpServers] = useState<MCPServer[]>([])
     const [skillConfigureOpen, setSkillConfigureOpen] = useState<boolean>(false)
     const [toolConfigureOpen, setToolConfigureOpen] = useState<boolean>(false)
-    const [skills, setSkills] = useState<Skill[]>([])
+    const [skills, setSkills] = useState<SkillMeta[]>([])
 
-    const [selectedIndex, setSelectedIndex] = useState<number>(-1)
-    const [selectedSkillIndex, setSelectedSkillIndex] = useState<number>(-1)
     const [selectedMcpServerIndex, setSelectedMcpServerIndex] = useState<number>(-1)
 
     const handleShowSkillEditor = () => {
-        // setSkillEditored(true)
-        setSkillConfigureOpen(true)
+        setSkillEditored(true)
+        // setSkillConfigureOpen(true)
     }
 
     const handleGetSkills = async () => {
         setLoading(true);
 
         try {
-            const response = await api.getSkills();
+            const response = await skillAPI.getSkills(user?.uid);
             setSkills(response)
         } catch (error) {
             console.error(`Failed to fetch skills:`, error);
@@ -43,11 +50,14 @@ const SkillsPanel = () => {
         setLoading(false);
     };
 
-    const handleDeleteSkill = async (id: string) => {
+    const handleDeleteSkill = async (name: string) => {
         setLoading(true);
 
         try {
-            await api.deleteSkill(id);
+            await skillAPI.deleteSkill(name, user?.uid);
+            setSkills(prev => prev.filter((skill) => skill.name !== name))
+            setSkillEditored(false)
+            setCurrentSkillName(null)
             messageApi.success('Delete Skill Successed!')
         } catch (error) {
             console.error(`Failed to fetch skills:`, error);
@@ -118,13 +128,26 @@ const SkillsPanel = () => {
         handleGetMcpServers()
     }, [])
 
+    useEffect(() => {
+        if (isChangeSkill) {
+            handleGetSkills()
+            setIsChangeSkill(false)
+        }
+    }, [isChangeSkill])
+
     // 总的工具数量
-    const totalTools = useMemo(() => {
-        return mcpServers.reduce<ScriptItem[]>((total, server) => [...total, ...(server?.tools.map((tool) => ({
-            serverId: server.id,
-            serverName: server.name,
-            toolName: tool.name
-        })) || [])], [])
+    useEffect(() => {
+        const list = mcpServers.reduce<MCPTool[]>((total, server) => {
+            if (server?.tools && Array.isArray(server.tools)) {
+                const toolsWithServerName = server.tools.map(tool => ({
+                    ...tool,
+                    server_name: server.name
+                }));
+                return [...total, ...toolsWithServerName];
+            }
+            return total;
+        }, []);
+        setMcpTools(list)
     }, [mcpServers])
 
     return <div className="left-panel p-4 gap-4">
@@ -145,8 +168,9 @@ const SkillsPanel = () => {
                     <div className="p-4 space-y-2">
                         {
                             skills?.map((skill, index) => <div
-                                key={skill.id}
+                                key={`${skill.name}-${index}`}
                                 onClick={() => {
+                                    setCurrentSkillName(skill.name)
                                     handleShowSkillEditor()
                                 }}
                                 className="group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
@@ -157,15 +181,17 @@ const SkillsPanel = () => {
                                 </div>
                                 <p className="text-xs text-gray-500 truncate">{skill.description}</p>
                                 </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleDeleteSkill(skill.id)
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded transition-all"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5 text-gray-500" />
-                                </button>
+                                {
+                                    !skill.is_default && <button
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleDeleteSkill(skill.name)
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded transition-all"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5 text-gray-500" />
+                                    </button>
+                                }
                             </div>)
                         }
                     </div>
@@ -177,7 +203,7 @@ const SkillsPanel = () => {
                         >
                             <Wrench className="w-4 h-4 text-gray-600" />
                             <span className="text-sm font-medium text-gray-800">工具</span>
-                            <span className="text-xs text-gray-400">({totalTools?.length})</span>
+                            <span className="text-xs text-gray-400">({mcpTools?.length})</span>
                         </div>
                     }
                     onAdd={() => setToolConfigureOpen(true)}
@@ -196,7 +222,7 @@ const SkillsPanel = () => {
             </>
         }
 
-        <SkillConfigureModal 
+        {/* <SkillConfigureModal 
             open={skillConfigureOpen}
             skill={skills[selectedSkillIndex] || null}
             scripts={totalTools}
@@ -205,7 +231,7 @@ const SkillsPanel = () => {
                 setSelectedSkillIndex(-1)
                 setSkillConfigureOpen(false)
             }}
-        />
+        /> */}
 
         <ToolConfigureModal
             open={toolConfigureOpen}

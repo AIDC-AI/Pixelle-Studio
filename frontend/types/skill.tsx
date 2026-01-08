@@ -1,27 +1,24 @@
 export interface Skill {
-    id: string;
-    name: string;
-    path: string;
-    has_description: boolean;
-    description?: string;
+    name: string
+    meta: SkillMeta
+    content: string
+    files?: SkillFile[]
+}
+
+export interface SkillMeta {
+    name: string
+    description: string
+    path: string
+    directory: string
+    license?: string
+    linked_files?: string[]
+    has_scripts?: boolean
+    has_resources?: boolean
+    is_default?: boolean
 }
 
 export interface SkillFile {
     name: string;
     size: number;
     path: string;
-}
-
-export interface SkillDetail {
-    name: string;
-    metadata: Record<string, string>;
-    content: string;
-    full_content: string;
-    files: SkillFile[];
-}
-
-export interface ScriptItem {
-    serverId: string
-    serverName: string
-    toolName: string
 }

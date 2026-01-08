@@ -1,195 +1,131 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Save, Upload, Trash2, FileCode, Link, GripVertical, Plus, ArrowUpRight, Play } from 'lucide-react'
-import { getAuthHeaders } from '@/lib/data'
 import { useApp } from '@/context'
-import { MCPTool, MCPToolInputSchema } from '@/types/server'
+import { MCPTool } from '@/types/server'
+import { skillAPI } from '@/lib/skillApi'
+import { Form } from "radix-ui";
+import FormInput from '@/components/ui/formInput'
+import { capitalize, updateOrAddYamlField } from '@/utils/utils'
 
 interface Script {
   name: string
-  path: string
-  type: string
+  server_name?: string
 }
 
-interface PendingMcpTool {
-  tool: MCPTool
-  scriptName: string
-}
+const SkillEditor = () => {
+  const { 
+    messageApi, 
+    user, 
+    setSkillEditored, 
+    currentSkillName, 
+    setCurrentSkillName,
+    mcpTools, 
+    setIsChangeSkill 
+  } = useApp()
 
-interface Skill {
-  id: string
-  name: string
-  description?: string
-  content?: string
-  full_content?: string
-  folder?: string
-  is_global?: boolean
-}
+    // 初始化表单数据
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    content: ''
+  });
 
-interface IProps {
-  skill?: Skill | null
-  isNew: boolean
-  onSave: (skill: Skill, scripts: Script[]) => Promise<void>
-  mcpTools: MCPTool[]
-  onTest?: (skillName: string) => void  // 测试回调
-}
-
-const API_BASE = 'http://localhost:8000/api'
-
-const SkillEditor: React.FC<IProps> = (props) => {
-    const {
-        skill,
-        isNew,
-        onSave: _onSave, // 保留接口兼容但内部不使用
-        mcpTools,
-        onTest
-    } = props 
-
-    const { setSkillEditored } = useApp()
-    
-  void _onSave // 消除 TS 警告
-  // Skill 表单状态
-  const [name, setName] = useState(skill?.name || '')
-  const [description, setDescription] = useState(skill?.description || '')
-  const [content, setContent] = useState(skill?.content || '')
-  
   // 脚本列表
   const [scripts, setScripts] = useState<Script[]>([])
-  const [loadingScripts, setLoadingScripts] = useState(false)
-  
-  // 待创建的 MCP 工具（新建时暂存）
-  const [pendingMcpTools, setPendingMcpTools] = useState<PendingMcpTool[]>([])
-  
-  // 当前技能 ID（保存后更新）
-  const [currentSkillId, setCurrentSkillId] = useState<string | undefined>(skill?.id)
-  
+
   // 拖拽状态
-  const [dragOverScript, setDragOverScript] = useState(false)
+  const [dragOverScript, setDragOverScript] = useState<boolean>(false)
   
   // 保存状态
-  const [saving, setSaving] = useState(false)
-  
-  // 已保存状态（保存后从新建模式切换）
-  const [isSaved, setIsSaved] = useState(false)
+  const [saving, setSaving] = useState<boolean>(false)
   
   // 只读模式（共享技能）
-  const isReadOnly = !isNew && skill?.is_global === true
-  
-  // 是否为新建模式（考虑已保存状态）
-  const isNewMode = isNew && !isSaved
+  const [isReadOnly, setIsReadOnly] = useState<boolean>(false)
 
   const handleClose = () => {
     setSkillEditored(false)
+    setCurrentSkillName(null)
   }
 
-  // 加载脚本列表（接受可选的 skillId 参数，用于立即加载）
-  const fetchScripts = useCallback(async (skillIdOverride?: string) => {
-    const skillId = skillIdOverride || currentSkillId || skill?.id
-    if (!skillId) {
-      setScripts([])
-      return
-    }
-    
-    setLoadingScripts(true)
-    try {
-      const res = await fetch(`${API_BASE}/v2/skills/${skillId}/scripts`, {
-        headers: getAuthHeaders()
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setScripts(data)
-      } else {
-        setScripts([])
-      }
-    } catch (e) {
-      console.error('获取脚本列表失败:', e)
-      setScripts([])
-    } finally {
-      setLoadingScripts(false)
-    }
-  }, [currentSkillId, skill?.id, getAuthHeaders])
-
-  // 当 skill 或 isNew 变化时，重置所有状态
-  useEffect(() => {
-    // 重置状态
-    setPendingMcpTools([])
-    setScripts([])
-    setIsSaved(false)
-    
-    if (isNew) {
-      // 新建模式：清空所有字段
-      setName('')
-      setDescription('')
-      setContent('')
-      setCurrentSkillId(undefined)
-    } else if (skill) {
-      // 编辑模式：加载技能数据
-      setName(skill.name || '')
-      setDescription(skill.description || '')
-      setCurrentSkillId(skill.id)
-      
-      // 解析 full_content 获取内容部分
-      if ((skill as any).full_content) {
-        const fullContent = (skill as any).full_content
-        // 去除 front matter
-        const parts = fullContent.split('---')
-        if (parts.length >= 3) {
-          setContent(parts.slice(2).join('---').trim())
-        } else {
-          setContent(fullContent)
+  const handleGetSkillData = async () => {
+    if (!!currentSkillName) {
+      const res = await skillAPI.getSkill(currentSkillName, user?.uid)
+      if (!!res) {
+        setFormData({
+          name: res.name,
+          description: res.meta.description,
+          content: res.content
+        })
+        setIsReadOnly(!!res.meta.is_default)
+        // 不是default的skill才需要获取scripts
+        if (!res.meta.is_default) {
+          getScriptsFromSkill(res.content)
         }
-      } else {
-        setContent(skill.content || '')
-      }
-      
-      // 加载脚本列表（直接传入 skill.id，避免依赖 currentSkillId 的时序问题）
-      if (skill.id) {
-        fetchScripts(skill.id)
       }
     }
-  }, [skill, isNew]) // 移除 fetchScripts 依赖，防止循环
+  }
+
+  // 从skill中获取scripts
+  const getScriptsFromSkill = (content: string) => {
+    // 修改正则以支持路径格式，如 # test/i_crop-start #
+    const regex = /#\s*([\w\-/]+)-start\s*#/g;
+    const matches = [...content.matchAll(regex)];
+    if (!!matches?.[0]?.[1]) {
+      const splitArr = matches[0][1].split('/')
+      setScripts(mcpTools?.filter((tool) => tool.server_name === splitArr?.[0] && tool.name === splitArr?.[1])?.map((tool) => ({
+        name: tool.name,
+        server_name: tool.server_name
+      })) || [])
+    }
+  }
 
   // 处理文件上传
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return
+    // if (!e.target.files || e.target.files.length === 0) return
     
-    const file = e.target.files[0]
-    const reader = new FileReader()
+    // const file = e.target.files[0]
+    // const reader = new FileReader()
     
-    reader.onload = (event) => {
-      const fileContent = event.target?.result as string
+    // reader.onload = (event) => {
+    //   const fileContent = event.target?.result as string
       
-      // 如果是 Markdown 文件，解析它
-      if (file.name.endsWith('.md')) {
-        // 尝试解析 front matter
-        if (fileContent.startsWith('---')) {
-          const parts = fileContent.split('---')
-          if (parts.length >= 3) {
-            const frontMatter = parts[1].trim()
-            const bodyContent = parts.slice(2).join('---').trim()
+    //   // 如果是 Markdown 文件，解析它
+    //   if (file.name.endsWith('.md')) {
+    //     // 尝试解析 front matter
+    //     if (fileContent.startsWith('---')) {
+    //       const parts = fileContent.split('---')
+    //       if (parts.length >= 3) {
+    //         const frontMatter = parts[1].trim()
+    //         const bodyContent = parts.slice(2).join('---').trim()
             
-            // 解析 front matter
-            frontMatter.split('\n').forEach(line => {
-              const [key, value] = line.split(':').map(s => s.trim())
-              if (key === 'name' && !name) setName(value)
-              if (key === 'description' && !description) setDescription(value)
-            })
+    //         // 解析 front matter
+    //         frontMatter.split('\n').forEach(line => {
+    //           const [key, value] = line.split(':').map(s => s.trim())
+    //         })
             
-            setContent(bodyContent)
-            return
-          }
-        }
-        setContent(fileContent)
-      } else {
-        // 其他文件作为内容附加
-        setContent(prev => prev + '\n\n```\n' + fileContent + '\n```')
-      }
-    }
+    //         setContent(bodyContent)
+    //         return
+    //       }
+    //     }
+    //     setContent(fileContent)
+    //   } else {
+    //     // 其他文件作为内容附加
+    //     setContent(prev => prev + '\n\n```\n' + fileContent + '\n```')
+    //   }
+    // }
     
-    reader.readAsText(file)
-    e.target.value = '' // 清空 input
+    // reader.readAsText(file)
+    // e.target.value = '' // 清空 input
   }
 
   // 处理 MCP Tool 拖拽
+  const handleToolDragStart = (e: React.DragEvent, tool: MCPTool) => {
+    if (isReadOnly)
+      return
+    e.dataTransfer.setData('application/json', JSON.stringify(tool))
+    e.dataTransfer.effectAllowed = 'copy'
+  }
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOverScript(true)
@@ -208,296 +144,109 @@ const SkillEditor: React.FC<IProps> = (props) => {
       if (!toolData) return
       
       const tool: MCPTool = JSON.parse(toolData)
-      const scriptName = `mcp_${tool.name.replace(/[^a-zA-Z0-9]/g, '_')}.py`
-      
-      // 在内容中插入工具占位符
-      const placeholder = `# ${scriptName} #`
-      setContent(prev => prev + `\n\n请调用 ${placeholder} 来执行 ${tool.name} 操作`)
-      
-      const skillId = currentSkillId || skill?.id
-      if (skillId) {
-        // 已保存的技能，直接创建脚本
-        await createMcpToolScript(tool)
-      } else {
-        // 新建技能，暂存待创建的脚本（去重）
-        setPendingMcpTools(prev => {
-          // 检查是否已存在
-          if (prev.some(p => p.scriptName === scriptName)) {
-            return prev
+      console.log('-tool->', tool)
+      const topics = []
+      if (!!tool?.inputSchema?.properties) {
+        for (const key in tool.inputSchema.properties) {
+          if (!!tool.inputSchema.properties[key]) {
+            topics.push({
+              name: key,
+              label: `This Is A ${capitalize(tool.inputSchema.properties[key]?.type)}`
+            })
           }
-          return [...prev, { tool, scriptName }]
-        })
+        }
       }
+      const topicStr = topics?.length > 0 ? topics.reduce<string>((total, topic) => `${total}${total === "" ? "" : ","}${topic.name}:${topic.label}`, "") : ""
+      // 在内容中插入工具占位符
+      const placeholderStart = `# ${tool.server_name}/${tool.name}-start #`
+      const placeholderEnd = `# ${tool.server_name}/${tool.name}-end #`
+      setFormData(prev => ({
+        ...prev,
+        content:prev.content + `\n\n${placeholderStart}\ncall_tool('${tool.name}', {${topicStr}})\n${placeholderEnd}`
+      }))
+      setScripts(prev => [...prev, {
+        name: tool.name,
+        server_name: tool.server_name
+      }])
     } catch (e) {
       console.error('处理拖拽失败:', e)
     }
   }
 
-  // 创建 MCP Tool 脚本
-  const createMcpToolScript = async (tool: MCPTool, insertReference: boolean = false) => {
-    const skillId = currentSkillId || skill?.id
-    const scriptName = `mcp_${tool.name.replace(/[^a-zA-Z0-9]/g, '_')}.py`
-    
-    if (!skillId) {
-      // 新建技能，暂存待创建的脚本（去重）
-      setPendingMcpTools(prev => {
-        if (prev.some(p => p.scriptName === scriptName)) {
-          return prev
-        }
-        return [...prev, { tool, scriptName }]
-      })
-      if (insertReference) {
-        insertScriptReference(scriptName, tool.inputSchema)
-      }
-      return
-    }
-    
-    try {
-      const res = await fetch(`${API_BASE}/v2/skills/${skillId}/scripts/from-mcp-tool`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          tool_name: tool.name,
-          server_url: tool.server_url,
-          original_tool_name: tool.name,
-          input_schema: tool.inputSchema || null
-        })
-      })
-      
-      if (res.ok) {
-        const newScript = await res.json()
-        fetchScripts()
-        
-        // 如果需要插入引用（使用返回的参数 schema）
-        if (insertReference && newScript.name) {
-          insertScriptReference(newScript.name, newScript.param_schema || tool.inputSchema)
-        }
-      } else {
-        const data = await res.json()
-        alert('创建脚本失败: ' + (data.detail || '未知错误'))
-      }
-    } catch (e) {
-      console.error('创建 MCP 脚本失败:', e)
-    }
-  }
-
-  // 添加 MCP Tool 并插入引用
-  const handleAddMcpTool = async (tool: MCPTool) => {
-    await createMcpToolScript(tool, true)
-  }
-
-  // 生成参数示例字符串
-  const generateParamExample = (inputSchema?: MCPToolInputSchema): string => {
-    if (!inputSchema?.properties) return '{}'
-    
-    const example: Record<string, unknown> = {}
-    const properties = inputSchema.properties
-    const required = inputSchema.required || []
-    
-    for (const [propName, propInfo] of Object.entries(properties)) {
-      const isRequired = required.includes(propName)
-      const propType = propInfo.type || 'string'
-      
-      if (propType === 'string') {
-        example[propName] = isRequired ? `<${propName}>` : `<可选:${propName}>`
-      } else if (propType === 'number' || propType === 'integer') {
-        example[propName] = 0
-      } else if (propType === 'boolean') {
-        example[propName] = true
-      } else {
-        example[propName] = null
-      }
-    }
-    
-    return JSON.stringify(example, null, 2)
-  }
-
-  // 插入脚本引用到内容（包含参数示例）
-  const insertScriptReference = (scriptName: string, inputSchema?: MCPToolInputSchema) => {
-    const reference = `# ${scriptName} #`
-    const paramExample = generateParamExample(inputSchema)
-    
-    let instruction = ''
-    if (inputSchema?.properties && Object.keys(inputSchema.properties).length > 0) {
-      // 有参数的工具，生成详细说明
-      const paramDesc = Object.entries(inputSchema.properties)
-        .map(([name, info]) => `  - ${name}: ${info.description || '无描述'}`)
-        .join('\n')
-      
-      instruction = `请调用 ${reference} 来执行操作。
-        **参数说明:**
-        ${paramDesc}
-
-        **参数示例:**
-        \`\`\`json
-        ${paramExample}
-        \`\`\``
-    } else {
-      // 无参数的工具
-      instruction = `请调用 ${reference} 来执行操作（无需参数）`
-    }
-    
-    setContent(prev => {
-      if (prev.trim()) {
-        return prev + `\n\n${instruction}`
-      }
-      return instruction
-    })
-  }
-
   // 删除脚本
-  const handleDeleteScript = async (scriptName: string) => {
-    if (!skill?.id) return
-    if (!confirm(`确定要删除脚本 "${scriptName}" 吗？`)) return
+  const handleDeleteScript = async (scriptName: string, scriptServerName?: string) => {
+    const name = !!scriptServerName ? `${scriptServerName}/${scriptName}` : scriptName
+    // 转义特殊字符（如 /）
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
-    try {
-      const res = await fetch(`${API_BASE}/v2/skills/${skill.id}/scripts/${scriptName}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
+    // 删除整个块，支持路径格式如 test/i_crop
+    const regex = new RegExp(
+      `#\\s*${escapedName}-start\\s*#[\\s\\S]*?#\\s*${escapedName}-end\\s*#`,
+      'g'
+    ); 
+    setFormData(prev => ({
+        ...prev,
+        content: prev.content
+        .replace(regex, '')  // 删除块
       })
-      
-      if (res.ok) {
-        fetchScripts()
-        // 从内容中移除对该脚本的引用
-        setContent(prev => prev.replace(new RegExp(`#\\s*${scriptName}\\s*#`, 'g'), ''))
-      }
-    } catch (e) {
-      console.error('删除脚本失败:', e)
-    }
+    );
+    setScripts(prev => prev.filter((script) => scriptServerName ? (script.name !== scriptName && script.server_name !== scriptServerName) : script.name !== scriptName))
   }
-
-  // 保存技能
-  const handleSave = async () => {
-    if (!name.trim()) {
-      alert('请输入技能名称')
-      return
-    }
-    
-    setSaving(true)
+  
+  const handleSubmit = async (data: { [x: string]: FormDataEntryValue; name?: any; description?: any; content?: any }): Promise<string | null> => {
     try {
-      // 内容已经包含脚本引用，直接保存
-      const finalContent = content
-      const skillId = currentSkillId || skill?.id
-      
-      // 调用保存，但不关闭窗口
-      const savedSkillId = await saveSkillToBackend({
-        id: skillId || '',
-        name,
-        description,
-        content: finalContent
-      })
-      
-      if (savedSkillId) {
-        setCurrentSkillId(savedSkillId)
-        
-        // 创建待处理的 MCP 工具脚本
-        for (const pending of pendingMcpTools) {
-          try {
-            await fetch(`${API_BASE}/v2/skills/${savedSkillId}/scripts/from-mcp-tool`, {
-              method: 'POST',
-              headers: getAuthHeaders(),
-              body: JSON.stringify({
-                tool_name: pending.tool.name,
-                server_url: pending.tool.server_url,
-                original_tool_name: pending.tool.name
-              })
-            })
-          } catch (e) {
-            console.error('创建 MCP 脚本失败:', e)
-          }
-        }
-        setPendingMcpTools([])
-        
-        // 刷新脚本列表
-        fetchScripts()
-        
-        // 标记为已保存
-        setIsSaved(true)
-        
-        // 通知父组件刷新 sidebar
-        if (_onSave) {
-          _onSave({
-            id: savedSkillId,
-            name,
-            description,
-            content: finalContent
-          }, scripts)
-        }
-        
-        alert('保存成功！')
+      setSaving(true)
+      if (!!currentSkillName) {
+        // 更新：使用原名称作为第一个参数
+        await skillAPI.updateSkill(currentSkillName, {
+          description: data.description,
+          content: data.content
+        }, user?.uid)
+        messageApi.success("更新成功！")
+      } else {
+        // 创建
+        await skillAPI.createSkill({
+          name: data.name,
+          description: data.description,
+          content: data.content
+        }, user?.uid)
+        messageApi.success("添加成功！")
       }
+      setSkillEditored(false)
+      setIsChangeSkill(true)
     } catch (e) {
-      console.error('保存失败:', e)
-      alert('保存失败')
+      console.error('保存请求失败:', e)
+      messageApi.error((e as Error).message || '保存失败')
     } finally {
       setSaving(false)
     }
   }
-  
-  // 保存技能到后端（返回技能 ID）
-  const saveSkillToBackend = async (skillData: Skill): Promise<string | null> => {
-    try {
-      let res
-      if (skillData.id) {
-        // 更新
-        res = await fetch(`${API_BASE}/v2/skills/${skillData.id}`, {
-          method: 'PUT',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            name: skillData.name,
-            description: skillData.description,
-            content: skillData.content
-          })
-        })
-      } else {
-        // 创建
-        res = await fetch(`${API_BASE}/v2/skills/`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            name: skillData.name,
-            description: skillData.description,
-            content: skillData.content
-          })
-        })
-      }
-      
-      if (res.ok) {
-        const data = await res.json()
-        return data.id || skillData.id
-      } else {
-        const data = await res.json()
-        alert('保存失败: ' + (data.detail || '未知错误'))
-        return null
-      }
-    } catch (e) {
-      console.error('保存请求失败:', e)
-      return null
-    }
-  }
-  
-  // 测试技能
-  const handleTest = () => {
-    if (onTest && name.trim()) {
-      onTest(name)
-    } else if (!name.trim()) {
-      alert('请先输入技能名称')
-    }
-  }
 
-  // 开始拖拽 MCP Tool
-  const handleToolDragStart = (e: React.DragEvent, tool: MCPTool) => {
-    e.dataTransfer.setData('application/json', JSON.stringify(tool))
-    e.dataTransfer.effectAllowed = 'copy'
-  }
+  useEffect(() => {
+    handleGetSkillData()
+  }, [currentSkillName])
+
+  useEffect(() => {
+    let content = formData.content
+    if (!!formData.name) {
+      content = updateOrAddYamlField(content, 'name', formData.name)
+    }
+    if (!!formData.description) {
+      content = updateOrAddYamlField(content, 'description', formData.description)
+    }
+    setFormData(prev => ({
+      ...prev,
+      content
+    }))
+  }, [formData.name, formData.description])
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col min-w-150 max-w-150 shrink-0 h-full bg-white">
       {/* 顶部栏 */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold text-gray-800">
-            {isNewMode ? '新建技能' : isReadOnly ? '查看技能' : '编辑技能'}
+            {!!currentSkillName ? '新建技能' : isReadOnly ? '查看技能' : '编辑技能'}
           </h2>
           {isReadOnly && (
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">共享技能（只读）</span>
@@ -505,7 +254,7 @@ const SkillEditor: React.FC<IProps> = (props) => {
         </div>
         <div className="flex items-center gap-2">
           {/* 上传文件 */}
-          {!isReadOnly && (
+          {/* {!isReadOnly && (
             <label className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer transition-colors">
               <Upload className="w-4 h-4" />
               上传文件
@@ -516,21 +265,22 @@ const SkillEditor: React.FC<IProps> = (props) => {
                 className="hidden"
               />
             </label>
-          )}
+          )} */}
           
           {/* 测试按钮 */}
-          <button
+          {/* <button
             onClick={handleTest}
             disabled={!name.trim() || !onTest}
             className="flex items-center gap-2 px-3 py-2 text-sm text-green-700 bg-green-100 hover:bg-green-200 rounded-lg disabled:opacity-50 transition-colors"
           >
             <Play className="w-4 h-4" />
             测试
-          </button>
+          </button> */}
           
           {!isReadOnly && (
             <button
-              onClick={handleSave}
+              type="submit"
+              form="skillForm"
               disabled={saving}
               className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-gray-900 hover:bg-gray-800 rounded-lg disabled:opacity-50 transition-colors"
             >
@@ -551,51 +301,68 @@ const SkillEditor: React.FC<IProps> = (props) => {
       {/* 主内容区 - 左右分栏 */}
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧：Markdown 编辑区 */}
-        <div className="flex-1 flex flex-col p-4 border-r border-gray-200 overflow-auto">
-          {/* 名称 */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              名称 {currentSkillId && <span className="text-xs text-gray-400">（创建后不可修改）</span>}
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="输入技能名称"
-              disabled={isReadOnly || !!currentSkillId}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 ${(isReadOnly || currentSkillId) ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-            />
-          </div>
-
-          {/* 描述 */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="简要描述这个技能的作用"
-              disabled={isReadOnly}
-              className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-            />
-          </div>
-
-          {/* 详细内容 */}
-          <div className="flex-1 flex flex-col">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              详细内容 (Markdown)
-            </label>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="输入技能的详细说明（支持 Markdown 格式）
-                    提示：使用 # script_name.py # 格式引用脚本
-                    例如：请调用 # time.py # 来获取当前时间"
-              disabled={isReadOnly}
-              className={`flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none font-mono text-sm ${isReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-            />
-          </div>
-        </div>
+        <Form.Root 
+          id="skillForm"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget)
+            const data = Object.fromEntries(formData)
+            await handleSubmit(data)
+          }}
+          className="flex flex-col flex-1 gap-4 p-4 border-r border-gray-200 overflow-auto"
+        >
+          <FormInput 
+            name="name"
+            label="名称（创建后不可修改）"
+            errorMessages={[
+              { match:"valueMissing", content:"请先输入技能名称" }
+            ]}
+            placeholder="技能名称"            
+            value={formData.name}
+            setValue={(value: string) => {
+              setFormData(prev => ({
+                ...prev,
+                name: value
+              }))
+            }}
+            disabled={!!currentSkillName || isReadOnly}
+          />
+          <FormInput 
+            name="description"
+            label="描述"
+            errorMessages={[
+              { match:"valueMissing", content:"请先输入技能描述" }
+            ]}
+            placeholder="技能描述"
+            isTextarea={true}
+            value={formData.description}
+            setValue={(value: string) => {
+              setFormData(prev => ({
+                ...prev,
+                description: value
+              }))
+            }}
+            disabled={isReadOnly}
+          />
+          <FormInput 
+            name="content"
+            label="详细内容（Markdown）"
+            errorMessages={[
+              { match:"valueMissing", content:"请先输入详细内容" }
+            ]}
+            placeholder="详细内容"
+            isTextarea={true}
+            isFlexMax={true}
+            value={formData.content}
+            setValue={(value: string) => {
+              setFormData(prev => ({
+                ...prev,
+                content: value
+              }))
+            }}
+            disabled={isReadOnly}
+          />
+        </Form.Root>
 
         {/* 右侧：脚本管理区 */}
         <div className="w-80 flex flex-col bg-gray-50 overflow-auto">
@@ -606,59 +373,22 @@ const SkillEditor: React.FC<IProps> = (props) => {
               脚本文件
             </h3>
             
-            {loadingScripts ? (
-              <p className="text-xs text-gray-500">加载中...</p>
-            ) : scripts.length === 0 && pendingMcpTools.length === 0 ? (
+            {scripts.length === 0 ? (
               <p className="text-xs text-gray-500">暂无脚本，可从下方拖拽工具添加</p>
             ) : (
               <div className="space-y-2">
                 {/* 已保存的脚本 */}
                 {scripts.map((script) => (
                   <div
-                    key={script.name}
+                    key={`${script.server_name}/${script.name}`}
                     className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-200 group"
                   >
                     <FileCode className="w-4 h-4 text-green-600 shrink-0" />
                     <span className="flex-1 text-sm text-gray-700 truncate">{script.name}</span>
                     <button
-                      onClick={() => insertScriptReference(script.name)}
-                      className="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium flex items-center gap-1 transition-all"
-                      title="插入到文档"
-                    >
-                      <ArrowUpRight className="w-3 h-3" />
-                      插入
-                    </button>
-                    <button
-                      onClick={() => handleDeleteScript(script.name)}
+                      onClick={() => handleDeleteScript(script.name, script.server_name)}
                       className="p-1.5 hover:bg-red-100 rounded transition-all"
                       title="删除脚本"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                    </button>
-                  </div>
-                ))}
-                
-                {/* 待保存的脚本（新建时） */}
-                {pendingMcpTools.map((pending, index) => (
-                  <div
-                    key={`pending-${index}`}
-                    className="flex items-center gap-2 p-2 bg-yellow-50 rounded-lg border border-yellow-200 group"
-                  >
-                    <FileCode className="w-4 h-4 text-yellow-600 shrink-0" />
-                    <span className="flex-1 text-sm text-gray-700 truncate">{pending.scriptName}</span>
-                    <span className="text-xs text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded">待保存</span>
-                    <button
-                      onClick={() => insertScriptReference(pending.scriptName)}
-                      className="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium flex items-center gap-1 transition-all"
-                      title="插入到文档"
-                    >
-                      <ArrowUpRight className="w-3 h-3" />
-                      插入
-                    </button>
-                    <button
-                      onClick={() => setPendingMcpTools(prev => prev.filter((_, i) => i !== index))}
-                      className="p-1.5 hover:bg-red-100 rounded transition-all"
-                      title="移除"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-red-500" />
                     </button>
@@ -702,7 +432,7 @@ const SkillEditor: React.FC<IProps> = (props) => {
                 {mcpTools?.map((tool, index) => (
                   <div
                     key={`${tool.server_id}-${tool.name}-${index}`}
-                    draggable
+                    draggable={!isReadOnly}
                     onDragStart={(e) => handleToolDragStart(e, tool)}
                     className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-200 cursor-grab hover:border-gray-400 transition-colors group"
                   >
@@ -711,13 +441,6 @@ const SkillEditor: React.FC<IProps> = (props) => {
                       <p className="text-sm text-gray-700 truncate">{tool.name}</p>
                       <p className="text-xs text-gray-500 truncate">{tool.server_name}</p>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleAddMcpTool(tool); }}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-all"
-                      title="添加为脚本并插入引用"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 ))}
               </div>

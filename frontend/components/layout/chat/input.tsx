@@ -1,3 +1,4 @@
+import { useApp } from "@/context"
 import { API_BASE } from "@/lib/data"
 import { Upload, UploadFile, UploadProps } from "antd"
 import { Loader2, Plus, Send, Trash2, Square } from "lucide-react"
@@ -15,6 +16,8 @@ interface IProps {
 const Input: React.FC<IProps> = (props) => {
     const { isProcessing, input, setInput, fileList = [], setFileList, handleSubmit, onStop } = props 
 
+    const { user } = useApp()
+    
     const beforeUpload = () => {
         if (fileList.length >= 5) {
             return Upload.LIST_IGNORE
@@ -67,10 +70,13 @@ const Input: React.FC<IProps> = (props) => {
                     </div>
                 )}
                 {/* Input Box */}
-                <div className="flex h-[100px] items-center gap-2 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100 transition-all px-3 rounded-2xl">
+                <div className="flex h-25 items-center gap-2 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100 transition-all px-3 rounded-2xl">
                     <Upload
                         fileList={fileList}
                         action={`${API_BASE}/upload`}
+                        data={{
+                            user_id: user?.uid
+                        }}
                         onChange={handleChange}
                         beforeUpload={beforeUpload}
                         showUploadList={false}

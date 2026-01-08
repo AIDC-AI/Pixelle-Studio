@@ -422,7 +422,6 @@ async def process_with_agent(
         except:
             pass
 
-
 # ============================================================================
 # File Upload API
 # ============================================================================
@@ -510,10 +509,19 @@ async def health_check():
         "skills_loaded": len(skills_list)
     }
 
-
 # ============================================================================
 # Skills API
 # ============================================================================
+
+class CreateSkillRequest(BaseModel):
+    name: str
+    description: str
+    content: str  # Full SKILL.md content
+
+class UpdateSkillRequest(BaseModel):
+    new_name: Optional[str] = None  # If provided, rename the skill
+    description: str
+    content: str  # Updated SKILL.md content
 
 @app.get("/api/skills")
 async def get_skills(user_id: Optional[str] = None):
@@ -553,17 +561,6 @@ async def get_skill_detail(skill_name: str, user_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-class CreateSkillRequest(BaseModel):
-    name: str
-    content: str  # Full SKILL.md content
-
-
-class UpdateSkillRequest(BaseModel):
-    new_name: Optional[str] = None  # If provided, rename the skill
-    content: str  # Updated SKILL.md content
-
-
 @app.post("/api/skills")
 async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = None):
     """
@@ -588,6 +585,14 @@ async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = Non
         
         # Create SKILL.md file
         skill_md = skill_dir / "SKILL.md"
+        # create content
+#         skill_content = f"""---
+# name: {request.name}
+# description: {request.description}
+# ---
+
+# {request.content}
+# """
         with open(skill_md, 'w', encoding='utf-8') as f:
             f.write(request.content)
         
@@ -600,7 +605,6 @@ async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = Non
             "success": True,
             "name": request.name,
             "path": str(skill_dir.relative_to(skills_root.parent)),
-            "scope": target_subdir
         }
     
     except HTTPException:
@@ -695,7 +699,6 @@ async def delete_skill(skill_name: str, user_id: Optional[str] = None):
     except Exception as e:
         log.error(f"Error deleting skill {skill_name}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 if __name__ == "__main__":
     import uvicorn

@@ -11,7 +11,6 @@ import asyncio
 
 router = APIRouter(prefix="/api/mcp-servers", tags=["MCP Servers"])
 
-
 class MCPServerWithStatus(BaseModel):
     # 基本信息
     id: str
