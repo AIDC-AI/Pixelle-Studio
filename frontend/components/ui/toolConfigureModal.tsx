@@ -73,13 +73,16 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
             form={form}
             autoComplete="off"
             layout="vertical"
+            classNames={{
+                label: "block text-sm font-medium text-gray-700",
+            }}
         >
             <Form.Item<FieldType>
                 label="名称"
                 name="name"
                 rules={[{ required: true, message: 'please input server name!' }]}
             >
-                <Input placeholder="e.g., My MCP Server" size="small" allowClear />
+                <Input size='large' placeholder="e.g., My MCP Server" allowClear />
             </Form.Item>
 
             <Form.Item<FieldType>
@@ -87,7 +90,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                 name="transport"
                 rules={[{ required: true, message: 'Please select connection type!' }]}
             >
-                <Select options={connectionTypes} onChange={(value) => setSelectedTransport(value)} />
+                <Select size='large' options={connectionTypes} onChange={(value) => setSelectedTransport(value)} />
             </Form.Item>
 
             {
@@ -97,7 +100,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                         name="url"
                         rules={[{ required: true, message: 'please input endpoint url!' }]}
                     >
-                        <Input placeholder="https://api.example.com/mcp" size="small" allowClear />
+                        <Input size='large' placeholder="https://api.example.com/mcp" allowClear />
                     </Form.Item>
                     <Form.Item<FieldType>
                         label="Headers"
@@ -118,9 +121,9 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                         ]}
                     >
                         <Input.TextArea 
+                            size='large'
                             className="h-32 resize-none"
                             placeholder='Enter headers as JSON object, e.g. {"Authorization": "Bearer token"}' 
-                            size="small" 
                             allowClear 
                         />
                     </Form.Item>
@@ -134,14 +137,14 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                         name="command"
                         rules={[{ required: true, message: 'please input command!' }]}
                     >
-                        <Input placeholder="npx" size="small" allowClear />
+                        <Input size='large' placeholder="npx" size="small" allowClear />
                     </Form.Item>
                     <Form.Item<FieldType>
                         label="参数"
                         name="args"
                         rules={[{ required: true, message: 'please input arguments!' }]}
                     >
-                        <Input placeholder="-y, @modelcontextprotocol/server-everything" size="small" allowClear />
+                        <Input size='large' placeholder="-y, @modelcontextprotocol/server-everything" size="small" allowClear />
                     </Form.Item>
                 </>)
             }

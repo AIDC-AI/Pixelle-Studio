@@ -8,6 +8,7 @@ import { UserResponse } from '@/types/user';
 import { userAPI } from '@/lib/userApi';
 import { useRouter, usePathname } from 'next/navigation';
 import { Skill } from '@/types/skill';
+import { MCPTool } from '@/types/server';
 
 type IProps = {
     messageApi: MessageInstance
@@ -24,8 +25,14 @@ type IProps = {
     skillEditored: boolean 
     setSkillEditored: React.Dispatch<React.SetStateAction<boolean>>
 
-    currentSkill: Skill | null
-    setCurrentSkill: React.Dispatch<React.SetStateAction<Skill | null>>
+    currentSkillName: string | null
+    setCurrentSkillName: React.Dispatch<React.SetStateAction<string | null>>
+
+    mcpTools: MCPTool[] | null
+    setMcpTools: React.Dispatch<React.SetStateAction<MCPTool[] | null>>
+
+    isChangeSkill: boolean
+    setIsChangeSkill: React.Dispatch<React.SetStateAction<boolean>>
 
     login: (email: string, password: string) => Promise<void>
     register: (username: string, email: string, password: string) => Promise<boolean>
@@ -48,7 +55,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [activeSessionId, setActiveSessionId] = useState<string>('');
 
     const [skillEditored, setSkillEditored] = useState<boolean>(false)
-    const [currentSkill, setCurrentSkill] = useState<Skill | null>(null)
+    const [currentSkillName, setCurrentSkillName] = useState<string | null>(null)
+    const [mcpTools, setMcpTools] = useState<MCPTool[] | null>(null)
+    const [isChangeSkill, setIsChangeSkill] = useState<boolean>(false)
 
     const login = async (email: string, password: string) => {
         try {
@@ -129,8 +138,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setActiveSessionId, 
                 skillEditored, 
                 setSkillEditored,
-                currentSkill, 
-                setCurrentSkill,
+                currentSkillName, 
+                setCurrentSkillName,
+                mcpTools, 
+                setMcpTools,
+                isChangeSkill, 
+                setIsChangeSkill,
                 login,
                 register,
                 logout

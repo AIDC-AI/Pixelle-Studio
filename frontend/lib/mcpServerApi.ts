@@ -55,18 +55,6 @@ export const mcpServerAPI = {
         return response.json();
     },
 
-    // 获取服务器的工具列表（已废弃，使用 checkServerStatus 代替）
-    // @deprecated Use checkServerStatus instead
-    async getServerTools(serverId: string): Promise<ToolsResponse> {
-        // 调用 status 接口获取工具
-        const status = await this.checkServerStatus(serverId);
-        return {
-            tools: status.tools,
-            server_id: status.server_id,
-            server_name: status.server_name
-        };
-    },
-
     // 创建服务器
     async createServer(server: Omit<MCPServer, 'id' | 'uid' | 'created_at' | 'updated_at'>): Promise<MCPServer> {
         const response = await fetch(`${API_BASE}/mcp-servers`, {

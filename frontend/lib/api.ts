@@ -9,9 +9,10 @@ export interface ChatResponse {
 export const api = {
     createChat: async (
         message: string,
+        userId: string,
         fileUrls?: string[],
         fileNames?: string[],
-        sessionId?: string
+        sessionId?: string,
     ): Promise<ChatResponse> => {
         const res = await fetch(`${API_BASE}/chat`, {
             method: 'POST',
@@ -20,7 +21,8 @@ export const api = {
                 message,
                 file_urls: fileUrls || [],  // Send file URLs
                 file_names: fileNames || [],  // Send uploaded file names for Agent
-                session_id: sessionId || null
+                session_id: sessionId || null,
+                user_id: userId
             }),
         });
         return res.json();

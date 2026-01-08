@@ -2,14 +2,13 @@
 
 import { useApp } from "@/context";
 import { api } from "@/lib/api";
-import { ScriptItem, Skill } from "@/types/skill";
+import { Skill } from "@/types/skill";
 import { Checkbox, Col, Drawer, Flex, Form, Input, Row } from "antd";
 import { useEffect } from "react";
 
 interface IProps {
     open: boolean
     skill?: Skill
-    scripts?: ScriptItem[]
     onSuccess?: () => void // 添加成功回调
     onClose?: () => void   // 关闭回调
 }
@@ -21,7 +20,7 @@ type FieldType = {
 };
 
 const SkillConfigureModal: React.FC<IProps> = (props) => {
-    const { open, skill, scripts, onSuccess, onClose} = props;
+    const { open, skill, onSuccess, onClose} = props;
     const { messageApi } = useApp()
     
     const [form] = Form.useForm();
