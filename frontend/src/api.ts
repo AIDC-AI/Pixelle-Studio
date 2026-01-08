@@ -1,5 +1,5 @@
-const API_BASE = 'http://localhost:8001/api';
-const WS_BASE = 'ws://localhost:8001/ws';
+const API_BASE = 'http://localhost:8009/api';
+const WS_BASE = 'ws://localhost:8009/ws';
 
 import { type MCPServerConfig } from './mcpConfig';
 
@@ -29,7 +29,7 @@ export const api = {
             options.body = JSON.stringify({});
         }
 
-        const response = await fetch('http://localhost:8001/api/tools', options);
+        const response = await fetch('http://localhost:8009/api/tools', options);
         if (!response.ok) {
             throw new Error('Failed to fetch tools');
         }

@@ -31,7 +31,7 @@
 
 ```bash
 cd backend
-python -m uvicorn app.main:app --reload --port 8001
+uv run python -m uvicorn app.main:app --reload --port 8001
 ```
 
 ### 2. 启动前端

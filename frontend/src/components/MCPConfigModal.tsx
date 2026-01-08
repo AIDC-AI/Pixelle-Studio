@@ -32,7 +32,7 @@ export function MCPConfigModal({ isOpen, onClose, onSave }: MCPConfigModalProps)
                 setLoadingTools(prev => ({ ...prev, [server.id]: true }));
 
                 try {
-                    const response = await fetch('http://localhost:8001/api/tools', {
+                    const response = await fetch('http://localhost:8009/api/tools', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

@@ -8,12 +8,10 @@ LLM settings are configured in the backend at:
 
 ## Configuration Variables
 
-```python
 # LLM Configuration (Lines 6-8)
-LLM_BASE_URL = "https://api.deepseek.com"  # Your LLM API base URL
-LLM_API_KEY = "sk-88435555444444444444444444444444"  # Your API Key
-LLM_MODEL = "deepseek-chat"  # Model name
-```
+LLM_BASE_URL = "https://REDACTED_BASE_URL_HOST/v1"  # Your LLM API base URL
+LLM_API_KEY = "aib_ComfyUI_Copilot_8d28a3"  # Your API Key
+LLM_MODEL = "gpt-4o"  # Model name
 
 ## Supported LLM Providers
 
