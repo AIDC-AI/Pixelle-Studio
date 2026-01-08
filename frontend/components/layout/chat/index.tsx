@@ -155,9 +155,11 @@ const Chat = () => {
       if (!currentSession) {
         currentSession = await addNewSession(input)
       }
-      const backendSessionId = currentSession.backendSessionId
+      const currentSessionId = currentSession.id;
+      const backendSessionId = currentSession.backendSessionId;
+      
       // 保存当前message
-      addMessages(currentSession.id, [{ 
+      addMessages(currentSessionId, [{ 
         type: 'user', 
         content: input, 
         outputFiles,
@@ -176,16 +178,14 @@ const Chat = () => {
           backendSessionId
         );
 
-      // 2. Connect WebSocket
-      const ws = new WebSocket(api.getWebSocketUrl(chat_id));
-      wsRef.current = ws;
         // Bind backend session id to this local session for future turns
         if (!backendSessionId && session_id) {
-          await updateSessionBackendId(currentSession.id, session_id)
+          await updateSessionBackendId(currentSessionId, session_id)
         }
 
         // 2. Connect WebSocket
         const ws = new WebSocket(api.getWebSocketUrl(chat_id));
+        wsRef.current = ws;
 
         ws.onmessage = (event) => {
           const data = JSON.parse(event.data);
@@ -215,7 +215,7 @@ const Chat = () => {
               iteration: data.iteration
             })
           } else if (data.type === 'code') {
-            // NEW: Handle code generation event
+            // Handle code generation event
             currentExecCount = data.execution_count || currentExecCount + 1;
             _messages.push({
               type: 'code',
@@ -228,7 +228,7 @@ const Chat = () => {
               }
             })
           } else if (data.type === 'execution_result') {
-            // NEW: Handle execution result event
+            // Handle execution result event
             const outputFiles: OutputFile[] = data.output_files || [];
             const execResult: ExecutionResult = {
               status: data.status,
@@ -258,7 +258,7 @@ const Chat = () => {
               })
             }
           } else if (data.type === 'response') {
-            // NEW: Handle direct response from agent
+            // Handle direct response from agent
             _messages.push({
               type: 'response',
               content: data.content,
@@ -268,7 +268,7 @@ const Chat = () => {
             // So we don't show duplicate content in final_result
             currentExecCount = -1; // Use -1 as a flag for direct response
           } else if (data.type === 'skill_loaded') {
-            // NEW: Handle skill loaded event
+            // Handle skill loaded event
             _messages.push({
               type: 'skill_loaded',
               content: data.skill_name,
@@ -298,9 +298,6 @@ const Chat = () => {
             })
           } else if (data.type === 'final_result') {
             // 最终结果 - 现在才关闭连接
-            // Skip adding final_result message if it's just a direct response (no code execution)
-            // currentExecCount === -1 means we had a direct response
-            // currentExecCount === 0 means no code was executed
             const hadDirectResponse = currentExecCount === -1;
             const hadCodeExecution = currentExecCount > 0;
             
@@ -319,6 +316,7 @@ const Chat = () => {
               }
             }
             setIsProcessing(false);
+            wsRef.current = null;
             ws.close();
           } else if (data.type === 'result') {
             // 兼容旧的 result 消息（如果有的话）
@@ -334,6 +332,7 @@ const Chat = () => {
               timestamp: Date.now()
             })
             setIsProcessing(false);
+            wsRef.current = null;
             ws.close();
           } else if (data.type === 'status') {
             _messages.push({
@@ -342,59 +341,35 @@ const Chat = () => {
               timestamp: Date.now()
             })
           }
-          setIsProcessing(false);
-          wsRef.current = null;
-          ws.close();
-        } else if (data.type === 'result') {
-          // 兼容旧的 result 消息（如果有的话）
-          _messages.push({
-            type: 'result', 
-            content: data.content, 
-            timestamp: Date.now()
-          })
-        } else if (data.type === 'error') {
-          _messages.push({
+          
+          addMessages(currentSessionId, _messages)
+        };
+
+        ws.onerror = (err) => {
+          console.error('WebSocket error:', err);
+          addMessages(currentSessionId, [{
             type: 'error', 
             content: 'Connection error', 
             timestamp: Date.now()
           }])
           setIsProcessing(false);
           wsRef.current = null;
-          ws.close();
-        } else if (data.type === 'status') {
-          _messages.push({
-            type: 'system', 
-            content: data.content, 
-            timestamp: Date.now()
-          })
-        }
-        addMessages(currentSessionId, _messages)
-      };
+        };
+        
+        ws.onclose = () => {
+          wsRef.current = null;
+        };
 
       } catch (err) {
         console.error(err);
-        addMessages(currentSession.id, [{
+        addMessages(currentSessionId, [{
           type: 'error', 
           content: 'Failed to start chat', 
           timestamp: Date.now()
         }])
         setIsProcessing(false);
-        wsRef.current = null;
-      };
-      
-      ws.onclose = () => {
-        wsRef.current = null;
-      };
-
-    } catch (err) {
-      console.error(err);
-      addMessages(currentSessionId, [{
-        type: 'error', 
-        content: 'Failed to start chat', 
-        timestamp: Date.now()
-      }])
-      setIsProcessing(false);
-    }
+      }
+    };
 
     useEffect(() => {
       (
