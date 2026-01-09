@@ -160,6 +160,11 @@ You can help users in the following ways:
    - This allows you to call any MCP tool registered in the system
 
 4. **Skills**: You have access to specialized skills that provide domain-specific guidance and code patterns.
+
+5. **MCP Tools Discovery (Fallback)**: When no skill matches the user's request but the task requires external tools:
+   - Use `await list_mcp_tools()` to discover all available MCP tools
+   - This returns a list of tool info with name, description, and input_schema
+   - Then use `call_tool(tool_name, args)` to call the appropriate tool
 </capabilities>
 
 {skills_xml}
@@ -182,6 +187,7 @@ The following helper functions are automatically available in your Python code:
 
 **MCP Tool Calling (async):**
 - `await call_tool("tool_name", {{"arg1": value1, ...}})` - Call an MCP tool
+- `await list_mcp_tools()` - Discover all available MCP tools (fallback when no skill matches)
 - Use `asyncio.run(main())` pattern for async code
 
 Example using MCP tools:
@@ -242,6 +248,10 @@ After seeing code execution results, decide your next action:
 2. **Error Occurred**: If there was an error → Analyze it, refer to loaded skill's guidance, then generate corrected code
 3. **Partial Success**: If more work is needed → Generate additional code to complete the task
 4. **Need More Info**: If skill documentation would help → Load the relevant skill first
+5. **No Skill Matches but Need External Tool**: If no skill matches AND the task requires external services/tools:
+   - First, use `list_mcp_tools()` to discover available MCP tools
+   - Review the returned tool list and their descriptions
+   - Then generate code using `call_tool(tool_name, args)` for the appropriate tool
 </decision_flow>
 """        
         return system_prompt
@@ -297,17 +307,34 @@ After seeing code execution results, decide your next action:
                     skill_name=skill_name
                 )
         
-        # Check for code block
+        # Check for code block - find executable python code blocks
+        # Skip example snippets that are not complete executable code
         if "```python" in response_text:
-            # Extract code
-            code_start = response_text.find("```python") + 9
-            code_end = response_text.find("```", code_start)
-            if code_end > code_start:
-                code = response_text[code_start:code_end].strip()
-                return AgentAction(
-                    action_type="execute_code",
-                    content=code
-                )
+            # Find all python code blocks using regex
+            code_blocks = re.findall(r'```python\n(.*?)```', response_text, re.DOTALL)
+            
+            if code_blocks:
+                # Find the last "complete" code block (one that looks executable)
+                # A complete block either:
+                # 1. Has asyncio.run() if it contains await
+                # 2. Has no await statements (synchronous code)
+                # 3. Contains our required JSON output format
+                for code in reversed(code_blocks):
+                    code = code.strip()
+                    has_await = 'await ' in code
+                    has_asyncio_run = 'asyncio.run(' in code
+                    has_json_output = 'print(json.dumps(' in code or 'json.dumps({' in code
+                    
+                    # Skip incomplete async snippets (await without asyncio.run)
+                    if has_await and not has_asyncio_run:
+                        continue
+                    
+                    # Accept if it has proper structure
+                    if has_asyncio_run or has_json_output or not has_await:
+                        return AgentAction(
+                            action_type="execute_code",
+                            content=code
+                        )
         
         # Default: direct response
         return AgentAction(
@@ -332,10 +359,14 @@ After seeing code execution results, decide your next action:
 _DEFAULT_MCP_SERVER = "{self.mcp_server_url}"
 _DEFAULT_MCP_TYPE = "{self.mcp_server_type}"
 
+# Pre-register a placeholder to ensure list_mcp_tools can discover the server
+from app.mcp_client import _TOOL_SERVER_MAP, register_tool_server
+if not _TOOL_SERVER_MAP:
+    register_tool_server("__default__", _DEFAULT_MCP_SERVER, _DEFAULT_MCP_TYPE)
+
 # Wrap call_tool to use default server if tool not registered
 _original_call_tool = call_tool
 async def call_tool(tool_name: str, args: dict = None):
-    from app.mcp_client import _TOOL_SERVER_MAP, register_tool_server
     if tool_name not in _TOOL_SERVER_MAP:
         register_tool_server(tool_name, _DEFAULT_MCP_SERVER, _DEFAULT_MCP_TYPE)
     return await _original_call_tool(tool_name, args)
@@ -375,7 +406,7 @@ def script_path(*parts) -> str:
 # MCP Tool Calling Support
 import sys
 sys.path.insert(0, '.')
-from app.mcp_client import call_tool
+from app.mcp_client import call_tool, list_mcp_tools
 {mcp_setup}
 # === End Skill Helpers ===
 '''
