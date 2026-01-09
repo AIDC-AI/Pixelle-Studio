@@ -73,10 +73,7 @@ const Input: React.FC<IProps> = (props) => {
                 <div className="flex h-25 items-center gap-2 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100 transition-all px-3 rounded-2xl">
                     <Upload
                         fileList={fileList}
-                        action={`${API_BASE}/upload`}
-                        data={{
-                            user_id: user?.uid
-                        }}
+                        action={`${API_BASE}/upload${!!user?.uid ? `?user_id=${user?.uid}`: ""}`}
                         onChange={handleChange}
                         beforeUpload={beforeUpload}
                         showUploadList={false}

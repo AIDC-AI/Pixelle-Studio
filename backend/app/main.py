@@ -432,7 +432,7 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, use
     try:
         # Determine storage directory based on user_id
         script_root = Path(__file__).parent.parent / "scripts"
-        target_subdir = user_id if user_id else "default"
+        target_subdir = str(user_id) if user_id is not None else "default"
         storage_dir = script_root / target_subdir
         storage_dir.mkdir(parents=True, exist_ok=True)
         
@@ -470,7 +470,7 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, use
 async def get_user_file(user_id: int, filename: str):
     """Serve uploaded files for a specific user."""
     script_root = Path(__file__).parent.parent / "scripts"
-    file_path = script_root / user_id / filename
+    file_path = script_root / str(user_id) / filename
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
