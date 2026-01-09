@@ -137,14 +137,14 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                         name="command"
                         rules={[{ required: true, message: 'please input command!' }]}
                     >
-                        <Input size='large' placeholder="npx" size="small" allowClear />
+                        <Input size='large' placeholder="npx" allowClear />
                     </Form.Item>
                     <Form.Item<FieldType>
                         label="参数"
                         name="args"
                         rules={[{ required: true, message: 'please input arguments!' }]}
                     >
-                        <Input size='large' placeholder="-y, @modelcontextprotocol/server-everything" size="small" allowClear />
+                        <Input size='large' placeholder="-y, @modelcontextprotocol/server-everything" allowClear />
                     </Form.Item>
                 </>)
             }

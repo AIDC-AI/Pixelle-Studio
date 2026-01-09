@@ -150,14 +150,17 @@ const Chat = () => {
       setCurrentScript(null);
       
       // 找到当前session
-      let currentSession = sessions.find(s => s.id === activeSessionId)
+      let session = sessions.find(s => s.id === activeSessionId)
       // 如果没有，新建一个
-      if (!currentSession) {
-        currentSession = await addNewSession(input)
+      if (!session) {
+        session = await addNewSession(input)
       }
-      const currentSessionId = currentSession.id;
-      const backendSessionId = currentSession.backendSessionId;
       
+      const currentSession = session;
+      const currentSessionId = currentSession.id;
+
+      const backendSessionId = currentSession.backendSessionId
+
       // 保存当前message
       addMessages(currentSessionId, [{ 
         type: 'user', 
