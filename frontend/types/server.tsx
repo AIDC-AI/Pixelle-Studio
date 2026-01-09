@@ -18,10 +18,12 @@ export interface MCPTool {
     server_type?: string
 }
 
+export type TransportType = 'streamable-http' | 'sse' | 'stdio'
+
 export interface MCPServer {
   id: string
   name: string
-  transport: 'streamable-http' | 'sse' | 'stdio'
+  transport: TransportType
   url?: string | null
   command?: string | null
   args?: string | null

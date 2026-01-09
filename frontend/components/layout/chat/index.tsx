@@ -31,8 +31,7 @@ const Chat = () => {
       loadSessions, 
       createSession, 
       deleteSession,
-      updateSessionBackendId,
-      updateSessionTitle
+      updateSessionBackendId
     } = useChatStorage(activeSessionId)
 
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -344,7 +343,7 @@ const Chat = () => {
               timestamp: Date.now()
             })
           }
-          
+
           addMessages(currentSessionId, _messages)
         };
 

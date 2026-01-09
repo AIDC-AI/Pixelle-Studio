@@ -1,7 +1,7 @@
 'use client'
 
 import { Message } from "@/types/message";
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, memo, useCallback } from "react";
 import UserItem from "./items/userItem";
 import SystemItem from "./items/systemItem";
 import IterationItem from "./items/iterationItem";
@@ -33,79 +33,15 @@ interface MessageGroup {
     type: 'system_operations' | 'single';
     messages: Message[];
     isComplete?: boolean;
+    id: string; // 添加唯一 ID
 }
 
-const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, shouldScrollToBottom = true } = props;  
-
-    const chatEndRef = useRef<HTMLDivElement>(null);
-    const lastMessageCountRef = useRef<number>(0);
-    
-    // 分组消息：将连续的系统操作消息放在一起
-    const groupedMessages = useMemo(() => {
-        if (!messages || messages.length === 0) return [];
-        
-        const groups: MessageGroup[] = [];
-        let currentSystemGroup: Message[] = [];
-        
-        messages.forEach((msg, index) => {
-            const isSystemOp = SYSTEM_OPERATION_TYPES.includes(msg.type);
-            const isUserInteraction = USER_INTERACTION_TYPES.includes(msg.type);
-            
-            if (isSystemOp) {
-                // 添加到当前系统操作组
-                currentSystemGroup.push(msg);
-            } else {
-                // 如果有累积的系统操作，先添加它们
-                if (currentSystemGroup.length > 0) {
-                    // 检查下一个消息是否是用户交互类型来判断是否完成
-                    const isComplete = isUserInteraction && (msg.type === 'result' || msg.type === 'response' || msg.type === 'output_files');
-                    groups.push({
-                        type: 'system_operations',
-                        messages: [...currentSystemGroup],
-                        isComplete
-                    });
-                    currentSystemGroup = [];
-                }
-                // 添加单独的消息
-                groups.push({
-                    type: 'single',
-                    messages: [msg]
-                });
-            }
-        });
-        
-        // 处理剩余的系统操作（正在进行中）
-        if (currentSystemGroup.length > 0) {
-            groups.push({
-                type: 'system_operations',
-                messages: currentSystemGroup,
-                isComplete: false
-            });
-        }
-        
-        return groups;
-    }, [messages]);
-    
-    // 只在收到最终结果时滚动到底部
-    useEffect(() => {
-        if (!messages || messages.length === 0) return;
-        
-        const lastMessage = messages[messages.length - 1];
-        const isEndMessage = lastMessage.type === 'result' || 
-                            lastMessage.type === 'response' || 
-                            lastMessage.type === 'error' ||
-                            lastMessage.type === 'output_files';
-        
-        // 只有在是最终消息或者是用户消息时才滚动
-        if (isEndMessage || lastMessage.type === 'user') {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-        
-        lastMessageCountRef.current = messages.length;
-    }, [messages]);
-    
-    const renderItem = (msg: Message, isLast: boolean) => {
+// 优化：将单个消息项组件化并使用 memo
+const MessageItem = memo(({ msg, isLast }: { 
+    msg: Message; 
+    isLast: boolean;
+}) => {
+    const renderContent = () => {
         switch (msg.type) {
             case 'user':
                 return <UserItem content={msg.content} files={msg.outputFiles} />
@@ -146,9 +82,23 @@ const MessageList: React.FC<IProps> = (props) => {
                 return <OutputFilesItem files={msg.outputFiles || []} />
         }
         return null;
-    }
+    };
 
-    // 获取单独消息的样式类
+    return <div>{renderContent()}</div>;
+}, (prevProps, nextProps) => {
+    // 自定义比较函数：只有当消息内容真正改变时才重新渲染
+    return (
+        prevProps.msg.type === nextProps.msg.type &&
+        prevProps.msg.content === nextProps.msg.content &&
+        prevProps.msg.timestamp === nextProps.msg.timestamp &&
+        prevProps.isLast === nextProps.isLast
+    );
+});
+
+MessageItem.displayName = 'MessageItem';
+
+// 虚拟化的消息组渲染器
+const VirtualMessageGroup = memo(({ group, isLast }: { group: MessageGroup; isLast: boolean }) => {
     const getMessageClass = (msg: Message) => {
         if (msg.type === 'user') {
             return 'self-end max-w-[85%]';
@@ -163,50 +113,179 @@ const MessageList: React.FC<IProps> = (props) => {
             return 'self-start max-w-[80%]';
         }
         return 'self-start max-w-[80%]';
+    };
+
+    if (group.type === 'system_operations') {
+        return (
+            <div className="self-start w-full max-w-[90%] mb-4">
+                <SystemOperationGroup isComplete={group.isComplete}>
+                    {group.messages.map((msg, msgIndex) => (
+                        <MessageItem
+                            key={`${msg.timestamp}-${msgIndex}`}
+                            msg={msg}
+                            isLast={isLast && msgIndex === group.messages.length - 1}
+                        />
+                    ))}
+                </SystemOperationGroup>
+            </div>
+        );
+    } else {
+        const msg = group.messages[0];
+        return (
+            <div className={`flex flex-col mb-4 ${getMessageClass(msg)}`}>
+                <MessageItem
+                    msg={msg}
+                    isLast={isLast}
+                />
+            </div>
+        );
     }
+}, (prevProps, nextProps) => {
+    return (
+        prevProps.group.id === nextProps.group.id &&
+        prevProps.group.isComplete === nextProps.group.isComplete &&
+        prevProps.isLast === nextProps.isLast
+    );
+});
+
+VirtualMessageGroup.displayName = 'VirtualMessageGroup';
+
+const MessageList: React.FC<IProps> = (props) => {
+    const { messages, currentScript } = props;  
+
+    const containerRef = useRef<HTMLDivElement>(null);
+    const shouldAutoScrollRef = useRef(true);
+    const lastMessageCountRef = useRef(0);
+    
+    // 分组消息：将连续的系统操作消息放在一起
+    const groupedMessages = useMemo(() => {
+        if (!messages || messages.length === 0) return [];
+        
+        const groups: MessageGroup[] = [];
+        let currentSystemGroup: Message[] = [];
+        let groupIdCounter = 0;
+        
+        messages.forEach((msg, index) => {
+            const isSystemOp = SYSTEM_OPERATION_TYPES.includes(msg.type);
+            const isUserInteraction = USER_INTERACTION_TYPES.includes(msg.type);
+            
+            if (isSystemOp) {
+                currentSystemGroup.push(msg);
+            } else {
+                if (currentSystemGroup.length > 0) {
+                    const isComplete = isUserInteraction && (msg.type === 'result' || msg.type === 'response' || msg.type === 'output_files');
+                    groups.push({
+                        type: 'system_operations',
+                        messages: [...currentSystemGroup],
+                        isComplete,
+                        id: `group-${groupIdCounter++}`
+                    });
+                    currentSystemGroup = [];
+                }
+                groups.push({
+                    type: 'single',
+                    messages: [msg],
+                    id: `single-${msg.timestamp}-${index}`
+                });
+            }
+        });
+        
+        if (currentSystemGroup.length > 0) {
+            groups.push({
+                type: 'system_operations',
+                messages: currentSystemGroup,
+                isComplete: false,
+                id: `group-${groupIdCounter++}`
+            });
+        }
+        
+        return groups;
+    }, [messages]);
+    
+    // 自动滚动到底部
+    const scrollToBottom = useCallback(() => {
+        if (containerRef.current && shouldAutoScrollRef.current) {
+            requestAnimationFrame(() => {
+                if (containerRef.current) {
+                    containerRef.current.scrollTop = containerRef.current.scrollHeight;
+                }
+            });
+        }
+    }, []);
+
+    // 检测用户是否手动滚动
+    const handleScroll = useCallback(() => {
+        if (!containerRef.current) return;
+        
+        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        
+        shouldAutoScrollRef.current = isNearBottom;
+    }, []);
+
+    // 当消息更新时滚动
+    useEffect(() => {
+        if (!messages || messages.length === 0) return;
+        
+        const lastMessage = messages[messages.length - 1];
+        const isEndMessage = lastMessage.type === 'result' || 
+                            lastMessage.type === 'response' || 
+                            lastMessage.type === 'error' ||
+                            lastMessage.type === 'output_files';
+        
+        // 新消息或最终消息时滚动
+        if (messages.length > lastMessageCountRef.current || isEndMessage || lastMessage.type === 'user') {
+            scrollToBottom();
+        }
+        
+        lastMessageCountRef.current = messages.length;
+    }, [messages, scrollToBottom]);
+
+    // 使用 IntersectionObserver 优化渲染（可选）
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        container.addEventListener('scroll', handleScroll, { passive: true });
+        
+        return () => {
+            container.removeEventListener('scroll', handleScroll);
+        };
+    }, [handleScroll]);
 
     return (
-        <div className="flex flex-1 flex-col p-4 overflow-y-auto gap-4">
-            {groupedMessages.map((group, groupIndex) => {
-                if (group.type === 'system_operations') {
-                    // 渲染系统操作组
-                    return (
-                        <div key={`group-${groupIndex}`} className="self-start w-full max-w-[90%]">
-                            <SystemOperationGroup isComplete={group.isComplete}>
-                                {group.messages.map((msg, msgIndex) => (
-                                    <div key={`${groupIndex}-${msgIndex}`}>
-                                        {renderItem(msg, groupIndex === groupedMessages.length - 1 && msgIndex === group.messages.length - 1)}
-                                    </div>
-                                ))}
-                            </SystemOperationGroup>
+        <div 
+            ref={containerRef}
+            className="flex flex-1 flex-col p-4 overflow-y-auto"
+            style={{ 
+                overscrollBehavior: 'contain',
+                WebkitOverflowScrolling: 'touch'
+            }}
+        >
+            <div className="flex flex-col gap-0">
+                {groupedMessages.map((group, index) => (
+                    <VirtualMessageGroup
+                        key={group.id}
+                        group={group}
+                        isLast={index === groupedMessages.length - 1}
+                    />
+                ))}
+                {currentScript && (
+                    <div className="self-start w-full max-w-[90%] mb-4">
+                        <div className="bg-slate-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                <span className="ml-2 text-slate-400 text-sm">Current Workflow Script</span>
+                            </div>
+                            <pre className="text-slate-200 text-sm font-mono overflow-x-auto whitespace-pre-wrap">{currentScript}</pre>
                         </div>
-                    );
-                } else {
-                    // 渲染单独消息
-                    const msg = group.messages[0];
-                    return (
-                        <div key={`single-${groupIndex}`} className={`flex flex-col ${getMessageClass(msg)}`}>
-                            {renderItem(msg, groupIndex === groupedMessages.length - 1)}
-                        </div>
-                    );
-                }
-            })}
-            {currentScript && (
-                <div className="self-start w-full max-w-[90%]">
-                    <div className="bg-slate-800 rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span className="ml-2 text-slate-400 text-sm">Current Workflow Script</span>
-                        </div>
-                        <pre className="text-slate-200 text-sm font-mono overflow-x-auto whitespace-pre-wrap">{currentScript}</pre>
                     </div>
-                </div>
-            )}
-            <div ref={chatEndRef} />
+                )}
+            </div>
         </div>
     )
 }
 
-export default MessageList;
+export default memo(MessageList);

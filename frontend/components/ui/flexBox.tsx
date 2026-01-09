@@ -14,8 +14,8 @@ const FlexBox: React.FC<IProps> = (props) => {
             onClick={() => {
                 onSelect?.();
             }}
-            className={`p-4 rounded-lg border-1 hover:border-blue-500 cursor-pointer transition-all flex justify-center items-center ${isSelected
-                ? isFlex ? 'flex-grow border-blue-500' : 'border-blue-500'
+            className={`p-4 rounded-lg border hover:border-blue-500 cursor-pointer transition-all flex justify-center items-center ${isSelected
+                ? isFlex ? 'grow border-blue-500' : 'border-blue-500'
                 : 'border-gray-300'
                 }`}
         >

@@ -1,7 +1,6 @@
 import { Book, Trash2, Wrench } from "lucide-react"
 import { useEffect, useState } from "react"
 import { SkillMeta } from "@/types/skill";
-import SkillConfigureModal from "@/components/ui/skillConfigureModal";
 import ExpandeBox from "@/components/ui/expandeBox";
 import { useApp } from "@/context";
 import { mcpServerAPI } from "@/lib/mcpServerApi";
@@ -26,15 +25,14 @@ const SkillsPanel = () => {
     const [loading, setLoading] = useState<boolean>(false);
 
     const [mcpServers, setMcpServers] = useState<MCPServer[]>([])
-    const [skillConfigureOpen, setSkillConfigureOpen] = useState<boolean>(false)
     const [toolConfigureOpen, setToolConfigureOpen] = useState<boolean>(false)
     const [skills, setSkills] = useState<SkillMeta[]>([])
 
     const [selectedMcpServerIndex, setSelectedMcpServerIndex] = useState<number>(-1)
 
-    const handleShowSkillEditor = () => {
+    const handleShowSkillEditor = (name: string | null) => {
+        setCurrentSkillName(name)
         setSkillEditored(true)
-        // setSkillConfigureOpen(true)
     }
 
     const handleGetSkills = async () => {
@@ -163,15 +161,16 @@ const SkillsPanel = () => {
                             <span className="text-xs text-gray-400">({skills?.length || 0})</span>
                         </div>
                     }
-                    onAdd={handleShowSkillEditor}
+                    onAdd={() => {
+                        handleShowSkillEditor(null)
+                    }}
                 >
                     <div className="p-4 space-y-2">
                         {
                             skills?.map((skill, index) => <div
                                 key={`${skill.name}-${index}`}
                                 onClick={() => {
-                                    setCurrentSkillName(skill.name)
-                                    handleShowSkillEditor()
+                                    handleShowSkillEditor(skill.name)
                                 }}
                                 className="group flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                             >

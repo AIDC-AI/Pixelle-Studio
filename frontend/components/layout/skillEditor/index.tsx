@@ -4,8 +4,8 @@ import { useApp } from '@/context'
 import { MCPTool } from '@/types/server'
 import { skillAPI } from '@/lib/skillApi'
 import { Form } from "radix-ui";
-import FormInput from '@/components/ui/formInput'
 import { capitalize, updateOrAddYamlField } from '@/utils/utils'
+import FormInput from '@/components/ui/form/input'
 
 interface Script {
   name: string
@@ -23,7 +23,7 @@ const SkillEditor = () => {
     setIsChangeSkill 
   } = useApp()
 
-    // 初始化表单数据
+  // 初始化表单数据
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -47,6 +47,16 @@ const SkillEditor = () => {
     setCurrentSkillName(null)
   }
 
+  const handleClear = () => {
+    setFormData({
+      name: "",
+      description: "",
+      content: ""
+    })
+    setIsReadOnly(false)
+    setScripts([])
+  }
+
   const handleGetSkillData = async () => {
     if (!!currentSkillName) {
       const res = await skillAPI.getSkill(currentSkillName, user?.uid)
@@ -62,6 +72,8 @@ const SkillEditor = () => {
           getScriptsFromSkill(res.content)
         }
       }
+    } else {
+      handleClear()
     }
   }
 
@@ -383,7 +395,7 @@ const SkillEditor = () => {
                 {scripts.map((script) => (
                   <div
                     key={`${script.server_name}/${script.name}`}
-                    className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-200 group"
+                    className="flex items-center gap-2 p-2 rounded-lg bg-white border border-gray-200 group"
                   >
                     <FileCode className="w-4 h-4 text-green-600 shrink-0" />
                     <span className="flex-1 text-sm text-gray-700 truncate">{script.name}</span>
@@ -415,14 +427,11 @@ const SkillEditor = () => {
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              className={`mb-4 p-4 border-2 border-dashed rounded-lg text-center transition-colors ${
-                dragOverScript 
-                  ? 'border-blue-400 bg-blue-50' 
-                  : 'border-gray-300 bg-white'
-              }`}
+              className={`mb-4 p-4 border-2 border-dashed rounded-lg text-center transition-colors 
+                ${dragOverScript ? "border-blue-400 bg-blue-50" : "border-gray-300 bg-white"}`}
             >
               <p className="text-sm text-gray-500">
-                {dragOverScript ? '释放以添加工具' : '拖拽工具到这里'}
+                {dragOverScript ? "释放以添加工具" : "拖拽工具到这里"}
               </p>
             </div>
             
@@ -436,7 +445,8 @@ const SkillEditor = () => {
                     key={`${tool.server_id}-${tool.name}-${index}`}
                     draggable={!isReadOnly}
                     onDragStart={(e) => handleToolDragStart(e, tool)}
-                    className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-200 cursor-grab hover:border-gray-400 transition-colors group"
+                    className={`flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:border-gray-400 transition-colors group 
+                      ${isReadOnly ? "bg-disabled" : "bg-white cursor-grab"}`}
                   >
                     <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
                     <div className="flex-1 min-w-0">
