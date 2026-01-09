@@ -91,7 +91,7 @@ class ChatRequest(BaseModel):
     file_urls: Optional[List[str]] = None
     file_names: Optional[List[str]] = None  # 上传后的文件名（如 9120.xlsx）
     session_id: Optional[str] = None  # 可选：复用同一会话（Cursor-like）
-    user_id: Optional[str] = None  # 用户ID，用于多租户隔离
+    user_id: Optional[int] = None  # 用户ID，用于多租户隔离
 
 
 class ChatResponse(BaseModel):
@@ -263,7 +263,7 @@ async def process_with_agent(
     user_message: str,
     file_urls: List[str],
     file_names: List[str] = None,
-    user_id: str = None
+    user_id: int = None
 ):
     """
     Process a user message using the single agent.
@@ -427,7 +427,7 @@ async def process_with_agent(
 # ============================================================================
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...), request: Request = None, user_id: Optional[str] = None):
+async def upload_file(file: UploadFile = File(...), request: Request = None, user_id: Optional[int] = None):
     """Upload a file and return a URL for access."""
     try:
         # Determine storage directory based on user_id
@@ -467,7 +467,7 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, use
 
 
 @app.get("/f/{user_id}/{filename}")
-async def get_user_file(user_id: str, filename: str):
+async def get_user_file(user_id: int, filename: str):
     """Serve uploaded files for a specific user."""
     script_root = Path(__file__).parent.parent / "scripts"
     file_path = script_root / user_id / filename
@@ -524,10 +524,12 @@ class UpdateSkillRequest(BaseModel):
     content: str  # Updated SKILL.md content
 
 @app.get("/api/skills")
-async def get_skills(user_id: Optional[str] = None):
+async def get_skills(user_id: Optional[int] = None):
     """Get all available skills metadata (merged view for user)."""
     try:
-        skills = skill_loader.scan_skills(user_id)
+        # Convert user_id to string for file path
+        user_id_str = str(user_id) if user_id is not None else None
+        skills = skill_loader.scan_skills(user_id_str)
         return {
             "skills": [s.to_dict() for s in skills],
             "count": len(skills)
@@ -538,15 +540,17 @@ async def get_skills(user_id: Optional[str] = None):
 
 
 @app.get("/api/skills/{skill_name}")
-async def get_skill_detail(skill_name: str, user_id: Optional[str] = None):
+async def get_skill_detail(skill_name: str, user_id: Optional[int] = None):
     """Get full content of a specific skill."""
     try:
-        content = skill_loader.read_skill(skill_name, user_id)
+        # Convert user_id to string for file path
+        user_id_str = str(user_id) if user_id is not None else None
+        content = skill_loader.read_skill(skill_name, user_id_str)
         if content is None:
             raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
         
-        meta = skill_loader.get_skill_meta(skill_name, user_id)
-        files = skill_loader.list_skill_files(skill_name, user_id)
+        meta = skill_loader.get_skill_meta(skill_name, user_id_str)
+        files = skill_loader.list_skill_files(skill_name, user_id_str)
         
         return {
             "name": skill_name,
@@ -562,7 +566,7 @@ async def get_skill_detail(skill_name: str, user_id: Optional[str] = None):
 
 
 @app.post("/api/skills")
-async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = None):
+async def create_skill(request: CreateSkillRequest, user_id: Optional[int] = None):
     """
     Create a new skill.
     If user_id provided, create in skills/<user_id>, else in skills/default.
@@ -570,7 +574,7 @@ async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = Non
     try:
         # Determine target directory
         skills_root = Path(__file__).parent.parent / "skills"
-        target_subdir = user_id if user_id else "default"
+        target_subdir = str(user_id) if user_id is not None else "default"
         skillset_dir = skills_root / target_subdir
         skillset_dir.mkdir(parents=True, exist_ok=True)
         
@@ -615,14 +619,14 @@ async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = Non
 
 
 @app.put("/api/skills/{skill_name}")
-async def update_skill(skill_name: str, request: UpdateSkillRequest, user_id: Optional[str] = None):
+async def update_skill(skill_name: str, request: UpdateSkillRequest, user_id: Optional[int] = None):
     """
     Update an existing skill.
     Must provide user_id to update user-specific skills.
     """
     try:
         skills_root = Path(__file__).parent.parent / "skills"
-        target_subdir = user_id if user_id else "default"
+        target_subdir = str(user_id) if user_id is not None else "default"
         skillset_dir = skills_root / target_subdir
         
         skill_dir = skillset_dir / skill_name
@@ -668,13 +672,13 @@ async def update_skill(skill_name: str, request: UpdateSkillRequest, user_id: Op
 
 
 @app.delete("/api/skills/{skill_name}")
-async def delete_skill(skill_name: str, user_id: Optional[str] = None):
+async def delete_skill(skill_name: str, user_id: Optional[int] = None):
     """
     Delete a skill and all its files.
     """
     try:
         skills_root = Path(__file__).parent.parent / "skills"
-        target_subdir = user_id if user_id else "default"
+        target_subdir = str(user_id) if user_id is not None else "default"
         skillset_dir = skills_root / target_subdir
         
         skill_dir = skillset_dir / skill_name

@@ -89,7 +89,7 @@ class SkillAgent:
         history_messages: Optional[List[Dict[str, str]]] = None,
         mcp_server_url: Optional[str] = None,
         mcp_server_type: str = "sse",
-        user_id: Optional[str] = None
+        user_id: Optional[int] = None
     ):
         """
         Initialize the agent.
@@ -113,7 +113,8 @@ class SkillAgent:
         self.history_messages = history_messages or []
         self.mcp_server_url = mcp_server_url
         self.mcp_server_type = mcp_server_type
-        self.user_id = user_id
+        # Convert user_id to string for file paths
+        self.user_id = str(user_id) if user_id is not None else None
         
         # Conversation state
         self.messages: List[Dict[str, str]] = []
@@ -774,7 +775,7 @@ async def run_agent(
     user_message: str,
     file_urls: List[str] = None,
     session_id: str = None,
-    user_id: str = None
+    user_id: int = None
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Convenience function to run the agent.

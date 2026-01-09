@@ -139,7 +139,6 @@ export function useChatStorage(sessionId?: string) {
 
   // 初始加载
   useEffect(() => {
-    console.log('-sessionId->', sessionId)
     if (!!sessionId && sessionId !== '') {
       loadMessages(sessionId);
     } else {

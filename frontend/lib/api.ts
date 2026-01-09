@@ -22,7 +22,7 @@ export const api = {
 
     createChat: async (
         message: string,
-        userId: string,
+        userId: number,
         fileUrls?: string[],
         fileNames?: string[],
         sessionId?: string,
