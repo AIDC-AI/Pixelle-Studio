@@ -18,7 +18,7 @@ class MCPServer(Base):
     command = Column(String, nullable=True)  # for stdio
     args = Column(String, nullable=True)  # JSON string array
     error = Column(String, nullable=True)
-    uid = Column(String, ForeignKey('users.uid'), nullable=False, index=True)  # 关联用户
+    uid = Column(Integer, ForeignKey('users.uid'), nullable=False, index=True)  # 关联用户
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -29,7 +29,7 @@ class MCPServer(Base):
 class User(Base):
     __tablename__ = "users"
     
-    uid = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    uid = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, unique=True, nullable=False, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
     password = Column(String, nullable=False)  # hashed password
@@ -51,7 +51,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     session_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    uid = Column(String, nullable=True, index=True)  # User ID for multi-tenancy
+    uid = Column(Integer, nullable=True, index=True)  # User ID for multi-tenancy
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

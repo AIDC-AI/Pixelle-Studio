@@ -28,7 +28,7 @@ export interface MCPServer {
   command?: string | null
   args?: string | null
   error?: string | null
-  uid: string
+  uid: number
   created_at: string
   updated_at: string
   

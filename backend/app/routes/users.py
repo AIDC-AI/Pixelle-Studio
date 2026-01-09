@@ -35,7 +35,7 @@ def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 @router.get("/{uid}", response_model=UserResponse)
 def get_user(
-    uid: str,
+    uid: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -79,7 +79,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @router.put("/{uid}", response_model=UserResponse)
 def update_user(
-    uid: str,
+    uid: int,
     user: UserUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -122,7 +122,7 @@ def update_user(
 
 @router.delete("/{uid}")
 def delete_user(
-    uid: str,
+    uid: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -152,7 +152,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     
     # Create access token
     access_token = create_access_token(
-        data={"sub": user.uid},
+        data={"sub": str(user.uid)},  # Convert uid to string for JWT
         expires_delta=timedelta(minutes=30)
     )
     
