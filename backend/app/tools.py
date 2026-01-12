@@ -162,7 +162,7 @@ async def list_skill_tree(ctx: RunContextWrapper[AgentContext], skill_name: str)
 
 
 @function_tool
-async def execute_code(ctx: RunContextWrapper[AgentContext], code: str) -> str:
+async def execute_code(ctx: RunContextWrapper[AgentContext], code: str = "") -> str:
     """
     Execute Python code and return the results.
     
@@ -181,13 +181,32 @@ async def execute_code(ctx: RunContextWrapper[AgentContext], code: str) -> str:
     Important: Always end your code with a JSON status output using print(json.dumps({...}))
     
     Args:
-        code: Python code to execute. Must be self-contained and executable.
+        code: Python code to execute. Must be self-contained and executable. THIS PARAMETER IS REQUIRED.
     
     Returns:
         Execution results including stdout, stderr, and parsed JSON result.
     """
     context = ctx.context
     context.tool_call_count += 1
+    
+    # Validate code parameter - handle empty/missing code gracefully
+    if not code or not code.strip():
+        logger.warning(f"[Tool] execute_code called with empty code (call #{context.tool_call_count})")
+        return """## Execution Error
+
+**Status**: error
+
+**Error**: The `code` parameter is empty or missing.
+
+**How to fix**: You MUST provide the `code` parameter with valid Python code. Example:
+
+```json
+{
+  "code": "import json\\nprint(json.dumps({'status': 'success', 'result': 'Hello World'}))"
+}
+```
+
+Please retry with the complete Python code you want to execute."""
     
     logger.info(f"[Tool] Executing code (call #{context.tool_call_count})")
     
