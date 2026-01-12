@@ -143,6 +143,7 @@ const VirtualMessageGroup = memo(({ group, isLast }: { group: MessageGroup; isLa
 }, (prevProps, nextProps) => {
     return (
         prevProps.group.id === nextProps.group.id &&
+        prevProps.group.messages.length ===  nextProps.group.messages.length && 
         prevProps.group.isComplete === nextProps.group.isComplete &&
         prevProps.isLast === nextProps.isLast
     );
@@ -233,8 +234,13 @@ const MessageList: React.FC<IProps> = (props) => {
                             lastMessage.type === 'error' ||
                             lastMessage.type === 'output_files';
         
-        // 新消息或最终消息时滚动
-        if (messages.length > lastMessageCountRef.current || isEndMessage || lastMessage.type === 'user') {
+        // 新消息到来时，如果是用户消息或结束消息，强制滚动到底部
+        if (lastMessage.type === 'user' || isEndMessage) {
+            shouldAutoScrollRef.current = true;
+            scrollToBottom();
+        } 
+        // 其他新消息时，只有在自动滚动模式下才滚动
+        else if (messages.length > lastMessageCountRef.current) {
             scrollToBottom();
         }
         
