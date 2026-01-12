@@ -15,6 +15,8 @@ import ExecutionResultItem from "./items/executionResultItem";
 import ResponseItem from "./items/responseItem";
 import SkillLoadedItem from "./items/skillLoadedItem";
 import OutputFilesItem from "./items/outputFilesItem";
+import ToolCallItem from "./items/toolCallItem";
+import ToolResultItem from "./items/toolResultItem";
 import SystemOperationGroup from "./items/systemOperationGroup";
 
 interface IProps {
@@ -24,7 +26,7 @@ interface IProps {
 }
 
 // 系统操作类型的消息
-const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system'];
+const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system', 'tool_call', 'tool_result'];
 
 // 用户交互类型的消息（不放在系统容器里）
 const USER_INTERACTION_TYPES = ['user', 'response', 'result', 'output_files', 'error'];
@@ -80,6 +82,10 @@ const MessageItem = memo(({ msg, isLast }: {
                 return <SkillLoadedItem skillName={msg.skillName || msg.content} />
             case 'output_files':
                 return <OutputFilesItem files={msg.outputFiles || []} />
+            case 'tool_call':
+                return msg.toolCall ? <ToolCallItem toolCall={msg.toolCall} /> : null
+            case 'tool_result':
+                return msg.toolResult ? <ToolResultItem toolResult={msg.toolResult} /> : null
         }
         return null;
     };

@@ -21,18 +21,12 @@ class ResultValidator:
         self.llm_client = llm_client
         self.llm_model = llm_model
         
-        # Import config if needed
-        if self.llm_client is None or self.llm_model is None:
-            from app.llm_adapter import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
-            
-            if self.llm_client is None:
-                self.llm_client = AsyncOpenAI(
-                    api_key=LLM_API_KEY,
-                    base_url=LLM_BASE_URL
-                )
-            
-            if self.llm_model is None:
-                self.llm_model = LLM_MODEL
+        if self.llm_client is None:
+            self.llm_client = AsyncOpenAI()
+        
+        if self.llm_model is None:
+            from app.llm_adapter import DEFAULT_MODEL
+            self.llm_model = DEFAULT_MODEL
     
     async def validate_result(
         self,
