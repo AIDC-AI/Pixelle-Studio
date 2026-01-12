@@ -169,20 +169,25 @@ class SkillLoader:
     def _get_cache_key(self, user_id: Optional[str]) -> str:
         return user_id or "default"
 
-    def scan_skills(self, user_id: Optional[str] = None) -> List[SkillMeta]:
+    def scan_skills(self, user_id: Optional[str] = None, force_refresh: bool = False) -> List[SkillMeta]:
         """
         Scan skills directory and extract metadata from all SKILL.md files.
         Supports layered loading: default -> user (override).
         
         Args:
             user_id: Optional user ID to load custom skills for
+            force_refresh: If True, force rescan even if cached
             
         Returns:
             List of SkillMeta objects (merged)
         """
         cache_key = self._get_cache_key(user_id)
         
-        # Reset cache for this user to ensure fresh scan
+        # Return cached skills if available and not forcing refresh
+        if not force_refresh and cache_key in self._skills_cache and self._skills_cache[cache_key]:
+            return list(self._skills_cache[cache_key].values())
+        
+        # Reset cache for this user for fresh scan
         self._skills_cache[cache_key] = {}
         
         skills_map: Dict[str, SkillMeta] = {}
@@ -296,7 +301,6 @@ class SkillLoader:
             self.scan_skills(user_id)
         
         return self._skills_cache[cache_key].get(skill_name)
-        return result
     
     def read_skill(self, skill_name: str, user_id: Optional[str] = None) -> Optional[str]:
         """

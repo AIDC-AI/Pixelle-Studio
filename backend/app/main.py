@@ -20,7 +20,7 @@ from datetime import datetime
 # Import the simplified agent
 from app.agent import SkillAgent
 # Import modules
-from app.llm_adapter import generate_workflow_script, check_if_workflow_needed
+from app.llm_adapter import generate_workflow_script
 from app.execution.runner import run_script
 from app.mcp_aggregator import MCPAggregator, MCPServerConfig
 # from app.tool_search.selector import select_tools
@@ -111,17 +111,13 @@ class GenerateTitleResponse(BaseModel):
 async def generate_title(request: GenerateTitleRequest):
     """Generate a concise title for a conversation based on user's first message."""
     from openai import AsyncOpenAI
-    
-    # Use the same LLM configuration as llm_adapter
-    LLM_BASE_URL="https://REDACTED_BASE_URL_HOST/v1"
-    LLM_API_KEY="REDACTED_API_KEY"
-    LLM_MODEL="us.anthropic.claude-sonnet-4-20250514-v1:0"
+    from app.llm_adapter import DEFAULT_MODEL
     
     try:
-        client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+        client = AsyncOpenAI()
         
         response = await client.chat.completions.create(
-            model=LLM_MODEL,
+            model=DEFAULT_MODEL,
             messages=[
                 {
                     "role": "system", 
@@ -349,11 +345,21 @@ async def process_with_agent(
                 step_type = event.get("type", "unknown")
                 content = event.get("content")
                 data_json = None
-                if step_type in ("execution_result", "final_result"):
+                
+                # Skip response_delta events (too granular for persistence)
+                if step_type == "response_delta":
+                    db.close()
+                    continue
+                
+                # Events with structured data
+                if step_type in ("execution_result", "final_result", "tool_call", "tool_result"):
                     data_json = json.dumps(event, ensure_ascii=False)
                     content = None
+                
+                # Capture response text for final message
                 if step_type == "response" and isinstance(content, str) and content.strip():
                     final_response_text = content
+                
                 step = ChatStep(
                     chat_id=chat_id,
                     step_index=step_index,
@@ -378,6 +384,16 @@ async def process_with_agent(
                 log.info(f"[{chat_id[:8]}] Executing code #{event.get('execution_count', 0)}")
             elif event_type == "execution_result":
                 log.info(f"[{chat_id[:8]}] Execution result: {event.get('status')}")
+            elif event_type == "tool_call":
+                log.info(f"[{chat_id[:8]}] Tool call: {event.get('name')}")
+            elif event_type == "tool_result":
+                log.info(f"[{chat_id[:8]}] Tool result: {event.get('name')}")
+            elif event_type == "response_delta":
+                pass  # Don't log deltas (too verbose)
+            elif event_type == "response":
+                log.info(f"[{chat_id[:8]}] Response: {str(event.get('content', ''))[:50]}...")
+            elif event_type == "skill_loaded":
+                log.info(f"[{chat_id[:8]}] Skill loaded: {event.get('skill_name')}")
             elif event_type == "final_result":
                 log.info(f"[{chat_id[:8]}] Final: {event.get('status')}")
 
