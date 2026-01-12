@@ -98,7 +98,7 @@ const MessageItem = memo(({ msg, isLast }: {
 MessageItem.displayName = 'MessageItem';
 
 // 虚拟化的消息组渲染器
-const VirtualMessageGroup = memo(({ group, isLast }: { group: MessageGroup; isLast: boolean }) => {
+const VirtualMessageGroup = memo(({ group, isLastGroup }: { group: MessageGroup; isLastGroup: boolean }) => {
     const getMessageClass = (msg: Message) => {
         if (msg.type === 'user') {
             return 'self-end max-w-[85%]';
@@ -116,6 +116,9 @@ const VirtualMessageGroup = memo(({ group, isLast }: { group: MessageGroup; isLa
     };
 
     if (group.type === 'system_operations') {
+        const isAllSystemMessage = !isLastGroup && group.messages?.findIndex((message) => message.type !== 'system') === -1
+        if (!group.messages || group.messages?.length === 0 || isAllSystemMessage)
+            return null
         return (
             <div className="self-start w-full max-w-[90%] mb-4">
                 <SystemOperationGroup isComplete={group.isComplete}>
@@ -123,7 +126,7 @@ const VirtualMessageGroup = memo(({ group, isLast }: { group: MessageGroup; isLa
                         <MessageItem
                             key={`${msg.timestamp}-${msgIndex}`}
                             msg={msg}
-                            isLast={isLast && msgIndex === group.messages.length - 1}
+                            isLast={msgIndex === group.messages.length - 1}
                         />
                     ))}
                 </SystemOperationGroup>
@@ -135,7 +138,7 @@ const VirtualMessageGroup = memo(({ group, isLast }: { group: MessageGroup; isLa
             <div className={`flex flex-col mb-4 ${getMessageClass(msg)}`}>
                 <MessageItem
                     msg={msg}
-                    isLast={isLast}
+                    isLast={true}
                 />
             </div>
         );
@@ -145,7 +148,7 @@ const VirtualMessageGroup = memo(({ group, isLast }: { group: MessageGroup; isLa
         prevProps.group.id === nextProps.group.id &&
         prevProps.group.messages.length ===  nextProps.group.messages.length && 
         prevProps.group.isComplete === nextProps.group.isComplete &&
-        prevProps.isLast === nextProps.isLast
+        prevProps.isLastGroup === nextProps.isLastGroup
     );
 });
 
@@ -273,7 +276,7 @@ const MessageList: React.FC<IProps> = (props) => {
                     <VirtualMessageGroup
                         key={group.id}
                         group={group}
-                        isLast={index === groupedMessages.length - 1}
+                        isLastGroup={index === groupedMessages.length - 1}
                     />
                 ))}
                 {currentScript && (
