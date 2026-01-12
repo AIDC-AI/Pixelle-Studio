@@ -1,6 +1,6 @@
 'use client'
 
-import { Message, ExecutionResult, OutputFile } from "@/types/message";
+import { Message, ExecutionResult, OutputFile, ToolCallInfo, ToolResultInfo } from "@/types/message";
 import { useEffect, useState, useRef, useCallback } from "react";
 import MessageList from "./messageList";
 import { UploadFile } from "antd";
@@ -342,6 +342,35 @@ const Chat = () => {
               content: data.content, 
               timestamp: Date.now()
             })
+          } else if (data.type === 'tool_call') {
+            // Handle tool call started event
+            const toolCall: ToolCallInfo = {
+              name: data.name,
+              arguments: data.arguments || {},
+              call_id: data.call_id
+            };
+            _messages.push({
+              type: 'tool_call',
+              content: `🔧 Calling tool: ${data.name}`,
+              timestamp: Date.now(),
+              toolCall
+            })
+          } else if (data.type === 'tool_result') {
+            // Handle tool result event
+            const toolResult: ToolResultInfo = {
+              name: data.name || 'unknown',
+              result: data.result,
+              call_id: data.call_id
+            };
+            _messages.push({
+              type: 'tool_result',
+              content: data.result,
+              timestamp: Date.now(),
+              toolResult
+            })
+          } else if (data.type === 'response_delta') {
+            // Skip streaming deltas - they're handled by accumulated response
+            // Could implement streaming display here if needed
           }
 
           addMessages(currentSessionId, _messages)
