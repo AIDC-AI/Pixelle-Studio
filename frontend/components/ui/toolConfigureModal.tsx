@@ -76,7 +76,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
             url: null,
             headers: null,
             command: null,
-            args: nul
+            args: null
         })
         onClose?.()
     };
