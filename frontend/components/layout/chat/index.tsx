@@ -11,18 +11,14 @@ import LeftPanel from "../leftPanel";
 import SkillEditor from "../skillEditor";
 import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
-import { useMCPServer } from "@/hooks/useMCPServer";
 
 const Chat = () => {
     const { 
       user,
       activeSessionId, 
       setActiveSessionId,
-      skillEditored,
-      setSkillEditored
+      skillEditored
     } = useApp();
-
-    const { tools: mcpTools } = useMCPServer();
 
     const { 
       messages, 
@@ -189,6 +185,7 @@ const Chat = () => {
         const ws = new WebSocket(api.getWebSocketUrl(chat_id));
         wsRef.current = ws;
 
+        let lastToolCallName = ""
         ws.onmessage = (event) => {
           const data = JSON.parse(event.data);
           const _messages: Message[] = []
@@ -344,6 +341,7 @@ const Chat = () => {
             })
           } else if (data.type === 'tool_call') {
             // Handle tool call started event
+            lastToolCallName = data.name
             const toolCall: ToolCallInfo = {
               name: data.name,
               arguments: data.arguments || {},
@@ -357,8 +355,13 @@ const Chat = () => {
             })
           } else if (data.type === 'tool_result') {
             // Handle tool result event
+            let name = data.name
+            // 如果name为unknown，使用之前记录的lastToolCallName
+            if (name === 'unknown') {
+              name = lastToolCallName
+            }
             const toolResult: ToolResultInfo = {
-              name: data.name || 'unknown',
+              name,
               result: data.result,
               call_id: data.call_id
             };
@@ -435,6 +438,7 @@ const Chat = () => {
             <MessageList 
                 messages={messages} 
                 currentScript={currentScript} 
+                isProcessing={isProcessing}
             />
             <Input 
               isProcessing={isProcessing}

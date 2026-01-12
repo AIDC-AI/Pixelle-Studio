@@ -18,10 +18,12 @@ import OutputFilesItem from "./items/outputFilesItem";
 import ToolCallItem from "./items/toolCallItem";
 import ToolResultItem from "./items/toolResultItem";
 import SystemOperationGroup from "./items/systemOperationGroup";
+import LoadingSpinner from "@/components/ui/loadingSpinner";
 
 interface IProps {
     messages?: Message[] | null
     currentScript?: string | null
+    isProcessing?: boolean
     shouldScrollToBottom?: boolean
 }
 
@@ -161,7 +163,7 @@ const VirtualMessageGroup = memo(({ group, isLastGroup }: { group: MessageGroup;
 VirtualMessageGroup.displayName = 'VirtualMessageGroup';
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript } = props;  
+    const { messages, currentScript, isProcessing } = props;  
 
     const containerRef = useRef<HTMLDivElement>(null);
     const shouldAutoScrollRef = useRef(true);
@@ -298,6 +300,11 @@ const MessageList: React.FC<IProps> = (props) => {
                         </div>
                     </div>
                 )}
+                {
+                    isProcessing && <div className="w-full flex justify-center items-center my-2">
+                        <LoadingSpinner type="pulse" />
+                    </div>
+                }
             </div>
         </div>
     )

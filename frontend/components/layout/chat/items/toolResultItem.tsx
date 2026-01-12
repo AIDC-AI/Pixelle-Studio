@@ -14,7 +14,7 @@ const ToolResultItem: React.FC<IProps> = (props) => {
 
     // Determine if result indicates success or error
     const resultStr = String(toolResult.result || '');
-    const isError = resultStr.toLowerCase().includes('error') || 
+    const isError = resultStr.toLowerCase().includes('**status**: error') || 
                     resultStr.toLowerCase().includes('not found') ||
                     resultStr.toLowerCase().includes('failed');
     
