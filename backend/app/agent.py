@@ -14,7 +14,6 @@ error handling patterns and best practices.
 import os
 import json
 import uuid
-import socket
 from pathlib import Path
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from dataclasses import dataclass
@@ -43,6 +42,7 @@ from app.tools import (
     list_mcp_tools,
     SKILL_TOOLS,
 )
+from app.utils.network import LOCAL_IP, SERVER_PORT
 
 from app.llm_adapter import DEFAULT_MODEL
 
@@ -59,21 +59,6 @@ set_trace_processors([OpenAIAgentsTracingProcessor()])
 logging.info(f"DEFAULT_MODEL: {DEFAULT_MODEL}")
 logging.info(f"OPENAI_API_KEY: {os.getenv('OPENAI_API_KEY')}")
 logging.info(f"OPENAI_BASE_URL: {os.getenv('OPENAI_BASE_URL')}")
-
-def get_local_ip():
-    """Get the local IP address of this machine."""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        return "127.0.0.1"
-
-
-LOCAL_IP = get_local_ip()
-SERVER_PORT = 8001  # Default backend port
 
 
 class SkillAgent:

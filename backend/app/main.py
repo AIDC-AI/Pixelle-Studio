@@ -10,10 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
+import os
 import uuid
 import json
 import shutil
-import socket
 from pathlib import Path
 from datetime import datetime
 
@@ -31,6 +31,9 @@ from app.skills.loader import get_skill_loader
 
 # Import logger
 from app.utils.logger import log
+
+# Import network utilities
+from app.utils.network import LOCAL_IP
 
 # Import CRUD routes
 from app.routes import mcp_servers, users
@@ -59,20 +62,7 @@ app.add_middleware(
 # STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_local_ip():
-    """Get the local IP address of this machine."""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        return "127.0.0.1"
-
-
-LOCAL_IP = get_local_ip()
-log.info(f"Local IP address: {LOCAL_IP}")
+log.info(f"Local IP address: {LOCAL_IP} (EXTERNAL_IP env: {os.environ.get('EXTERNAL_IP', 'not set')})")
 
 # NOTE:
 # Previously we used an in-memory `chats` dict keyed by `chat_id` (one user request).

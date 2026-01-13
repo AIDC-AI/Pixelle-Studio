@@ -12,7 +12,6 @@ This module defines 5 tools:
 import os
 import json
 import uuid
-import socket
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
@@ -21,25 +20,10 @@ from agents import function_tool, RunContextWrapper
 
 from app.skills.loader import SkillLoader, get_skill_loader
 from app.execution.runner import run_script
+from app.utils.network import LOCAL_IP, SERVER_PORT
 
 import logging
 logger = logging.getLogger(__name__)
-
-
-def get_local_ip():
-    """Get the local IP address of this machine."""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        return "127.0.0.1"
-
-
-LOCAL_IP = get_local_ip()
-SERVER_PORT = 8001  # Default backend port
 
 
 @dataclass
