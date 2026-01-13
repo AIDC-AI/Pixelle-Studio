@@ -362,15 +362,26 @@ When helping users:
                         # ToolCallItem has data in raw_item (ResponseFunctionToolCall)
                         raw = item.raw_item
                         tool_name = getattr(raw, 'name', None)
-                        tool_args = getattr(raw, 'arguments', None)
+                        tool_args_raw = getattr(raw, 'arguments', None)
                         call_id = getattr(raw, 'call_id', None)
                         
+                        # Log raw arguments for debugging
+                        logger.info(f"[{session_id}] Tool call: {tool_name}")
+                        logger.debug(f"[{session_id}] Raw arguments type: {type(tool_args_raw)}, value: {repr(tool_args_raw)[:500]}")
+                        
                         # Parse arguments if string
+                        tool_args = tool_args_raw
                         if isinstance(tool_args, str):
                             try:
                                 tool_args = json.loads(tool_args)
-                            except:
+                            except Exception as e:
+                                logger.warning(f"[{session_id}] Failed to parse tool args: {e}, raw: {repr(tool_args_raw)[:200]}")
                                 tool_args = {"raw": tool_args}
+                        
+                        # Check for empty execute_code arguments (common model issue)
+                        if tool_name == "execute_code":
+                            if not tool_args or not tool_args.get("code"):
+                                logger.warning(f"[{session_id}] execute_code called with empty/missing code parameter. Raw args: {repr(tool_args_raw)[:200]}")
                         
                         yield {
                             "type": "tool_call",

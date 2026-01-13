@@ -191,24 +191,33 @@ async def execute_code(ctx: RunContextWrapper[AgentContext], code: str = "") -> 
     
     # Validate code parameter - handle empty/missing code gracefully
     if not code or not code.strip():
-        logger.warning(f"[Tool] execute_code called with empty code (call #{context.tool_call_count})")
+        logger.warning(f"[Tool] execute_code called with empty code (call #{context.tool_call_count}), received: {repr(code)[:100]}")
         return """## Execution Error
 
 **Status**: error
 
-**Error**: The `code` parameter is empty or missing.
+**Error**: The `code` parameter is empty or missing. This is a CRITICAL error.
 
-**How to fix**: You MUST provide the `code` parameter with valid Python code. Example:
+**IMPORTANT**: The `execute_code` tool REQUIRES the `code` parameter to contain valid Python code.
 
+**Correct usage example**:
 ```json
 {
-  "code": "import json\\nprint(json.dumps({'status': 'success', 'result': 'Hello World'}))"
+  "code": "import json\\nimport pandas as pd\\n\\n# Your code here\\nprint(json.dumps({'status': 'success', 'result': 'Done'}))"
 }
 ```
 
-Please retry with the complete Python code you want to execute."""
+**Common causes of this error**:
+1. The code argument was not provided in the tool call
+2. The code string was empty or contained only whitespace
+3. The tool call JSON was malformed
+
+**Action required**: Please retry by calling execute_code with the complete Python code in the `code` parameter. Make sure to:
+1. Include ALL necessary imports at the top
+2. Include the complete logic you want to execute
+3. End with a print(json.dumps({...})) statement"""
     
-    logger.info(f"[Tool] Executing code (call #{context.tool_call_count})")
+    logger.info(f"[Tool] Executing code (call #{context.tool_call_count}), code length: {len(code)} chars")
     
     # Build skill helpers injection code
     skill_helpers_code = _build_skill_helpers_code(context)
