@@ -131,10 +131,10 @@ const Chat = () => {
           ?.filter((file) => !!file?.name)
           .map((file) => file.name as string)
       const outputFiles = doneFiles
-          ?.filter((file) => file?.url && file?.name)
+          ?.filter((file) => !!file?.url && !!file?.name)
           .map((file) => ({
-            file_name: file?.name,
-            file_url: file?.url,
+            file_name: file.name,
+            file_url: file.url!,
             file_size: file.size || 0
           }))
           
