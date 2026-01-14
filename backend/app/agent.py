@@ -112,26 +112,14 @@ class SkillAgent:
     @staticmethod
     def _extract_execute_blocks(text: str) -> List[str]:
         """
-        从LLM响应中提取<execute lang="python">...</execute>标记的代码块。
-        
-        支持格式：
-        - <execute lang="python">code</execute>
-        - <execute lang="python">
-          code
-          </execute>
+        Extract code from <execute lang="python">...</execute> blocks.
         
         Returns:
-            List[str]: 提取的代码块列表
+            List[str]: Extracted code blocks
         """
-        # 正则匹配：<execute lang="python">...</execute>
-        # 使用DOTALL模式支持多行代码
         pattern = r'<execute\s+lang=["\']python["\']\s*>(.*?)</execute>'
         matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
-        
-        # 清理每个代码块（去除首尾空白）
-        code_blocks = [match.strip() for match in matches if match.strip()]
-        
-        return code_blocks
+        return [match.strip() for match in matches if match.strip()]
     
     def _build_system_prompt(self) -> str:
         """Build the system prompt with skills in XML format."""
@@ -155,60 +143,41 @@ Use these tools to help users accomplish their tasks effectively.
 {skills_xml}
 
 <code_execution_rules>
-**CRITICAL: How to Execute Code**
+**How to Execute Python Code**:
 
-To execute Python code, you MUST use this two-step process:
+1. Write code in `<execute lang="python">...</execute>` tags
+2. Call `execute_code()` with NO parameters - code is extracted automatically
 
-**Step 1: Write code in <execute> tags**
+**Example**:
 ```
+I'll create the HTML files:
+
 <execute lang="python">
 import json
 import os
 
 html_content = '''<!DOCTYPE html>
-<html>
-<body>
-  <h1>Hello World</h1>
-</body>
-</html>'''
+<html><body><h1>Hello</h1></body></html>'''
 
-with open("output.html", "w") as f:
+with open(script_path("output.html"), "w") as f:
     f.write(html_content)
 
 print(json.dumps({{"status": "success", "result": "File created"}}))
 </execute>
 ```
 
-**Step 2: Call execute_code() tool**
-Immediately after the </execute> tag, call execute_code() with no parameters.
-
-**Complete example**:
-```
-I'll create the HTML files:
-
-<execute lang="python">
-import json
-with open("output.html", "w") as f:
-    f.write("<html><body>Hello</body></html>")
-print(json.dumps({{"status": "success"}}))
-</execute>
-
-Now executing the code above.
-```
-
 Then call: execute_code()
 
 **Rules**:
-1. **ALWAYS use <execute lang="python">...</execute> tags** for ALL code execution
-2. Write COMPLETE, self-contained code (include all imports)
-3. You can have multiple `<execute>` blocks; each execute_code() call consumes one from the queue
-4. Print JSON result: `print(json.dumps({{"status": "success", "result": "..."}}))`
-5. **NEVER call execute_code() before writing the <execute> block** - code must be in your response FIRST
-
-**Common mistakes to avoid**:
-- ❌ Calling execute_code() without any <execute> block in your response
-- ❌ Writing code as plain text instead of in <execute> tags
-- ❌ Calling execute_code() before the <execute> block appears in your response
+- **CRITICAL: Each execute block runs as an INDEPENDENT Python script**
+- Variables, DataFrames, and objects DO NOT persist between execute blocks
+- Every execute block MUST be FULLY self-contained:
+  - Include ALL imports (pandas, json, etc.)
+  - Re-read input files if needed (e.g., `df = pd.read_csv(script_path('file.csv'))`)
+  - Include ALL processing logic
+- If you need to both analyze AND generate output, put ALL code in ONE execute block
+- Always print JSON result at the end
+- **Each execute_code() call runs the MOST RECENT (last) <execute> block in your response**
 
 <pre_injected_helpers>
 The following helper functions are automatically available in your Python code:
@@ -259,13 +228,6 @@ print(json.dumps({{
 ```
 </output_format>
 
-<tool_call_format>
-**execute_code tool call format**:
-- CORRECT: {{"code": "import json\\nprint(json.dumps({{'status':'success'}}))"}}
-- WRONG: {{}} (empty arguments will fail)
-
-Always include the `code` parameter with valid Python code.
-</tool_call_format>
 </code_execution_rules>
 
 <skill_usage>
@@ -418,10 +380,10 @@ When helping users:
                         if content_text:
                             current_response_text += content_text
                             
-                            # Extract <execute> tagged code blocks
+                            # Extract <execute> blocks from accumulated response
                             execute_blocks = self._extract_execute_blocks(current_response_text)
                             
-                            # Add newly extracted code blocks to queue (avoid duplicates)
+                            # Add newly found blocks to queue (avoid duplicates)
                             existing_count = len(agent_context.pending_code_queue)
                             for block in execute_blocks[existing_count:]:
                                 agent_context.pending_code_queue.append(block)
@@ -559,23 +521,6 @@ When helping users:
                 "status": "error",
                 "result": {"error": str(e)}
             }
-        finally:
-            # Check and clear pending code queue
-            if agent_context.pending_code_queue:
-                remaining_count = len(agent_context.pending_code_queue)
-                remaining_code_preview = agent_context.pending_code_queue[0][:100] + "..." if agent_context.pending_code_queue[0] else ""
-                
-                logger.warning(f"[{session_id}] Run ended with {remaining_count} unused code blocks in queue")
-                
-                # Return error event to inform LLM
-                yield {
-                    "type": "error",
-                    "content": f"WARNING: {remaining_count} code block(s) were marked with <execute> but never executed. First block preview: {remaining_code_preview}. Did you forget to call execute_code()?"
-                }
-                
-                # Clear queue
-                agent_context.pending_code_queue.clear()
-                logger.info(f"[{session_id}] Cleared pending_code_queue")
     
     def _parse_execution_result(self, result_text: str) -> Optional[Dict[str, Any]]:
         """Parse the formatted execution result text back to structured data."""

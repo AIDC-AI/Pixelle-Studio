@@ -38,9 +38,7 @@ class AgentContext:
     mcp_server_type: str = "sse"
     loaded_skills: Dict[str, str] = field(default_factory=dict)
     tool_call_count: int = 0
-    
-    # Code extraction queue for <execute> tags
-    pending_code_queue: List[str] = field(default_factory=list)
+    pending_code_queue: List[str] = field(default_factory=list)  # Queue for <execute> blocks
     
     def __post_init__(self):
         """Ensure script_dir exists."""
@@ -151,10 +149,12 @@ async def list_skill_tree(ctx: RunContextWrapper[AgentContext], skill_name: str)
 @function_tool
 async def execute_code(ctx: RunContextWrapper[AgentContext]) -> str:
     """
-    Execute Python code that was marked with <execute lang="python">...</execute> tags.
+    Execute Python code from the most recent <execute lang="python">...</execute> block in your response.
     
-    This tool retrieves code from the context queue that was extracted from your response.
-    You MUST write code in <execute> tags BEFORE calling this tool.
+    WORKFLOW:
+    1. Write code in <execute lang="python">...</execute> tags in your response
+    2. Call execute_code() with no parameters
+    3. The code will be automatically extracted and executed
     
     Returns:
         Execution results including stdout, stderr, and parsed JSON result.
@@ -162,43 +162,27 @@ async def execute_code(ctx: RunContextWrapper[AgentContext]) -> str:
     context = ctx.context
     context.tool_call_count += 1
     
-    # Get code from context queue
-    if context.pending_code_queue:
-        source_code = context.pending_code_queue.pop(0)
-        logger.info(f"[Tool] execute_code retrieved code from queue (call #{context.tool_call_count}), length: {len(source_code)} chars, remaining: {len(context.pending_code_queue)}")
-    else:
-        # No code available in queue
-        logger.warning(f"[Tool] execute_code called with empty queue (call #{context.tool_call_count})")
-        return """## NO CODE IN QUEUE
+    # Get code from the queue - always take the LAST one (most recent)
+    if not context.pending_code_queue:
+        logger.warning(f"[Tool] execute_code called but no code in queue (call #{context.tool_call_count})")
+        return """## No Code Found
 
-**Status**: error
+You called execute_code() but there's no <execute> block in your response yet.
 
-**Problem**: You called execute_code() but there is no code in the queue.
-
-**You must use <execute> tags BEFORE calling execute_code()**:
-
-**Correct workflow**:
+**Write code first**:
 ```
-I will create the files:
-
 <execute lang="python">
 import json
-with open("output.txt", "w") as f:
-    f.write("Hello World")
+# your code here
 print(json.dumps({"status": "success"}))
 </execute>
-
-Now executing the code above.
 ```
 
-Then call execute_code() (no parameters needed).
-
-**Common mistakes**:
-- Calling execute_code() before writing the <execute> block
-- Forgetting to close the </execute> tag
-- Writing code as plain text instead of in <execute> tags"""
+Then call execute_code()."""
     
-    logger.info(f"[Tool] Executing code (call #{context.tool_call_count}), code length: {len(source_code)} chars")
+    # Pop from the end (most recent code)
+    code = context.pending_code_queue.pop()
+    logger.info(f"[Tool] Executing LAST code from queue (call #{context.tool_call_count}), length: {len(code)} chars, remaining: {len(context.pending_code_queue)}")
     
     # Build skill helpers injection code
     skill_helpers_code = _build_skill_helpers_code(context)
@@ -210,7 +194,7 @@ import os
 import subprocess
 from pathlib import Path
 {skill_helpers_code}
-{source_code}
+{code}
 '''
     
     # Save script to scripts/ directory
