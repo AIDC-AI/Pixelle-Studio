@@ -3,7 +3,6 @@
 import { Message, ExecutionResult, OutputFile, ToolCallInfo, ToolResultInfo } from "@/types/message";
 import { useEffect, useState, useRef, useCallback } from "react";
 import MessageList from "./messageList";
-import { UploadFile } from "antd";
 import { api } from "@/lib/api";
 import { useApp } from "@/context";
 import { sessionAPI } from "@/lib/sessionApi";
@@ -11,6 +10,7 @@ import LeftPanel from "../leftPanel";
 import SkillEditor from "../skillEditor";
 import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
+import { UploadFile } from "@/components/ui/upload";
 
 const Chat = () => {
     const { 
@@ -125,16 +125,16 @@ const Chat = () => {
       
       // 直接从 response 中获取，确保数据正确
       const currentFileUrls = doneFiles
-          ?.filter((file) => !!(file?.response?.url || file?.url))
-          .map((file) => (file.response?.url || file.url) as string)
+          ?.filter((file) => !!file?.url)
+          .map((file) => file.url as string)
       const currentFileNames = doneFiles
-          ?.filter((file) => !!file?.response?.file_name)
-          .map((file) => file.response.file_name as string)
+          ?.filter((file) => !!file?.name)
+          .map((file) => file.name as string)
       const outputFiles = doneFiles
-          ?.filter((file) => !!(file?.response?.url || file?.url) && (file?.name))
+          ?.filter((file) => file?.url && file?.name)
           .map((file) => ({
             file_name: file?.name,
-            file_url: file?.response?.url || file?.url,
+            file_url: file?.url,
             file_size: file.size || 0
           }))
           

@@ -1,4 +1,4 @@
-import { Tooltip } from "antd";
+import { HoverCard } from "radix-ui";
 import { useEffect, useRef, useState } from "react";
 
 interface IProps {
@@ -40,23 +40,25 @@ const Description: React.FC<IProps> = (props) => {
     // Only show tooltip if content overflows
     if (isOverflow && description) {
         return (
-            <Tooltip 
-                title={description} 
-                placement="topRight"
-                arrow={false}
-                styles={{
-                    container: {
-                        width: 400,
-                        padding: 12,
-                        borderRadius: 12,
-                        backgroundColor: "var(--color-gray-50)",
-                        color: "var(--color-gray-600)",
-                        boxShadow: 'inset 0 0 8px #ccc',
-                    }
-                }}
-            >
-                {content}
-            </Tooltip>
+            <HoverCard.Root>
+                <HoverCard.Trigger asChild>
+                    {content}
+                </HoverCard.Trigger>
+                <HoverCard.Portal>
+                    <HoverCard.Content 
+                        className="HoverCardContent" 
+                        sideOffset={5}
+                        side="right"
+                    >
+                        <p className="w-100 bg-gray-50 text-gray-600 p-4 rounded-lg shadow-[inset_0_0_8px_#ccc]">
+                            {
+                                description
+                            }
+                        </p>
+                        <HoverCard.Arrow fill="#fff" />
+                    </HoverCard.Content>
+                </HoverCard.Portal>
+            </HoverCard.Root>
         );
     }
 

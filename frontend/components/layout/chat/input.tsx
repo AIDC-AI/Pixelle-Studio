@@ -1,7 +1,7 @@
-import { useApp } from "@/context"
+import { LIST_IGNORE, Upload, UploadFile } from "@/components/ui/upload"
+import { ToastType, useApp } from "@/context"
 import { API_BASE } from "@/lib/data"
-import { Upload, UploadFile, UploadProps } from "antd"
-import { Loader2, Plus, Send, Trash2, Square } from "lucide-react"
+import { Plus, Send, Trash2, Square } from "lucide-react"
 
 interface IProps {
     isProcessing?: boolean
@@ -16,29 +16,16 @@ interface IProps {
 const Input: React.FC<IProps> = (props) => {
     const { isProcessing, input, setInput, fileList = [], setFileList, handleSubmit, onStop } = props 
 
-    const { user } = useApp()
+    const { user, showToast } = useApp()
     
     const beforeUpload = () => {
         if (fileList.length >= 5) {
-            return Upload.LIST_IGNORE
+            showToast(ToastType.ERROR, LIST_IGNORE)
+            return false
         } 
         return true
     }
-    
-    const handleChange: UploadProps['onChange'] = (info) => {
-        // info.fileList 已经是完整的文件列表，不需要再追加
-        let newFileList = info.fileList.map((file) => {
-            if (file.response) {
-                file.url = file.response.url;
-                // 存储本地文件路径，供 Agent 直接使用
-                (file as any).filePath = file.response.file_path;
-            }
-            return file;
-        });
 
-        setFileList?.(newFileList);
-    };
-    
     return (
         <div className="px-4 pb-4">
             {/* Uploaded Files */}
@@ -48,23 +35,33 @@ const Input: React.FC<IProps> = (props) => {
                         {fileList.map((file, index) => (
                             <div
                                 key={index}
-                                className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 cursor-pointer border border-gray-200 hover:border-gray-300 transition-colors"
+                                className={`bg-gray-100 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 cursor-pointer border border-gray-200 hover:border-gray-300 transition-colors
+                                ${file.status === "error" ? "text-red-500" : (file.status === "done" ? "text-gray-700" : "text-disabled")}    `}
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     window.open(file.url, '_blank')
                                 }}
+                                style={{
+                                    background: file.status === "uploading" && file.percent !== undefined
+                                    ? `linear-gradient(to right, #e0f2fe ${file.percent}%, #f3f4f6 ${file.percent}%)`
+                                    : file.status === "error"
+                                        ? "#fee2e2"
+                                        : "#f3f4f6"
+                                }}
                             >
                                 <span className="font-medium">{file.name}</span>
-                                {file?.size && <span className="text-gray-500 text-xs">({(file.size / 1024 / 1024).toFixed(2)}MB)</span>}
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        setFileList?.(files => files.filter((_, i) => i !== index))
-                                    }}
-                                    className="hover:text-red-500 transition-colors"
-                                >
-                                    <Trash2 className="w-4 h-4"/>
-                                </button>
+                                {file?.size && <span className={`text-xs ${file.status === "error" ? "text-red-500" : (file.status === "done" ? "text-gray-500" : "text-disabled")}`}>({(file.size / 1024 / 1024).toFixed(2)}MB)</span>}
+                                {
+                                    file.status === "done" && <button
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            setFileList?.(files => files.filter((_, i) => i !== index))
+                                        }}
+                                        className="hover:text-red-500 transition-colors"
+                                    >
+                                        <Trash2 className="w-4 h-4"/>
+                                    </button>
+                                }
                             </div>
                         ))}
                     </div>
@@ -73,12 +70,22 @@ const Input: React.FC<IProps> = (props) => {
                 <div className="flex h-25 items-center gap-2 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100 transition-all px-3 rounded-2xl">
                     <Upload
                         fileList={fileList}
-                        action={`${API_BASE}/upload${!!user?.uid ? `?user_id=${user?.uid}`: ""}`}
-                        onChange={handleChange}
+                        onChange={({ fileList }) => setFileList?.(fileList)}
                         beforeUpload={beforeUpload}
+                        customRequest={({ file, onProgress, onSuccess, onError }) => {
+                            // Your upload logic
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            
+                            fetch(`${API_BASE}/upload${!!user?.uid ? `?user_id=${user?.uid}`: ""}`, {
+                                method: 'POST',
+                                body: formData,
+                            })
+                            .then(res => res.json())
+                            .then(data => onSuccess(data))
+                            .catch(err => onError(err));
+                        }}
                         showUploadList={false}
-                        multiple
-                        disabled={isProcessing}
                     >
                         <button 
                             className="p-2.5 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors flex-shrink-0 border border-gray-200"
@@ -86,8 +93,7 @@ const Input: React.FC<IProps> = (props) => {
                         >
                             <Plus className="w-5 h-5 text-gray-500" />
                         </button>
-                    </Upload>
-                    
+                    </Upload>                 
                     <textarea
                         value={input}
                         onChange={(e) => setInput?.(e.target.value)}

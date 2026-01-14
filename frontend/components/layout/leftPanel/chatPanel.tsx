@@ -14,7 +14,7 @@ const ChatPanel: React.FC<IProps> = (props) => {
 
     const { 
         activeSessionId,
-        setActiveSessionId, 
+        setActiveSessionId
     } = useApp()
     
     const handleNewSession = () => {

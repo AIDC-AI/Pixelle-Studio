@@ -1,42 +1,48 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, Dispatch, SetStateAction, useContext, useEffect, useRef, useState } from 'react';
 import { sessionAPI } from '@/lib/sessionApi';
-import { message } from 'antd';
-import { MessageInstance } from 'antd/es/message/interface';
 import { UserResponse } from '@/types/user';
 import { userAPI } from '@/lib/userApi';
 import { useRouter, usePathname } from 'next/navigation';
-import { Skill } from '@/types/skill';
 import { MCPTool } from '@/types/server';
+import { Toast } from 'radix-ui';
+import { Check, Lightbulb, X } from 'lucide-react';
+
+export enum ToastType {
+    SUCCESS = 'success',
+    ERROR = 'error',
+    INFO = 'info'
+}
 
 type IProps = {
-    messageApi: MessageInstance
-
     user: UserResponse | null
-    setUser: React.Dispatch<React.SetStateAction<UserResponse | null>>
+    setUser: Dispatch<SetStateAction<UserResponse | null>>
 
     token: string | null
-    setToken: React.Dispatch<React.SetStateAction<string | null>>
+    setToken: Dispatch<SetStateAction<string | null>>
 
     activeSessionId: string
-    setActiveSessionId: React.Dispatch<React.SetStateAction<string>>
+    setActiveSessionId: Dispatch<SetStateAction<string>>
 
     skillEditored: boolean 
-    setSkillEditored: React.Dispatch<React.SetStateAction<boolean>>
+    setSkillEditored: Dispatch<SetStateAction<boolean>>
 
     currentSkillName: string | null
-    setCurrentSkillName: React.Dispatch<React.SetStateAction<string | null>>
+    setCurrentSkillName: Dispatch<SetStateAction<string | null>>
 
     mcpTools: MCPTool[] | null
-    setMcpTools: React.Dispatch<React.SetStateAction<MCPTool[] | null>>
+    setMcpTools: Dispatch<SetStateAction<MCPTool[] | null>>
 
     isChangeSkill: boolean
-    setIsChangeSkill: React.Dispatch<React.SetStateAction<boolean>>
+    setIsChangeSkill: Dispatch<SetStateAction<boolean>>
 
     login: (email: string, password: string) => Promise<void>
     register: (username: string, email: string, password: string) => Promise<boolean>
     logout: () => void
+
+    showToast: (type: ToastType, text: string) => void
+    hideToast: () => void
 };
 
 const AppContext = createContext<IProps | null>(null);
@@ -46,8 +52,6 @@ const PUBLIC_ROUTES = ['/auth']
 export function AppProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-
-    const [messageApi, contextHolder] = message.useMessage();
 
     const [user, setUser] = useState<UserResponse | null>(null)
     const [token, setToken] = useState<string | null>(null)
@@ -59,6 +63,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [mcpTools, setMcpTools] = useState<MCPTool[] | null>(null)
     const [isChangeSkill, setIsChangeSkill] = useState<boolean>(false)
 
+    const [toastOpen, setToastOpen] = useState<boolean>(false)
+    const [toastType, setToastType] = useState<ToastType>(ToastType.INFO)
+    const [toastContent, setToastContent] = useState<string>('')
+    const timerRef = useRef<number | null>(null);
+
     const login = async (email: string, password: string) => {
         try {
             const res = await userAPI.login(email, password)
@@ -68,7 +77,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setUser(res.user)
             }
         } catch (error) {
-            messageApi.error((error as Error)?.message || 'Login Failed!')
+            showToast(ToastType.ERROR, (error as Error)?.message || "登录失败！")
         }
     }
 
@@ -80,11 +89,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 password
             })
             if (!!res) {
-                messageApi.success('Register Successed!')
+                showToast(ToastType.SUCCESS, "注册成功！")
                 return true
             }
         } catch (error) {
-            messageApi.error((error as Error)?.message || 'Register Failed!')
+            showToast(ToastType.ERROR, (error as Error)?.message || "注册失败！")
         }
         return false
     } 
@@ -94,10 +103,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setUser(null)
             setToken(null)
             userAPI.logout()
-            messageApi.success('Logout Successed!')
+            showToast(ToastType.SUCCESS, "登出成功！")
         } catch (error) {
-            messageApi.error((error as Error)?.message || 'Logout Failed!')
+            showToast(ToastType.ERROR, (error as Error)?.message || "登出失败！")
         }
+    }
+
+    const showToast = (type: ToastType, text: string) => {
+        setToastOpen(true)
+        setToastType(type)
+        setToastContent(text)
+        clearTimeout()
+        timerRef.current = window.setTimeout(hideToast, 2000)
+    }
+
+    const hideToast = () => {
+        setToastOpen(false)
+        setToastType(ToastType.INFO)
+        setToastContent('')
     }
 
     const getCurrentUser = async () => {
@@ -112,8 +135,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
     }
 
+    const clearTimeout = () => {
+        if (timerRef.current) {
+            window.clearTimeout(timerRef.current)
+            timerRef.current = null
+        }
+    }
+
+    const renderToastContent = () => {
+        let icon
+        let iconColor = ''
+        switch (toastType) {
+            case ToastType.SUCCESS:
+                icon = <Check />
+                iconColor = "bg-success"
+            break;
+            case ToastType.ERROR:
+                icon = <X />
+                iconColor = "bg-error"
+            break;
+            case ToastType.INFO:
+            default:
+                icon = <Lightbulb />
+                iconColor = "bg-info"
+            break;
+        }
+        return <div className='flex flex-row gap-2 items-center'>
+            <div className={`w-4 h-4 text-white p-0.75 rounded-full flex justify-center items-center ${iconColor}`}>
+                {icon}
+            </div>
+            {toastContent}
+        </div>
+    }
+
     useEffect(() => {
         setActiveSessionId(sessionAPI.getActiveSessionId())
+
+        return clearTimeout
     }, [])
     
     useEffect(() => {
@@ -129,7 +187,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return <AppContext.Provider
         value={
             {
-                messageApi,
                 user, 
                 setUser,
                 token, 
@@ -146,12 +203,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setIsChangeSkill,
                 login,
                 register,
-                logout
+                logout,
+                showToast,
+                hideToast
             }
         }
     >
-        {contextHolder}
         {children}
+        <Toast.Provider swipeDirection="up">
+			<Toast.Root 
+                className="bg-white text-sm text-gray-900 rounded-md px-4 py-2 flex justify-center items-center
+                shadow-[0_10px_38px_-10px_hsl(206_22%_7%/35%),0_10px_20px_-15px_hsl(206_22%_7%/20%)]
+                data-[state=open]:animate-slideIn data-[state=closed]:animate-hide" 
+                open={toastOpen} 
+                onOpenChange={setToastOpen}
+            >
+				{/* <Toast.Title className="ToastTitle">{toastDetail?.title}</Toast.Title> */}
+				<Toast.Description asChild>
+					{renderToastContent()}
+				</Toast.Description>
+			</Toast.Root>
+			<Toast.Viewport className="fixed top-4 left-1/2 -translate-x-1/2 flex flex-col z-9999 outline-none" />
+		</Toast.Provider>
     </AppContext.Provider>;
 }
 
