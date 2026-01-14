@@ -31,9 +31,9 @@ const AuthPage = () => {
         if (!!res) {
           setMode('login')
           setError('')
-          setEmail('')
-          setPassword('')
           setUsername('')
+          // setEmail('')
+          // setPassword('')
         }
       }
     } catch (err: any) {
@@ -46,6 +46,9 @@ const AuthPage = () => {
   const switchMode = () => {
     setMode(mode === 'login' ? 'register' : 'login')
     setError('')
+    setUsername('')
+    setEmail('')
+    setPassword('')
   }
 
   return (
