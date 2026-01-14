@@ -149,18 +149,12 @@ async def list_skill_tree(ctx: RunContextWrapper[AgentContext], skill_name: str)
 
 
 @function_tool
-async def execute_code(ctx: RunContextWrapper[AgentContext], code: str = "") -> str:
+async def execute_code(ctx: RunContextWrapper[AgentContext]) -> str:
     """
-    Execute Python code and return results.
+    Execute Python code that was marked with <execute lang="python">...</execute> tags.
     
-    Code can be provided in two ways:
-    1. Directly via `code` parameter (backward compatible)
-    2. Via <execute lang="python">...</execute> tags in response (new method)
-    
-    The tool will use `code` parameter if provided, otherwise pop from context queue.
-    
-    Args:
-        code: Python code to execute (optional if using <execute> tags)
+    This tool retrieves code from the context queue that was extracted from your response.
+    You MUST write code in <execute> tags BEFORE calling this tool.
     
     Returns:
         Execution results including stdout, stderr, and parsed JSON result.
@@ -168,27 +162,24 @@ async def execute_code(ctx: RunContextWrapper[AgentContext], code: str = "") -> 
     context = ctx.context
     context.tool_call_count += 1
     
-    # Determine code source: parameter first, then queue fallback
-    if code and code.strip():
-        source_code = code
-        logger.info(f"[Tool] execute_code using parameter code (call #{context.tool_call_count}), length: {len(source_code)} chars")
-    elif context.pending_code_queue:
+    # Get code from context queue
+    if context.pending_code_queue:
         source_code = context.pending_code_queue.pop(0)
-        logger.info(f"[Tool] execute_code using extracted code from queue (call #{context.tool_call_count}), length: {len(source_code)} chars, remaining: {len(context.pending_code_queue)}")
+        logger.info(f"[Tool] execute_code retrieved code from queue (call #{context.tool_call_count}), length: {len(source_code)} chars, remaining: {len(context.pending_code_queue)}")
     else:
-        # No code available from either source
-        logger.warning(f"[Tool] execute_code called with no code available (call #{context.tool_call_count})")
-        return """## EMPTY CODE ERROR
+        # No code available in queue
+        logger.warning(f"[Tool] execute_code called with empty queue (call #{context.tool_call_count})")
+        return """## NO CODE IN QUEUE
 
 **Status**: error
 
-**Problem**: No code provided. You must either:
-1. Pass code via the `code` parameter, OR
-2. Use `<execute lang="python">your code</execute>` tags in your response BEFORE calling execute_code()
+**Problem**: You called execute_code() but there is no code in the queue.
 
-**Example using execute tags**:
+**You must use <execute> tags BEFORE calling execute_code()**:
+
+**Correct workflow**:
 ```
-I will create a file:
+I will create the files:
 
 <execute lang="python">
 import json
@@ -197,10 +188,15 @@ with open("output.txt", "w") as f:
 print(json.dumps({"status": "success"}))
 </execute>
 
-Now I'll execute this code.
+Now executing the code above.
 ```
 
-Then call execute_code() without parameters."""
+Then call execute_code() (no parameters needed).
+
+**Common mistakes**:
+- Calling execute_code() before writing the <execute> block
+- Forgetting to close the </execute> tag
+- Writing code as plain text instead of in <execute> tags"""
     
     logger.info(f"[Tool] Executing code (call #{context.tool_call_count}), code length: {len(source_code)} chars")
     

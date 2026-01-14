@@ -155,23 +155,12 @@ Use these tools to help users accomplish their tasks effectively.
 {skills_xml}
 
 <code_execution_rules>
-**Code Execution Methods**:
+**CRITICAL: How to Execute Code**
 
-You can execute Python code in TWO ways:
+To execute Python code, you MUST use this two-step process:
 
-**Method 1: Direct parameter (simple/short code)**
-```json
-{{"code": "import json\\nprint(json.dumps({{'status':'success'}}))"}}
+**Step 1: Write code in <execute> tags**
 ```
-
-**Method 2: Execute tags (recommended for long code)**
-
-Write code in `<execute lang="python">` tags, then call execute_code():
-
-Example:
-```
-I'll create the HTML files:
-
 <execute lang="python">
 import json
 import os
@@ -188,20 +177,38 @@ with open("output.html", "w") as f:
 
 print(json.dumps({{"status": "success", "result": "File created"}}))
 </execute>
+```
+
+**Step 2: Call execute_code() tool**
+Immediately after the </execute> tag, call execute_code() with no parameters.
+
+**Complete example**:
+```
+I'll create the HTML files:
+
+<execute lang="python">
+import json
+with open("output.html", "w") as f:
+    f.write("<html><body>Hello</body></html>")
+print(json.dumps({{"status": "success"}}))
+</execute>
 
 Now executing the code above.
 ```
 
-Then call: execute_code() (no parameters needed)
+Then call: execute_code()
 
 **Rules**:
-1. For code > 30 lines, USE execute tags (avoids JSON escaping issues)
-2. For simple code < 10 lines, either method works
+1. **ALWAYS use <execute lang="python">...</execute> tags** for ALL code execution
+2. Write COMPLETE, self-contained code (include all imports)
 3. You can have multiple `<execute>` blocks; each execute_code() call consumes one from the queue
-4. Self-contained code: Include all imports and logic
-5. Final output: Print JSON with status/result
+4. Print JSON result: `print(json.dumps({{"status": "success", "result": "..."}}))`
+5. **NEVER call execute_code() before writing the <execute> block** - code must be in your response FIRST
 
-**NEVER call execute_code with empty arguments unless you've provided code in execute tags first.**
+**Common mistakes to avoid**:
+- ❌ Calling execute_code() without any <execute> block in your response
+- ❌ Writing code as plain text instead of in <execute> tags
+- ❌ Calling execute_code() before the <execute> block appears in your response
 
 <pre_injected_helpers>
 The following helper functions are automatically available in your Python code:
