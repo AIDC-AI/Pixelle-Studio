@@ -39,6 +39,9 @@ class AgentContext:
     loaded_skills: Dict[str, str] = field(default_factory=dict)
     tool_call_count: int = 0
     
+    # Code extraction queue for <execute> tags
+    pending_code_queue: List[str] = field(default_factory=list)
+    
     def __post_init__(self):
         """Ensure script_dir exists."""
         self.script_dir.mkdir(parents=True, exist_ok=True)
@@ -148,24 +151,16 @@ async def list_skill_tree(ctx: RunContextWrapper[AgentContext], skill_name: str)
 @function_tool
 async def execute_code(ctx: RunContextWrapper[AgentContext], code: str = "") -> str:
     """
-    Execute Python code and return the results.
+    Execute Python code and return results.
     
-    Use this tool when you need to:
-    - Process files (Excel, PowerPoint, etc.)
-    - Perform calculations or data transformations
-    - Call MCP tools for external services
-    - Generate output files
+    Code can be provided in two ways:
+    1. Directly via `code` parameter (backward compatible)
+    2. Via <execute lang="python">...</execute> tags in response (new method)
     
-    The code runs in an isolated environment with these pre-injected helpers:
-    - skill_path(skill_name, relative_path): Get path to skill resources
-    - script_path(filename): Get path to user files in scripts/ directory
-    - call_tool(tool_name, args): Call an MCP tool (async)
-    - list_mcp_tools(): Discover available MCP tools (async)
-    
-    Important: Always end your code with a JSON status output using print(json.dumps({...}))
+    The tool will use `code` parameter if provided, otherwise pop from context queue.
     
     Args:
-        code: Python code to execute. Must be self-contained and executable. THIS PARAMETER IS REQUIRED.
+        code: Python code to execute (optional if using <execute> tags)
     
     Returns:
         Execution results including stdout, stderr, and parsed JSON result.
@@ -173,35 +168,41 @@ async def execute_code(ctx: RunContextWrapper[AgentContext], code: str = "") -> 
     context = ctx.context
     context.tool_call_count += 1
     
-    # Validate code parameter - handle empty/missing code gracefully
-    if not code or not code.strip():
-        logger.warning(f"[Tool] execute_code called with empty code (call #{context.tool_call_count}), received: {repr(code)[:100]}")
-        return """## Execution Error
+    # Determine code source: parameter first, then queue fallback
+    if code and code.strip():
+        source_code = code
+        logger.info(f"[Tool] execute_code using parameter code (call #{context.tool_call_count}), length: {len(source_code)} chars")
+    elif context.pending_code_queue:
+        source_code = context.pending_code_queue.pop(0)
+        logger.info(f"[Tool] execute_code using extracted code from queue (call #{context.tool_call_count}), length: {len(source_code)} chars, remaining: {len(context.pending_code_queue)}")
+    else:
+        # No code available from either source
+        logger.warning(f"[Tool] execute_code called with no code available (call #{context.tool_call_count})")
+        return """## EMPTY CODE ERROR
 
 **Status**: error
 
-**Error**: The `code` parameter is empty or missing. This is a CRITICAL error.
+**Problem**: No code provided. You must either:
+1. Pass code via the `code` parameter, OR
+2. Use `<execute lang="python">your code</execute>` tags in your response BEFORE calling execute_code()
 
-**IMPORTANT**: The `execute_code` tool REQUIRES the `code` parameter to contain valid Python code.
+**Example using execute tags**:
+```
+I will create a file:
 
-**Correct usage example**:
-```json
-{
-  "code": "import json\\nimport pandas as pd\\n\\n# Your code here\\nprint(json.dumps({'status': 'success', 'result': 'Done'}))"
-}
+<execute lang="python">
+import json
+with open("output.txt", "w") as f:
+    f.write("Hello World")
+print(json.dumps({"status": "success"}))
+</execute>
+
+Now I'll execute this code.
 ```
 
-**Common causes of this error**:
-1. The code argument was not provided in the tool call
-2. The code string was empty or contained only whitespace
-3. The tool call JSON was malformed
-
-**Action required**: Please retry by calling execute_code with the complete Python code in the `code` parameter. Make sure to:
-1. Include ALL necessary imports at the top
-2. Include the complete logic you want to execute
-3. End with a print(json.dumps({...})) statement"""
+Then call execute_code() without parameters."""
     
-    logger.info(f"[Tool] Executing code (call #{context.tool_call_count}), code length: {len(code)} chars")
+    logger.info(f"[Tool] Executing code (call #{context.tool_call_count}), code length: {len(source_code)} chars")
     
     # Build skill helpers injection code
     skill_helpers_code = _build_skill_helpers_code(context)
@@ -213,7 +214,7 @@ import os
 import subprocess
 from pathlib import Path
 {skill_helpers_code}
-{code}
+{source_code}
 '''
     
     # Save script to scripts/ directory

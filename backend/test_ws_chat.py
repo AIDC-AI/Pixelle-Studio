@@ -239,7 +239,7 @@ async def test_basic():
     await run_chat_test(request, "Basic Chat")
 
 
-async def test_with_file():
+async def test_xlsx_total_price():
     """
     Test Case 2: Chat with file - Excel processing.
     
@@ -249,11 +249,31 @@ async def test_with_file():
     # Note: Update these URLs to match your actual test files
     request = ChatRequest(
         message="给当前的excel文档，先 单价这列 * 销量这列 = 总价这列，再总价求和获得总营收",
-        file_urls=["http://172.24.0.2:8001/f/1/7654.xlsx"],
+        file_urls=["http://30.150.44.149:8001/f/1/7654.xlsx"],
         file_names=["7654.xlsx"]
     )
     await run_chat_test(request, "Chat with File")
 
+
+async def test_csv_top_10_salary():
+    """
+    Test Case 3: Chat with file - CSV processing.
+    
+    Tests file upload and processing capability.
+    Requires a valid file URL accessible by the server.
+    """
+    request = ChatRequest(
+        message="找出薪资水平处于所属岗位前10%的员工名单,输入的薪资文件表包含列如下:[员工ID,姓名,部门,岗位,职级,月薪,年终奖,入职日期]",
+        file_urls=["http://30.150.44.149:8001/f/1/764d.csv"],
+        file_names=["764d.csv"]
+    )
+    await run_chat_test(request, "Chat with CSV")
+
+async def test_ppt():
+    request = ChatRequest(
+        message="我想生成一份ppt,用来做技术分享,以Claude skills的背景、原理、应用场景、具体案例、总结和展望的大纲来生成。简短的做3页ppt",
+    )
+    await run_chat_test(request, "Chat with PPT")
 
 async def test_multi_turn_session():
     """
@@ -287,7 +307,9 @@ async def test_multi_turn_session():
 
 TEST_CASES = {
     "basic": test_basic,
-    "file": test_with_file,
+    "file": test_xlsx_total_price,
+    "csv": test_csv_top_10_salary,
+    "ppt": test_ppt,
     "session": test_multi_turn_session,
     "all": None,  # Special case to run all tests
 }
@@ -302,7 +324,13 @@ async def run_all_tests():
     await test_basic()
     print("\n" + "-"*60 + "\n")
     
-    await test_with_file()
+    await test_xlsx_total_price()
+    print("\n" + "-"*60 + "\n")
+    
+    await test_csv_top_10_salary()
+    print("\n" + "-"*60 + "\n")
+    
+    await test_ppt()
     print("\n" + "-"*60 + "\n")
     
     await test_multi_turn_session()

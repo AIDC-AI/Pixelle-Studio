@@ -14,6 +14,7 @@ error handling patterns and best practices.
 import os
 import json
 import uuid
+import re
 from pathlib import Path
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from dataclasses import dataclass
@@ -76,7 +77,7 @@ class SkillAgent:
     
     def __init__(
         self, 
-        max_tool_calls: int = 10, 
+        max_tool_calls: int = 20, 
         history_messages: Optional[List[Dict[str, str]]] = None,
         mcp_server_url: Optional[str] = None,
         mcp_server_type: str = "sse",
@@ -108,6 +109,30 @@ class SkillAgent:
         # Backend root directory (contains both skills/ and scripts/)
         self.backend_root = Path(__file__).parent.parent
     
+    @staticmethod
+    def _extract_execute_blocks(text: str) -> List[str]:
+        """
+        从LLM响应中提取<execute lang="python">...</execute>标记的代码块。
+        
+        支持格式：
+        - <execute lang="python">code</execute>
+        - <execute lang="python">
+          code
+          </execute>
+        
+        Returns:
+            List[str]: 提取的代码块列表
+        """
+        # 正则匹配：<execute lang="python">...</execute>
+        # 使用DOTALL模式支持多行代码
+        pattern = r'<execute\s+lang=["\']python["\']\s*>(.*?)</execute>'
+        matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+        
+        # 清理每个代码块（去除首尾空白）
+        code_blocks = [match.strip() for match in matches if match.strip()]
+        
+        return code_blocks
+    
     def _build_system_prompt(self) -> str:
         """Build the system prompt with skills in XML format."""
         # Use XML format for skills (Claude Code style)
@@ -130,11 +155,53 @@ Use these tools to help users accomplish their tasks effectively.
 {skills_xml}
 
 <code_execution_rules>
-When using the execute_code tool:
+**Code Execution Methods**:
 
-1. **Self-contained**: The script must be executable on its own
-2. **Output**: Use `print()` for output you want to see
-3. **Final Result**: Print a JSON object with required keys
+You can execute Python code in TWO ways:
+
+**Method 1: Direct parameter (simple/short code)**
+```json
+{{"code": "import json\\nprint(json.dumps({{'status':'success'}}))"}}
+```
+
+**Method 2: Execute tags (recommended for long code)**
+
+Write code in `<execute lang="python">` tags, then call execute_code():
+
+Example:
+```
+I'll create the HTML files:
+
+<execute lang="python">
+import json
+import os
+
+html_content = '''<!DOCTYPE html>
+<html>
+<body>
+  <h1>Hello World</h1>
+</body>
+</html>'''
+
+with open("output.html", "w") as f:
+    f.write(html_content)
+
+print(json.dumps({{"status": "success", "result": "File created"}}))
+</execute>
+
+Now executing the code above.
+```
+
+Then call: execute_code() (no parameters needed)
+
+**Rules**:
+1. For code > 30 lines, USE execute tags (avoids JSON escaping issues)
+2. For simple code < 10 lines, either method works
+3. You can have multiple `<execute>` blocks; each execute_code() call consumes one from the queue
+4. Self-contained code: Include all imports and logic
+5. Final output: Print JSON with status/result
+
+**NEVER call execute_code with empty arguments unless you've provided code in execute tags first.**
 
 <pre_injected_helpers>
 The following helper functions are automatically available in your Python code:
@@ -184,28 +251,38 @@ print(json.dumps({{
 }}))
 ```
 </output_format>
+
+<tool_call_format>
+**execute_code tool call format**:
+- CORRECT: {{"code": "import json\\nprint(json.dumps({{'status':'success'}}))"}}
+- WRONG: {{}} (empty arguments will fail)
+
+Always include the `code` parameter with valid Python code.
+</tool_call_format>
 </code_execution_rules>
 
 <skill_usage>
-**IMPORTANT**: When a skill is loaded, follow its documentation exactly!
+**CRITICAL**: You MUST strictly follow the loaded skill's documentation!
 
-1. Read the skill's SKILL.md carefully - it contains the correct implementation pattern
-2. Different skills have different execution modes:
-   - Some skills use MCP tool calling (e.g., call_tool())
-   - Some skills use local scripts (subprocess with skill_path())
-   - Some skills use Python libraries directly
-3. Follow the skill's "Implementation Pattern" or "Basic Workflow" section
-4. Do NOT assume a skill needs Node.js or local scripts unless the skill explicitly says so
+When a skill is loaded:
+1. **Read ALL referenced docs FIRST**: If SKILL.md says "Read X.md completely", you MUST read it BEFORE writing any code
+2. **EXTRACT CONSTRAINTS BEFORE CODING**: After reading docs, identify ALL "CRITICAL", "NEVER", "ALWAYS", "MUST" rules. List them mentally and OBEY them
+3. **Follow the EXACT workflow**: Execute steps in the exact order specified. Do not skip steps or reorder
+4. **Do NOT improvise**: Your assumptions may be wrong. The skill doc knows the correct approach
+
+**WARNING**: Common failure mode is reading docs but ignoring constraints. Do NOT do this - every "CRITICAL" or "NEVER" rule exists for a reason.
 </skill_usage>
 
 <decision_flow>
 When helping users:
 
 1. **Simple Questions**: Answer directly without tools
-2. **Domain Tasks**: First use `load_skill` to get guidance, then `execute_code`
+2. **Domain Tasks**: First use `load_skill` to get guidance, then `execute_code` to accomplish the task
 3. **File Processing**: Use `execute_code` with appropriate libraries
 4. **External Services**: Use `list_mcp_tools` to discover tools, then `execute_code` with `call_tool()`
 5. **Errors**: Analyze the error, adjust your approach, and try again
+
+**IMPORTANT**: For any task that produces files (PPT, Excel, images, etc.), you MUST call execute_code to actually generate the files. Just describing or showing code is NOT enough - the user needs the actual output files!
 </decision_flow>
 """        
         return system_prompt
@@ -292,9 +369,7 @@ When helping users:
         )
         
         # Configure run
-        run_config = RunConfig(
-            # max_turns=self.max_tool_calls,
-        )
+        run_config = RunConfig()
         
         try:
             # Run with streaming
@@ -303,6 +378,7 @@ When helping users:
                 input=input_messages,
                 context=agent_context,
                 run_config=run_config,
+                max_turns=self.max_tool_calls,
             )
             
             current_response_text = ""
@@ -334,6 +410,16 @@ When helping users:
                         
                         if content_text:
                             current_response_text += content_text
+                            
+                            # Extract <execute> tagged code blocks
+                            execute_blocks = self._extract_execute_blocks(current_response_text)
+                            
+                            # Add newly extracted code blocks to queue (avoid duplicates)
+                            existing_count = len(agent_context.pending_code_queue)
+                            for block in execute_blocks[existing_count:]:
+                                agent_context.pending_code_queue.append(block)
+                                logger.info(f"[{session_id}] Extracted execute block #{len(agent_context.pending_code_queue)}, length: {len(block)} chars")
+                            
                             yield {
                                 "type": "response_delta",
                                 "content": content_text,
@@ -466,6 +552,23 @@ When helping users:
                 "status": "error",
                 "result": {"error": str(e)}
             }
+        finally:
+            # Check and clear pending code queue
+            if agent_context.pending_code_queue:
+                remaining_count = len(agent_context.pending_code_queue)
+                remaining_code_preview = agent_context.pending_code_queue[0][:100] + "..." if agent_context.pending_code_queue[0] else ""
+                
+                logger.warning(f"[{session_id}] Run ended with {remaining_count} unused code blocks in queue")
+                
+                # Return error event to inform LLM
+                yield {
+                    "type": "error",
+                    "content": f"WARNING: {remaining_count} code block(s) were marked with <execute> but never executed. First block preview: {remaining_code_preview}. Did you forget to call execute_code()?"
+                }
+                
+                # Clear queue
+                agent_context.pending_code_queue.clear()
+                logger.info(f"[{session_id}] Cleared pending_code_queue")
     
     def _parse_execution_result(self, result_text: str) -> Optional[Dict[str, Any]]:
         """Parse the formatted execution result text back to structured data."""
