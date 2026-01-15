@@ -121,6 +121,27 @@ class SkillAgent:
         matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
         return [match.strip() for match in matches if match.strip()]
     
+    @staticmethod
+    def _clean_response_text(text: str) -> str:
+        """
+        Clean response text by removing <execute> code blocks.
+        This is used to generate a clean final answer without code details.
+        
+        Args:
+            text: Raw LLM response text that may contain <execute> blocks
+            
+        Returns:
+            str: Cleaned text suitable for final display
+        """
+        if not text:
+            return text
+        # Remove <execute lang="python">...</execute> blocks
+        pattern = r'<execute\s+lang=["\']python["\']\s*>.*?</execute>'
+        cleaned = re.sub(pattern, '', text, flags=re.DOTALL | re.IGNORECASE)
+        # Clean up excessive whitespace left behind
+        cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+        return cleaned.strip()
+    
     def _build_system_prompt(self) -> str:
         """Build the system prompt with skills in XML format."""
         # Use XML format for skills (Claude Code style)
@@ -492,10 +513,13 @@ When helping users:
                             for content_part in item.content:
                                 if hasattr(content_part, 'text'):
                                     final_output = content_part.text
-                                    yield {
-                                        "type": "response",
-                                        "content": final_output
-                                    }
+                                    # Clean the response content to remove <execute> blocks
+                                    clean_content = self._clean_response_text(final_output)
+                                    if clean_content:  # Only yield if there's content after cleaning
+                                        yield {
+                                            "type": "response",
+                                            "content": clean_content
+                                        }
                 
                 elif isinstance(event, AgentUpdatedStreamEvent):
                     # Agent status update
@@ -507,10 +531,15 @@ When helping users:
             # Get final result - final_output is a property, not a method
             final_result = result.final_output
             
+            # Clean the response text to remove <execute> code blocks for display
+            # The code blocks are internal implementation details, not user-facing content
+            raw_answer = final_result or current_response_text
+            clean_answer = self._clean_response_text(raw_answer)
+            
             yield {
                 "type": "final_result",
                 "status": "success",
-                "result": {"answer": final_result or current_response_text}
+                "result": {"answer": clean_answer}
             }
             
         except Exception as e:
