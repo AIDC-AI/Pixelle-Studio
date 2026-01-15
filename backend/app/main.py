@@ -408,9 +408,17 @@ async def process_with_agent(
                             turn.assistant_message = json.dumps(result_obj, ensure_ascii=False)
 
                         # If final answer is empty, fallback to best-effort response text captured earlier
+                        # Note: final_response_text should already be cleaned by agent.py
                         if (turn.assistant_message is None) or (isinstance(turn.assistant_message, str) and not turn.assistant_message.strip()):
                             if final_response_text:
-                                turn.assistant_message = final_response_text
+                                # Double-check: remove any remaining <execute> blocks
+                                import re
+                                cleaned_fallback = re.sub(
+                                    r'<execute\s+lang=["\']python["\']\s*>.*?</execute>',
+                                    '', final_response_text, flags=re.DOTALL | re.IGNORECASE
+                                )
+                                cleaned_fallback = re.sub(r'\n{3,}', '\n\n', cleaned_fallback).strip()
+                                turn.assistant_message = cleaned_fallback if cleaned_fallback else final_response_text
                         turn.updated_at = datetime.utcnow()
                         db.commit()
                 finally:
