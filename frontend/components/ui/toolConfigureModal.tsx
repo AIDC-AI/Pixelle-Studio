@@ -1,6 +1,6 @@
 import { mcpServerAPI } from "@/lib/mcpServerApi";
 import { useEffect, useState } from "react";
-import { useApp } from "@/context";
+import { ToastType, useApp } from "@/context";
 import { MCPServer, TransportType } from "@/types/server";
 import { Dialog, Form } from "radix-ui";
 import { XCircle } from "lucide-react"
@@ -31,7 +31,7 @@ const connectionTypes = [
 
 const ToolConfigureModal: React.FC<IProps> = (props) => {
     const { open, server, onSuccess, onClose } = props;
-    const { messageApi } = useApp()
+    const { showToast } = useApp()
 
     // 初始化表单数据
     const [formData, setFormData] = useState<ServerFormData>({
@@ -63,7 +63,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
         
         const res = await mcpServerAPI.createServer(serverData as any)
         if (!!res) {
-            messageApi.success('Successed!', 1)
+            showToast(ToastType.SUCCESS, `${!!server ? "编辑成功！" : "添加成功！"}`)
             onSuccess?.()  // 调用成功回调
             handleCancel()
         }

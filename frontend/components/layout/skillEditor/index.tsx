@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X, Save, Upload, Trash2, FileCode, Link, GripVertical, Plus, ArrowUpRight, Play } from 'lucide-react'
-import { useApp } from '@/context'
+import { ToastType, useApp } from '@/context'
 import { MCPTool } from '@/types/server'
 import { skillAPI } from '@/lib/skillApi'
 import { Form } from "radix-ui";
@@ -13,14 +13,14 @@ interface Script {
 }
 
 const SkillEditor = () => {
-  const { 
-    messageApi, 
+  const {  
     user, 
     setSkillEditored, 
     currentSkillName, 
     setCurrentSkillName,
     mcpTools, 
-    setIsChangeSkill 
+    setIsChangeSkill,
+    showToast
   } = useApp()
 
   // 初始化表单数据
@@ -214,7 +214,7 @@ const SkillEditor = () => {
           description: data.description,
           content: data.content
         }, user?.uid)
-        messageApi.success("更新成功！")
+        showToast(ToastType.SUCCESS, "更新成功！")
       } else {
         // 创建
         await skillAPI.createSkill({
@@ -222,14 +222,14 @@ const SkillEditor = () => {
           description: data.description,
           content: data.content
         }, user?.uid)
-        messageApi.success("添加成功！")
+        showToast(ToastType.SUCCESS, "添加成功！")
       }
       setSkillEditored(false)
       setIsChangeSkill(true)
       return null
     } catch (e) {
       console.error('保存请求失败:', e)
-      messageApi.error((e as Error).message || '保存失败')
+      showToast(ToastType.ERROR, (e as Error).message || '保存失败！')
       return null
     } finally {
       setSaving(false)

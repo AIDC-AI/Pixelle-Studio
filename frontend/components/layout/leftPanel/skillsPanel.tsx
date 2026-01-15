@@ -2,24 +2,25 @@ import { Book, Trash2, Wrench } from "lucide-react"
 import { useEffect, useState } from "react"
 import { SkillMeta } from "@/types/skill";
 import ExpandeBox from "@/components/ui/expandeBox";
-import { useApp } from "@/context";
+import { ToastType, useApp } from "@/context";
 import { mcpServerAPI } from "@/lib/mcpServerApi";
 import ToolConfigureModal from "@/components/ui/toolConfigureModal";
 import { MCPServer, MCPTool } from "@/types/server";
 import ServerCard from "@/components/ui/serverCard";
-import { Skeleton } from "antd";
 import { skillAPI } from "@/lib/skillApi";
+import Description from "@/components/ui/desctiption";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const SkillsPanel = () => {
     const { 
-        messageApi,
         user, 
         setSkillEditored, 
         setCurrentSkillName,
         mcpTools, 
         setMcpTools,
         isChangeSkill,
-        setIsChangeSkill
+        setIsChangeSkill,
+        showToast
     } = useApp()
 
     const [loading, setLoading] = useState<boolean>(false);
@@ -56,10 +57,10 @@ const SkillsPanel = () => {
             setSkills(prev => prev.filter((skill) => skill.name !== name))
             setSkillEditored(false)
             setCurrentSkillName(null)
-            messageApi.success('Delete Skill Successed!')
+            showToast(ToastType.SUCCESS, '删除成功！')
         } catch (error) {
             console.error(`Failed to fetch skills:`, error);
-            messageApi.error((error as Error).message || 'Delete Skill Failed!')
+            showToast(ToastType.ERROR, (error as Error).message || '删除失败！')
         }
 
         setLoading(false);
@@ -75,7 +76,7 @@ const SkillsPanel = () => {
             }
         } catch (error) {
             console.error('Failed to fetch MCP servers:', error);
-            messageApi.error((error as Error).message || '获取服务器列表失败');
+            showToast(ToastType.ERROR, (error as Error).message || '获取服务器列表失败！');
         }
 
         setLoading(false);
@@ -85,9 +86,9 @@ const SkillsPanel = () => {
         try {
             await mcpServerAPI.deleteServer(id);
             setMcpServers(prev => [...prev.filter((server) => server.id !== id)])
-            messageApi.success('Delete McpServer Successed!')
+            showToast(ToastType.SUCCESS, '删除成功！')
         } catch (error) {
-            messageApi.error((error as Error).message || 'Delete McpServer Failed!')
+            showToast(ToastType.ERROR, (error as Error).message || '删除失败！')
         }
     };
 
@@ -150,7 +151,7 @@ const SkillsPanel = () => {
 
     return <div className="left-panel p-4 gap-4">
         {
-            loading ? <Skeleton /> : <>
+            loading ? <Skeleton active /> : <>
                 <ExpandeBox 
                     title={
                         <div
@@ -178,7 +179,11 @@ const SkillsPanel = () => {
                                 <div className="flex items-center gap-2">
                                     <p className="text-sm text-gray-800 truncate">{skill.name}</p>
                                 </div>
-                                <p className="text-xs text-gray-500 truncate">{skill.description}</p>
+                                <Description
+                                    lineCount={1}
+                                    description={skill.description}
+                                />
+                                {/* <p className="text-xs text-gray-500 truncate">{skill.description}</p> */}
                                 </div>
                                 {
                                     !skill.is_default && <button
