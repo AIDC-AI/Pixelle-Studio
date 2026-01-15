@@ -35,33 +35,42 @@ const Input: React.FC<IProps> = (props) => {
                         {fileList.map((file, index) => (
                             <div
                                 key={index}
-                                className={`bg-gray-100 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 cursor-pointer border border-gray-200 hover:border-gray-300 transition-colors
-                                ${file.status === "error" ? "text-red-500" : (file.status === "done" ? "text-gray-700" : "text-disabled")}    `}
+                                className={`relative overflow-hidden px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 cursor-pointer border border-gray-200 hover:border-gray-300 transition-colors 
+                                    ${file.status === "error" ? "text-red-500" : "text-gray-700"}`
+                                }
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     window.open(file.url, '_blank')
                                 }}
-                                style={{
-                                    background: file.status === "uploading" && file.percent !== undefined
-                                    ? `linear-gradient(to right, #e0f2fe ${file.percent}%, #f3f4f6 ${file.percent}%)`
-                                    : file.status === "error"
-                                        ? "#fee2e2"
-                                        : "#f3f4f6"
-                                }}
                             >
-                                <span className="font-medium">{file.name}</span>
-                                {file?.size && <span className={`text-xs ${file.status === "error" ? "text-red-500" : (file.status === "done" ? "text-gray-500" : "text-disabled")}`}>({(file.size / 1024 / 1024).toFixed(2)}MB)</span>}
-                                {
-                                    file.status === "done" && <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setFileList?.(files => files.filter((_, i) => i !== index))
-                                        }}
-                                        className="hover:text-red-500 transition-colors"
-                                    >
-                                        <Trash2 className="w-4 h-4"/>
-                                    </button>
-                                }
+                                {/* 进度背景层 */}
+                                {file.status === "uploading" && (
+                                    <div
+                                        className="absolute inset-0 z-1 bg-blue-100 transition-all duration-300"
+                                        style={{ width: `${file.percent || 0}%` }}
+                                    />
+                                )}
+                            
+                                {/* 默认背景 */}
+                                <div className={`absolute inset-0 z-0 ${
+                                    file.status === "error" ? "bg-red-50" : "bg-gray-100"
+                                }`} />
+                                
+                                <div className="relative z-10 flex items-center gap-2 w-full">
+                                    <span className="font-medium">{file.name}</span>
+                                    {file?.size && <span className={`text-xs ${file.status === "error" ? "text-red-500" : "text-gray-500"}`}>({(file.size / 1024 / 1024).toFixed(2)}MB)</span>}
+                                    {
+                                        file.status !== "uploading" && <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                setFileList?.(files => files.filter((_, i) => i !== index))
+                                            }}
+                                            className="hover:text-red-500 transition-colors"
+                                        >
+                                            <Trash2 className="w-4 h-4"/>
+                                        </button>
+                                    }
+                                </div>
                             </div>
                         ))}
                     </div>
