@@ -445,8 +445,8 @@ const SkillEditor = () => {
                     key={`${tool.server_id}-${tool.name}-${index}`}
                     draggable={!isReadOnly}
                     onDragStart={(e) => handleToolDragStart(e, tool)}
-                    className={`flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:border-gray-400 transition-colors group 
-                      ${isReadOnly ? "bg-disabled" : "bg-white cursor-grab"}`}
+                    className={`flex items-center gap-2 p-2 rounded-lg border border-gray-200 transition-colors group 
+                      ${isReadOnly ? "bg-disabled cursor-not-allowed" : "bg-white cursor-grab hover:border-gray-400"}`}
                   >
                     <GripVertical className="w-4 h-4 text-gray-400 shrink-0" />
                     <div className="flex-1 min-w-0">
