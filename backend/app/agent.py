@@ -439,10 +439,16 @@ When helping users:
                                 logger.warning(f"[{session_id}] Failed to parse tool args: {e}, raw: {repr(tool_args_raw)[:200]}")
                                 tool_args = {"raw": tool_args}
                         
-                        # Check for empty execute_code arguments (common model issue)
+                        # Special handling for execute_code - inject code from queue into arguments for frontend display
                         if tool_name == "execute_code":
-                            if not tool_args or not tool_args.get("code"):
-                                logger.warning(f"[{session_id}] execute_code called with empty/missing code parameter. Raw args: {repr(tool_args_raw)[:200]}")
+                            if agent_context.pending_code_queue:
+                                # Peek the last code block (don't pop - execute_code tool will pop it)
+                                code_for_display = agent_context.pending_code_queue[-1]
+                                tool_args = tool_args or {}
+                                tool_args['code'] = code_for_display
+                                logger.info(f"[{session_id}] Injected code into tool_call for frontend (length: {len(code_for_display)} chars)")
+                            else:
+                                logger.warning(f"[{session_id}] execute_code called but no code in pending queue. Raw args: {repr(tool_args_raw)[:200]}")
                         
                         yield {
                             "type": "tool_call",

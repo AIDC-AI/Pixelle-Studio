@@ -16,12 +16,15 @@ const ToolCallItem: React.FC<IProps> = (props) => {
             return 'No arguments';
         }
         
-        // For code arguments, truncate
+        // For code arguments, show lines count and preview
         if (args.code) {
-            const codePreview = args.code.length > 50 
-                ? args.code.substring(0, 50) + '...' 
-                : args.code;
-            return `code: "${codePreview}"`;
+            const code = args.code as string;
+            const lines = code.split('\n').length;
+            const firstLine = code.split('\n')[0]?.trim() || '';
+            const preview = firstLine.length > 60 
+                ? firstLine.substring(0, 60) + '...' 
+                : firstLine;
+            return `${lines} lines: ${preview}`;
         }
         
         // For other arguments
