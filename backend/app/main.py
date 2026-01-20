@@ -112,10 +112,8 @@ async def generate_title(request: GenerateTitleRequest):
     """Generate a concise title for a conversation based on user's first message."""
     from openai import AsyncOpenAI
     
-    # Use the same LLM configuration as llm_adapter
-    LLM_BASE_URL="https://REDACTED_BASE_URL_HOST/v1"
-    LLM_API_KEY="REDACTED_API_KEY"
-    LLM_MODEL="us.anthropic.claude-sonnet-4-20250514-v1:0"
+    # Use the same LLM configuration as llm_adapter - 从环境变量读取
+    from app.llm_adapter import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
     
     try:
         client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)

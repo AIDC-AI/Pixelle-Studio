@@ -12,6 +12,7 @@ import SkillEditor from "../skillEditor";
 import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
 import { useMCPServer } from "@/hooks/useMCPServer";
+import FilePreview from "./filePreview";
 
 const Chat = () => {
     const { 
@@ -41,15 +42,66 @@ const Chat = () => {
     const [fileList, setFileList] = useState<UploadFile[]>([]);
     const [currentScript, setCurrentScript] = useState<string | null>(null);
     
+    // 文件预览状态
+    const [previewFile, setPreviewFile] = useState<OutputFile | null>(null);
+    
     // WebSocket 引用，用于停止推理
     const wsRef = useRef<WebSocket | null>(null);
     
-    // 左侧面板宽度拖拽
+    // 左侧面板宽度
     const [leftPanelWidth, setLeftPanelWidth] = useState<number>(256);
-    const [isDragging, setIsDragging] = useState<boolean>(false);
     const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false);
-    const dragStartXRef = useRef<number>(0);
-    const dragStartWidthRef = useRef<number>(256);
+    
+    // 预览面板宽度百分比
+    const [previewWidthPercent, setPreviewWidthPercent] = useState<number>(50);
+    
+    // 拖拽状态使用 ref，避免闭包问题
+    const dragStateRef = useRef<{
+        isDragging: 'left' | 'preview' | null;
+        startX: number;
+        startValue: number;
+    }>({ isDragging: null, startX: 0, startValue: 0 });
+    
+    // 容器 ref
+    const containerRef = useRef<HTMLDivElement>(null);
+    
+    // 强制更新用于拖拽视觉反馈
+    const [, forceUpdate] = useState({});
+
+    // 检查文件是否可预览
+    const canPreviewFile = (filename: string): boolean => {
+        const ext = filename.split('.').pop()?.toLowerCase() || '';
+        return ['html', 'htm', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'txt', 'md'].includes(ext);
+    };
+
+    // 自动预览可预览的文件
+    const autoPreviewFile = (files: OutputFile[]) => {
+        // 优先预览 HTML 文件
+        const htmlFile = files.find(f => {
+            const ext = f.file_name.split('.').pop()?.toLowerCase() || '';
+            return ['html', 'htm'].includes(ext);
+        });
+        if (htmlFile) {
+            setPreviewFile(htmlFile);
+            return;
+        }
+        
+        // 其次预览图片
+        const imageFile = files.find(f => {
+            const ext = f.file_name.split('.').pop()?.toLowerCase() || '';
+            return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
+        });
+        if (imageFile) {
+            setPreviewFile(imageFile);
+            return;
+        }
+        
+        // 最后预览 PDF 或文本
+        const otherFile = files.find(f => canPreviewFile(f.file_name));
+        if (otherFile) {
+            setPreviewFile(otherFile);
+        }
+    };
 
     const addNewSession = async (title: string) => {
         const session = await createSession(title)
@@ -79,44 +131,79 @@ const Chat = () => {
         setIsProcessing(false);
     }, []);
     
-    // 拖拽处理
-    const handleDragStart = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        setIsDragging(true);
-        dragStartXRef.current = e.clientX;
-        dragStartWidthRef.current = leftPanelWidth;
-    }, [leftPanelWidth]);
-    
-    const handleDragMove = useCallback((e: MouseEvent) => {
-        if (!isDragging) return;
-        
-        const deltaX = e.clientX - dragStartXRef.current;
-        const newWidth = Math.max(200, Math.min(500, dragStartWidthRef.current + deltaX));
-        setLeftPanelWidth(newWidth);
-    }, [isDragging]);
-    
-    const handleDragEnd = useCallback(() => {
-        setIsDragging(false);
-    }, []);
-    
+    // 统一的拖拽处理
     useEffect(() => {
-        if (isDragging) {
-            document.addEventListener('mousemove', handleDragMove);
-            document.addEventListener('mouseup', handleDragEnd);
-            document.body.style.cursor = 'col-resize';
-            document.body.style.userSelect = 'none';
-        }
+        const handleMouseMove = (e: MouseEvent) => {
+            const state = dragStateRef.current;
+            if (!state.isDragging) return;
+            
+            e.preventDefault();
+            
+            if (state.isDragging === 'left') {
+                const deltaX = e.clientX - state.startX;
+                const newWidth = Math.max(200, Math.min(500, state.startValue + deltaX));
+                setLeftPanelWidth(newWidth);
+            } else if (state.isDragging === 'preview' && containerRef.current) {
+                const containerWidth = containerRef.current.offsetWidth;
+                if (containerWidth > 0) {
+                    const deltaX = state.startX - e.clientX;
+                    const deltaPercent = (deltaX / containerWidth) * 100;
+                    const newPercent = Math.max(25, Math.min(75, state.startValue + deltaPercent));
+                    setPreviewWidthPercent(newPercent);
+                }
+            }
+        };
+        
+        const handleMouseUp = () => {
+            if (dragStateRef.current.isDragging) {
+                dragStateRef.current.isDragging = null;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                forceUpdate({});
+            }
+        };
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
         
         return () => {
-            document.removeEventListener('mousemove', handleDragMove);
-            document.removeEventListener('mouseup', handleDragEnd);
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, handleDragMove, handleDragEnd]);
+    }, []);
+    
+    // 开始左侧面板拖拽
+    const handleLeftDragStart = (e: React.MouseEvent) => {
+        e.preventDefault();
+        dragStateRef.current = {
+            isDragging: 'left',
+            startX: e.clientX,
+            startValue: leftPanelWidth
+        };
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        forceUpdate({});
+    };
+    
+    // 开始预览面板拖拽
+    const handlePreviewDragStart = (e: React.MouseEvent) => {
+        e.preventDefault();
+        dragStateRef.current = {
+            isDragging: 'preview',
+            startX: e.clientX,
+            startValue: previewWidthPercent
+        };
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        forceUpdate({});
+    };
 
     const handleSubmit = async () => {
-      if (!input.trim() || isProcessing || !user?.uid) return;
+      console.log('[DEBUG] handleSubmit called, input:', input, 'isProcessing:', isProcessing, 'user:', user);
+      if (!input.trim() || isProcessing || !user?.uid) {
+        console.log('[DEBUG] handleSubmit blocked: input empty?', !input.trim(), 'isProcessing?', isProcessing, 'no user.uid?', !user?.uid);
+        return;
+      }
       
       // 检查是否有文件正在上传
       const uploadingFiles = fileList.filter(f => f.status === 'uploading');
@@ -154,6 +241,20 @@ const Chat = () => {
       // 如果没有，新建一个
       if (!currentSession) {
         currentSession = await addNewSession(input)
+        
+        // 异步生成标题（不阻塞主流程）
+        api.generateTitle(input).then(({ title }) => {
+          if (title && title.length <= 10) {
+            updateSessionTitle(currentSession!.id, title);
+          } else if (title && title.length > 10) {
+            updateSessionTitle(currentSession!.id, title.substring(0, 10));
+          }
+        }).catch((err) => {
+          console.error('Failed to generate title:', err);
+          // 使用input的前10个字符作为fallback
+          const fallbackTitle = input.substring(0, 10);
+          updateSessionTitle(currentSession!.id, fallbackTitle);
+        });
       }
       const currentSessionId = currentSession.id;
       const backendSessionId = currentSession.backendSessionId;
@@ -256,6 +357,9 @@ const Chat = () => {
                 timestamp: Date.now(),
                 outputFiles: outputFiles
               })
+              
+              // 自动预览可预览的文件
+              autoPreviewFile(outputFiles);
             }
           } else if (data.type === 'response') {
             // Handle direct response from agent
@@ -274,6 +378,13 @@ const Chat = () => {
               content: data.skill_name,
               timestamp: Date.now(),
               skillName: data.skill_name
+            })
+          } else if (data.type === 'thinking') {
+            // Handle thinking process from LLM
+            _messages.push({
+              type: 'thinking',
+              content: data.content || data.thinking,
+              timestamp: Date.now()
             })
           } else if (data.type === 'log') {
             _messages.push({
@@ -357,6 +468,8 @@ const Chat = () => {
         };
         
         ws.onclose = () => {
+          console.log('WebSocket closed');
+          setIsProcessing(false);
           wsRef.current = null;
         };
 
@@ -378,11 +491,20 @@ const Chat = () => {
         } 
       )()
     }, [])
+    
+    const isLeftDragging = dragStateRef.current.isDragging === 'left';
+    const isPreviewDragging = dragStateRef.current.isDragging === 'preview';
 
     return (
       <div className="w-screen h-screen flex overflow-hidden">
         {/* Left Panel with dynamic width */}
-        <div style={{ width: isLeftPanelCollapsed ? 48 : leftPanelWidth, flexShrink: 0, transition: 'width 0.2s ease' }}>
+        <div 
+          className="shrink-0 h-full"
+          style={{ 
+            width: isLeftPanelCollapsed ? 48 : leftPanelWidth,
+            transition: isLeftDragging ? 'none' : 'width 0.15s ease-out'
+          }}
+        >
           <LeftPanel 
             sessions={sessions} 
             handleDeleteSession={handleDeleteSession}
@@ -391,33 +513,75 @@ const Chat = () => {
           />
         </div>
         
-        {/* Resizer - 只在面板展开时显示 */}
+        {/* Left Panel Resizer */}
         {!isLeftPanelCollapsed && (
           <div 
-            className={`w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors flex-shrink-0 ${isDragging ? 'bg-blue-500' : ''}`}
-            onMouseDown={handleDragStart}
+            className={`w-1.5 cursor-col-resize flex-shrink-0 transition-colors ${
+              isLeftDragging ? 'bg-blue-500' : 'bg-gray-200 hover:bg-blue-400'
+            }`}
+            onMouseDown={handleLeftDragStart}
+            style={{ touchAction: 'none' }}
           />
         )}
         
-        {/* Main Chat Area */}
-        <div className="flex flex-col bg-gray-50 flex-1 h-full overflow-x-hidden">
-            <MessageList 
-                messages={messages} 
-                currentScript={currentScript} 
-            />
-            <Input 
-              isProcessing={isProcessing}
-              input={input}
-              setInput={setInput}
-              fileList={fileList}
-              setFileList={setFileList}
-              handleSubmit={handleSubmit}
-              onStop={handleStop}
-            />
+        {/* Main Content Area (Chat + Preview) */}
+        <div ref={containerRef} className="flex flex-1 h-full overflow-hidden min-w-0">
+          {/* Chat Area */}
+          <div 
+            className="flex flex-col bg-gray-50 h-full overflow-hidden"
+            style={{ 
+              width: previewFile ? `${100 - previewWidthPercent}%` : '100%',
+              flexShrink: 0,
+              transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
+            }}
+          >
+              <MessageList 
+                  messages={messages} 
+                  currentScript={currentScript}
+                  onFilePreview={setPreviewFile}
+              />
+              <Input 
+                isProcessing={isProcessing}
+                input={input}
+                setInput={setInput}
+                fileList={fileList}
+                setFileList={setFileList}
+                handleSubmit={handleSubmit}
+                onStop={handleStop}
+              />
+          </div>
+          
+          {/* Preview Panel with Resizer */}
+          {previewFile && (
+            <>
+              {/* Preview Resizer */}
+              <div 
+                className={`w-1.5 cursor-col-resize flex-shrink-0 transition-colors ${
+                  isPreviewDragging ? 'bg-orange-500' : 'bg-gray-200 hover:bg-orange-400'
+                }`}
+                onMouseDown={handlePreviewDragStart}
+                style={{ touchAction: 'none' }}
+              />
+              
+              {/* Preview Panel */}
+              <div 
+                className="h-full overflow-hidden"
+                style={{ 
+                  width: `${previewWidthPercent}%`,
+                  flexShrink: 0,
+                  transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
+                }}
+              >
+                <FilePreview 
+                  file={previewFile}
+                  onClose={() => setPreviewFile(null)}
+                />
+              </div>
+            </>
+          )}
         </div>
-        {
-          skillEditored && <SkillEditor />
-        }
+        
+        {skillEditored && <SkillEditor />}
       </div>
     );
 };

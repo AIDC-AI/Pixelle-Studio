@@ -563,6 +563,18 @@ from pathlib import Path
                 # Reset retry counter on successful response
                 empty_response_retries = 0
                 
+                # Extract thinking content if present (for thinking models like Claude Sonnet 4 with thinking)
+                # Thinking models return thinking content in the response
+                thinking_content = None
+                if hasattr(msg, 'thinking') and msg.thinking:
+                    thinking_content = msg.thinking
+                elif hasattr(response, 'thinking') and response.thinking:
+                    thinking_content = response.thinking
+                
+                # Send thinking content if available
+                if thinking_content:
+                    yield {"type": "thinking", "content": thinking_content}
+                
                 # Handle truncated response (finish_reason='length')
                 # If code block is incomplete, ask model to continue
                 if finish_reason == 'length':

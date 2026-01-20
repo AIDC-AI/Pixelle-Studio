@@ -1,6 +1,6 @@
 'use client'
 
-import { Message } from "@/types/message";
+import { Message, OutputFile } from "@/types/message";
 import { useEffect, useRef, useMemo } from "react";
 import UserItem from "./items/userItem";
 import SystemItem from "./items/systemItem";
@@ -16,15 +16,17 @@ import ResponseItem from "./items/responseItem";
 import SkillLoadedItem from "./items/skillLoadedItem";
 import OutputFilesItem from "./items/outputFilesItem";
 import SystemOperationGroup from "./items/systemOperationGroup";
+import ThinkingItem from "./items/thinkingItem";
 
 interface IProps {
     messages?: Message[] | null
     currentScript?: string | null
     shouldScrollToBottom?: boolean
+    onFilePreview?: (file: OutputFile) => void
 }
 
 // 系统操作类型的消息
-const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system'];
+const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system', 'thinking'];
 
 // 用户交互类型的消息（不放在系统容器里）
 const USER_INTERACTION_TYPES = ['user', 'response', 'result', 'output_files', 'error'];
@@ -36,7 +38,7 @@ interface MessageGroup {
 }
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, shouldScrollToBottom = true } = props;  
+    const { messages, currentScript, shouldScrollToBottom = true, onFilePreview } = props;  
 
     const chatEndRef = useRef<HTMLDivElement>(null);
     const lastMessageCountRef = useRef<number>(0);
@@ -143,7 +145,9 @@ const MessageList: React.FC<IProps> = (props) => {
             case 'skill_loaded':
                 return <SkillLoadedItem skillName={msg.skillName || msg.content} />
             case 'output_files':
-                return <OutputFilesItem files={msg.outputFiles || []} />
+                return <OutputFilesItem files={msg.outputFiles || []} onFilePreview={onFilePreview} />
+            case 'thinking':
+                return <ThinkingItem content={msg.content} />
         }
         return null;
     }

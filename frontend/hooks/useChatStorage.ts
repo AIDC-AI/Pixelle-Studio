@@ -3,7 +3,7 @@
  * 提供便捷的聊天记录管理功能
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { chatStorage } from '@/lib/chatStorage';
 import { Message } from '@/types/message';
 import { Session } from '@/types/session';
@@ -31,31 +31,39 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 保存消息
+  // 保存消息（使用乐观更新实现流式效果）
   const saveMessage = useCallback(async (sessId: string, msg: Message, messageId?: string) => {
     try {
-      await chatStorage.saveMessage(sessId, msg, messageId);
-      // 重新加载消息以保持同步
-      await loadMessages(sessId)
+      // 乐观更新：立即更新 UI
+      setMessages(prev => [...prev, msg]);
+      
+      // 后台保存到 IndexedDB（不阻塞 UI）
+      chatStorage.saveMessage(sessId, msg, messageId).catch(err => {
+        console.error('Failed to persist message to storage:', err);
+      });
     } catch (err) {
       setError(err as Error);
       console.error('Failed to save message:', err);
       throw err;
     }
-  }, [loadMessages]);
+  }, []);
 
-  // 批量保存消息
+  // 批量保存消息（使用乐观更新实现流式效果）
   const saveMessages = useCallback(async (sessId: string, msgs: Message[]) => {
     try {
-      await chatStorage.saveMessages(sessId, msgs);
-      // 重新加载消息以保持同步
-      await loadMessages(sessId)
+      // 乐观更新：立即更新 UI
+      setMessages(prev => [...prev, ...msgs]);
+      
+      // 后台保存到 IndexedDB（不阻塞 UI）
+      chatStorage.saveMessages(sessId, msgs).catch(err => {
+        console.error('Failed to persist messages to storage:', err);
+      });
     } catch (err) {
       setError(err as Error);
       console.error('Failed to save message:', err);
       throw err;
     }
-  }, [loadMessages]);
+  }, []);
 
   // 清空当前会话消息
   const clearMessages = useCallback(async (sessId: string) => {
@@ -137,15 +145,29 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 初始加载
+  // 初始加载（使用 ref 避免重新加载导致流式输出中断）
+  const sessionIdRef = useRef<string | undefined>(sessionId);
+  const isInitialLoadRef = useRef(true);
+  
   useEffect(() => {
     console.log('-sessionId->', sessionId)
+    
+    // 如果是同一个session，不重新加载（保持流式输出）
+    if (sessionIdRef.current === sessionId && !isInitialLoadRef.current) {
+      return;
+    }
+    
+    // Session切换或初始加载时才重新加载消息
+    sessionIdRef.current = sessionId;
+    isInitialLoadRef.current = false;
+    
     if (!!sessionId && sessionId !== '') {
       loadMessages(sessionId);
     } else {
       setMessages([])
     }
-  }, [sessionId, loadMessages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps  
+  }, [sessionId]);
 
   return {
     // 状态

@@ -19,7 +19,7 @@ export interface CodeMessage {
 }
 
 export interface Message {
-  type: 'user' | 'system' | 'log' | 'script' | 'result' | 'error' | 'iteration' | 'evaluation' | 'advice' | 'code' | 'execution_result' | 'response' | 'skill_loaded' | 'output_files';
+  type: 'user' | 'system' | 'log' | 'script' | 'result' | 'error' | 'iteration' | 'evaluation' | 'advice' | 'code' | 'execution_result' | 'response' | 'skill_loaded' | 'output_files' | 'thinking';
   content: any;
   timestamp: number;
   iteration?: number;
