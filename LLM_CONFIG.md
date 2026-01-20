@@ -2,63 +2,85 @@
 
 ## Where to Configure
 
-LLM settings are configured in the backend at:
+LLM settings are now configured via **environment variables**, which are loaded from `.env` file when starting the server.
 
-**File**: `/Users/huqingli/Desktop/hql_files/projs/pycharms/mcp-workflow/backend/app/llm_adapter.py`
+**File**: `backend/.env` (create if not exists)
 
-## Configuration Variables
+## Environment Variables
 
-```python
-# LLM Configuration (Lines 6-8)
-LLM_BASE_URL = "https://api.deepseek.com"  # Your LLM API base URL
-LLM_API_KEY = "sk-88435555444444444444444444444444"  # Your API Key
-LLM_MODEL = "deepseek-chat"  # Model name
+```bash
+# Required: OpenAI API Key
+OPENAI_API_KEY=sk-your-api-key-here
+
+# Optional: Custom API Base URL (for compatible providers)
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Optional: Model name (default: gpt-4o)
+OPENAI_MODEL=gpt-4o
 ```
 
 ## Supported LLM Providers
 
-### DeepSeek (Current Default)
-```python
-LLM_BASE_URL = "https://api.deepseek.com"
-LLM_API_KEY = "sk-your-actual-deepseek-key-here"
-LLM_MODEL = "deepseek-chat"
+### OpenAI (Default)
+```bash
+OPENAI_API_KEY=sk-your-openai-key-here
+# OPENAI_BASE_URL is optional, defaults to OpenAI's API
+OPENAI_MODEL=gpt-4o
 ```
 
-### OpenAI
-```python
-LLM_BASE_URL = "https://api.openai.com/v1"
-LLM_API_KEY = "sk-your-openai-key-here"
-LLM_MODEL = "gpt-4"
+### DeepSeek
+```bash
+OPENAI_API_KEY=sk-your-deepseek-key-here
+OPENAI_BASE_URL=https://api.deepseek.com
+OPENAI_MODEL=deepseek-chat
 ```
 
 ### Other OpenAI-Compatible APIs
 Any API that follows the OpenAI chat completions format will work:
-```python
-LLM_BASE_URL = "https://your-api-endpoint.com/v1"
-LLM_API_KEY = "your-api-key"
-LLM_MODEL = "your-model-name"
+```bash
+OPENAI_API_KEY=your-api-key
+OPENAI_BASE_URL=https://your-api-endpoint.com/v1
+OPENAI_MODEL=your-model-name
 ```
 
 ## How to Update
 
-1. Open `backend/app/llm_adapter.py`
-2. Update lines 6-8 with your LLM configuration
-3. Save the file
-4. The backend will auto-reload (if running with `--reload` flag)
+1. Create or edit `backend/.env` file
+2. Add your LLM configuration
+3. Restart the backend server (the `.env` file is loaded by `start_server.sh`)
+
+### Example `.env` file:
+```bash
+# LLM Configuration
+OPENAI_API_KEY=sk-your-actual-key-here
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o
+
+# Other environment variables...
+```
+
+## How Environment Variables are Loaded
+
+The `backend/start_server.sh` script automatically loads all environment variables from `.env`:
+
+```bash
+if [ -f ".env" ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+```
 
 ## Verification
 
 After updating the configuration:
-1. Go to http://localhost:5173/
-2. Select some MCP tools
-3. Enter a request like "给我生成一个主题为治愈原生家庭的视频"
-4. Click Send
-5. You should see the LLM generate a custom script based on your request
+1. Restart the backend with `./start_server.sh`
+2. Go to http://localhost:5173/
+3. Enter a chat message
+4. You should see the LLM responding based on your configuration
 
 ## Current Implementation
 
 The system now:
-- ✅ Uses **real LLM** to generate workflow scripts (not mock)
-- ✅ Makes **real MCP calls** to configured servers (not mock)
-- ✅ Executes generated scripts with actual async tool calls
-- ✅ Handles errors gracefully with fallback scripts
+- ✅ Uses standard OpenAI environment variables (OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL)
+- ✅ OpenAI SDK automatically reads these from environment
+- ✅ Supports any OpenAI-compatible API provider
+- ✅ No hardcoded API keys in source code

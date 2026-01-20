@@ -10,7 +10,6 @@ import { Session } from '@/types/session'
 
 interface IProps {
   sessions?: Session[]
-  handleShowSkillEditor?: () => void
   handleDeleteSession?: (id: string) => void
   isCollapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
@@ -32,7 +31,7 @@ const TABS = [
 ]
 
 const LeftPanel: React.FC<IProps> = (props) => {
-    const { sessions, handleShowSkillEditor, handleDeleteSession, isCollapsed = false, onCollapsedChange } = props
+    const { sessions, handleDeleteSession, isCollapsed = false, onCollapsedChange } = props
 
     const [currentTab, setCurrentTab] = useState<TAB_TYPE>('chat')
 

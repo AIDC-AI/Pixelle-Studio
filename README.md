@@ -2,82 +2,169 @@
 
 ## 项目概述
 
-这是一个基于 Agent + MCP Tools 架构的工作流演示系统。该系统通过生成 Python 脚本的方式，解决了以下问题：
-- 工具数量过多时，Prompt 无法枚举所有工具
-- 需要按顺序调用多个工具，并在工具之间传参
-- 工具可动态加载，无法预先离线处理
+这是一个基于 **OpenAI Agents SDK + Skills + MCP Tools** 架构的智能工作流系统。系统采用单 Agent 架构，通过标准的 Tool Calling 机制实现多轮对话和代码执行。
+
+### 核心特性
+
+- **标准 Tool Calling**: 使用 OpenAI Agents SDK 的 `@function_tool` 装饰器定义工具，符合 OpenAI 规范
+- **渐进式技能加载**: Skills 系统支持按需加载领域知识，避免 Context Window 溢出
+- **流式输出**: 使用 `Runner.run_streamed()` 实现实时流式响应
+- **代码沙箱执行**: 安全执行 Agent 生成的 Python 代码
+- **MCP 工具集成**: 支持连接外部 MCP 服务器调用工具
 
 ## 架构设计
 
-### 后端 (Python + FastAPI + uv)
+### 架构演进
+
+```
+v1.0 (旧架构): LLM Response → 正则解析 [LOAD_SKILL:] / ```python``` → 手动分发执行
+v2.0 (新架构): LLM with tools → tool_calls 字段 → 自动执行 → tool message → LLM 继续
+```
+
+### 核心流程
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Frontend  │────▶│  WebSocket  │────▶│ SkillAgent  │
+└─────────────┘     └─────────────┘     └──────┬──────┘
+                                               │
+                    ┌──────────────────────────┼──────────────────────────┐
+                    │                          ▼                          │
+                    │              ┌─────────────────────┐                │
+                    │              │  OpenAI Agents SDK  │                │
+                    │              │  Runner.run_streamed │                │
+                    │              └──────────┬──────────┘                │
+                    │                         │                           │
+                    │         ┌───────────────┼───────────────┐           │
+                    │         ▼               ▼               ▼           │
+                    │  ┌────────────┐  ┌────────────┐  ┌────────────┐    │
+                    │  │ load_skill │  │execute_code│  │list_mcp_   │    │
+                    │  │            │  │            │  │   tools    │    │
+                    │  └────────────┘  └────────────┘  └────────────┘    │
+                    │                                                     │
+                    │                    5 Tools                          │
+                    └─────────────────────────────────────────────────────┘
+```
+
+### 后端 (Python + FastAPI + OpenAI Agents SDK)
+
 - **端口**: 8001
-- **核心功能**:
-  - REST API 用于工具发现和会话创建
-  - WebSocket 实时流式传输执行日志
-  - 异步脚本执行引擎
-  - LLM 脚本生成（当前为 Mock 实现）
+- **核心模块**:
+  - `app/agent.py` - SkillAgent 使用 OpenAI Agents SDK
+  - `app/tools.py` - 5 个 `@function_tool` 定义
+  - `app/skills/loader.py` - 渐进式技能加载器
+  - `app/execution/runner.py` - 代码沙箱执行引擎
+  - `app/mcp_client.py` - MCP 工具客户端
 
 ### 前端 (React + TypeScript + Next.js + Tailwind)
+
 - **端口**: 3000
 - **核心功能**:
-  - 聊天界面用于自然语言交互
-  - 工具选择侧边栏
-  - 实时日志显示
-  - 脚本预览和结果展示
+  - 聊天界面支持 Tool Call 可视化
+  - 技能管理侧边栏
+  - 实时流式响应显示
+  - 代码执行结果展示
+
+## Tool Calling 系统
+
+### 5 个核心 Tools
+
+| Tool | 功能 | 参数 |
+|------|------|------|
+| `load_skill` | 加载技能文档 (SKILL.md) | `skill_name: str` |
+| `read_skill_file` | 读取技能目录下的文件 | `skill_name: str, file_path: str` |
+| `list_skill_tree` | 列出技能目录结构 | `skill_name: str` |
+| `execute_code` | 执行 Python 代码 | `code: str` |
+| `list_mcp_tools` | 发现可用 MCP 工具 | 无 |
+
+### Tool 定义示例
+
+```python
+from agents import function_tool, RunContextWrapper
+
+@function_tool
+async def load_skill(ctx: RunContextWrapper[AgentContext], skill_name: str) -> str:
+    """Load skill documentation (SKILL.md) for domain-specific guidance."""
+    context = ctx.context
+    skill_content = context.skill_loader.read_skill(skill_name, context.user_id)
+    return skill_content or f"Skill '{skill_name}' not found"
+```
+
+### Agent 执行流程
+
+```python
+from agents import Agent, Runner
+
+agent = Agent(
+    name="SkillAgent",
+    instructions=system_prompt,
+    tools=[load_skill, read_skill_file, list_skill_tree, execute_code, list_mcp_tools],
+    model="gpt-4o",
+)
+
+# 流式执行
+result = Runner.run_streamed(agent, input=messages, context=agent_context)
+
+async for event in result.stream_events():
+    # 处理 tool_call, tool_result, response 等事件
+    yield convert_event(event)
+```
+
+## Skills 系统
+
+### 渐进式加载机制
+
+1. **Level 1 (Metadata)**: 扫描 `skills/` 目录，提取 SKILL.md 的 Frontmatter
+2. **Level 2 (Documentation)**: Agent 调用 `load_skill` 加载完整文档
+3. **Level 3 (Files)**: Agent 调用 `read_skill_file` 读取具体文件
+
+### 技能目录结构
+
+```
+skills/
+├── default/           # 默认技能
+│   ├── xlsx/
+│   │   ├── SKILL.md
+│   │   └── recalc.py
+│   ├── pptx/
+│   │   ├── SKILL.md
+│   │   ├── html2pptx.md
+│   │   └── scripts/
+│   └── ...
+└── <user_id>/         # 用户自定义技能
+    └── ...
+```
 
 ## 快速开始
 
-### 1. 启动后端
+### 1. 环境配置
+
+```bash
+# 设置环境变量
+export OPENAI_API_KEY="your-api-key"
+export OPENAI_BASE_URL="https://api.openai.com/v1"  # 可选
+export LLM_MODEL="gpt-4o"  # 可选，默认 gpt-4o
+```
+
+### 2. 启动后端
 
 ```bash
 cd backend
-uv sync # 首次运行安装依赖
-./start_server.sh # 启动后端
-```
-由于pptx依赖于nodejs，所以需要先安装nodejs。
-```bash
-brew install node
-```
-然后安装依赖
-```bash
-cd backend
-npm install
+uv sync  # 首次运行安装依赖
+./start_server.sh
 ```
 
-### 2. 启动前端
+### 3. 启动前端
 
 ```bash
 cd frontend
 npm install  # 首次运行
-npm run dev # 启动前端
+npm run dev
 ```
 
-### 3. 访问应用
+### 4. 访问应用
 
 打开浏览器访问: http://localhost:3000
-
-## 使用方法
-
-1. 在左侧边栏选择要使用的工具（例如 `google_drive`）
-2. 在输入框中输入自然语言请求（例如："列出我的文件"）
-3. 点击"Send"按钮
-4. 查看生成的工作流脚本
-5. 实时观察执行日志
-6. 查看最终执行结果
-
-## 核心功能验证
-
-### Runner 测试
-
-```bash
-python test_runner.py
-```
-
-该测试验证了脚本执行引擎可以：
-- ✅ 正确执行 Python 脚本
-- ✅ 捕获所有 stdout/stderr 输出
-- ✅ 实时流式传输日志
-- ✅ 返回最终执行结果
 
 ## 项目结构
 
@@ -85,20 +172,34 @@ python test_runner.py
 mcp-workflow/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              # FastAPI 主应用
-│   │   ├── llm_adapter.py       # LLM 脚本生成（当前 Mock）
-│   │   ├── mcp_client.py        # MCP 工具客户端（Mock）
+│   │   ├── agent.py           # SkillAgent (OpenAI Agents SDK)
+│   │   ├── tools.py           # 5 个 @function_tool 定义
+│   │   ├── main.py            # FastAPI 主应用
+│   │   ├── mcp_client.py      # MCP 工具客户端
+│   │   ├── skills/
+│   │   │   └── loader.py      # 渐进式技能加载器
 │   │   └── execution/
-│   │       └── runner.py        # 脚本执行引擎
-│   └── pyproject.toml
+│   │       └── runner.py      # 代码沙箱执行引擎
+│   ├── skills/                # 技能库
+│   │   └── default/
+│   │       ├── xlsx/
+│   │       ├── pptx/
+│   │       └── ...
+│   └── scripts/               # 生成的脚本和用户文件
 ├── frontend/
-│   ├── src/
-│   │   ├── App.tsx              # 主聊天界面
-│   │   ├── api.ts               # 后端通信层
-│   │   └── App.css              # 样式
-│   └── package.json
-├── scripts/                     # 生成的工作流脚本存储
-└── test_runner.py              # Runner 单元测试
+│   ├── components/
+│   │   └── layout/
+│   │       └── chat/
+│   │           ├── index.tsx       # 主聊天组件
+│   │           ├── messageList.tsx # 消息列表
+│   │           └── items/
+│   │               ├── toolCallItem.tsx    # Tool 调用展示
+│   │               ├── toolResultItem.tsx  # Tool 结果展示
+│   │               └── ...
+│   └── types/
+│       └── message.tsx        # 消息类型定义
+└── files/
+    └── Requirement_Spec.md    # 技术规格文档
 ```
 
 ## 技术栈
@@ -106,42 +207,46 @@ mcp-workflow/
 **后端**:
 - Python 3.10+
 - FastAPI - Web 框架
+- OpenAI Agents SDK - Agent 框架
 - Uvicorn - ASGI 服务器
 - WebSockets - 实时通信
+- SQLAlchemy - 数据库 ORM
 
 **前端**:
-- React 19
-- TypeScript 5.3
+- React 19 + TypeScript 5.3
 - Next.js 15
+- Tailwind CSS
+- Ant Design
 
-## 当前状态
+## WebSocket 事件类型
 
-### ✅ 已完成
-- 完整的前后端架构
-- WebSocket 实时通信
-- 脚本生成系统
-- 异步执行引擎
-- 工具选择和管理
-- 日志流式传输
+| 事件类型 | 说明 |
+|---------|------|
+| `status` | Agent 状态更新 |
+| `tool_call` | Tool 调用开始 |
+| `tool_result` | Tool 执行完成 |
+| `code` | 代码生成 |
+| `execution_result` | 代码执行结果 |
+| `response` | Agent 文本响应 |
+| `skill_loaded` | 技能加载完成 |
+| `final_result` | 最终结果 |
+| `error` | 错误信息 |
 
-### 🔄 待优化
-- 集成真实 LLM API
-- 完善错误处理
-- 添加 Docker 沙箱隔离
-- 实现工具检索系统
+## 环境变量
 
-## 下一步改进
-
-1. **集成真实 LLM**: 连接 OpenAI/Anthropic API 生成工作流脚本
-2. **工具检索**: 从向量数据库中检索相关工具（目前返回所有工具）
-3. **沙箱执行**: 使用 Docker 容器隔离脚本执行环境
-4. **结果存储**: 实现大型结果的持久化存储
-5. **认证授权**: 添加用户认证和权限管理
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `OPENAI_API_KEY` | OpenAI API Key | 必填 |
+| `OPENAI_BASE_URL` | API Base URL | https://api.openai.com/v1 |
+| `LLM_MODEL` | 使用的模型 | gpt-4o |
+| `LLM_BASE_URL` | LLM Base URL (备用) | - |
+| `LLM_API_KEY` | LLM API Key (备用) | - |
 
 ## 参考资料
 
+- [OpenAI Agents SDK](https://github.com/openai/openai-agents-python)
 - [Anthropic: Code Execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)
-- 技术架构文档: 见项目根目录的设计文档
+- [Model Context Protocol](https://modelcontextprotocol.io/)
 
 ## License
 

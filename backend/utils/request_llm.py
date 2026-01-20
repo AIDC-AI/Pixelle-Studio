@@ -11,7 +11,7 @@ LLM_MODEL = os.getenv("LLM_MODEL", "us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 
 async def main(req_path: str):
-    client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+    client = AsyncOpenAI()
     with open(req_path, "r") as f:
         req = json.load(f)
     print(f"request: {req}")

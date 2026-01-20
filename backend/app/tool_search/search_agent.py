@@ -1,8 +1,10 @@
 import json
 import select
-from app.llm_adapter import LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
-from openai import AsyncOpenAI
+import os
 from typing import List, Dict, Any, Set, Tuple
+from openai import AsyncOpenAI
+
+from app.llm_adapter import DEFAULT_MODEL
 from app.tool_search.qwen3_embedding import Qwen3Embedding
 import os
 import numpy as np
@@ -51,8 +53,8 @@ class SearchAgent:
 
     def __init__(self):
         SearchAgent.instance = self
-        self.client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
-        self.model = LLM_MODEL
+        self.client = AsyncOpenAI()
+        self.model = DEFAULT_MODEL
         model_path = os.getenv("EMODEL_PATH", "Qwen3-Embedding-0.6B")
         self.qwen3_embedding = Qwen3Embedding(model_path, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         print(f"SearchAgent:load embedding model {model_path} successfully")
@@ -95,7 +97,7 @@ class SearchAgent:
         """
         system_prompt = self.generate_system_prompt(all_mcp_tools)
         response = await self.client.chat.completions.create(
-            model=LLM_MODEL,
+            model=DEFAULT_MODEL,
             messages=[{
                 "role": "system",
                 "content": self.system_prompt

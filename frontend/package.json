@@ -10,7 +10,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "antd": "^6.1.0",
     "idb": "^8.0.3",
     "lucide-react": "^0.561.0",
     "next": "^16.0.8",

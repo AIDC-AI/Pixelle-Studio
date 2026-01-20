@@ -27,7 +27,7 @@ class MCPServerUpdate(BaseModel):
 
 class MCPServerResponse(MCPServerBase):
     id: str
-    uid: str  # 用户 ID
+    uid: int  # 用户 ID
     created_at: datetime
     updated_at: datetime
 
@@ -52,7 +52,7 @@ class UserUpdate(BaseModel):
 
 
 class UserResponse(UserBase):
-    uid: str
+    uid: int
     created_at: datetime
     updated_at: datetime
 

@@ -110,6 +110,87 @@ async def _call_real_tool(tool_name: str, args: dict, config: dict) -> Any:
         traceback.print_exc()
         return {"error": str(e)}
 
+async def list_mcp_tools() -> list:
+    """
+    List all available MCP tools from registered servers.
+    Returns a list of tool info dicts with name, description, and input schema.
+    
+    This is a fallback mechanism for when no skill matches - allows LLM to 
+    discover available tools dynamically.
+    """
+    from mcp import ClientSession
+    from mcp.client.sse import sse_client
+    from mcp.client.streamable_http import streamablehttp_client
+    
+    # Ensure NO_PROXY for localhost
+    os.environ["NO_PROXY"] = os.environ.get("NO_PROXY", "") + ",127.0.0.1,localhost"
+    
+    all_tools = []
+    seen_servers = set()  # Avoid duplicate server connections
+    
+    # Collect unique servers from the registry
+    servers_to_query = []
+    for tool_name, config in _TOOL_SERVER_MAP.items():
+        server_key = (config["url"], config.get("type", "sse"))
+        if server_key not in seen_servers:
+            seen_servers.add(server_key)
+            servers_to_query.append(config)
+    
+    # If no tools registered, return empty list
+    if not servers_to_query:
+        print("[MCP Client] No MCP servers registered, returning empty tool list")
+        return []
+    
+    # Query each unique server for its tools
+    for config in servers_to_query:
+        url = config["url"]
+        server_type = config.get("type", "sse")
+        headers = config.get("headers", None)
+        
+        print(f"[MCP Client] Querying tools from {url} (type: {server_type})...")
+        
+        try:
+            if server_type == "http":
+                client_context = streamablehttp_client(url, headers=headers)
+            else:
+                client_context = sse_client(url, headers=headers)
+            
+            async with client_context as client_tuple:
+                read, write = client_tuple[0], client_tuple[1]
+                
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    
+                    # List tools from this server
+                    tools_result = await session.list_tools()
+                    
+                    for tool in tools_result.tools:
+                        tool_info = {
+                            "name": tool.name,
+                            "description": tool.description or "",
+                            "input_schema": tool.inputSchema if hasattr(tool, 'inputSchema') else {},
+                            "server_url": url,
+                        }
+                        all_tools.append(tool_info)
+                        
+            print(f"[MCP Client] Found {len(tools_result.tools)} tools from {url}")
+            
+        except Exception as e:
+            print(f"[MCP Client] Error querying tools from {url}: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    return all_tools
+
+
+def get_registered_servers() -> Dict[str, Dict[str, str]]:
+    """
+    Get a copy of the current tool-to-server mapping.
+    Useful for debugging or inspection.
+    """
+    return dict(_TOOL_SERVER_MAP)
+
+
 def _call_mock_tool(tool_name: str, args: dict) -> Any:
     """
     Mock implementation for default tools or testing.

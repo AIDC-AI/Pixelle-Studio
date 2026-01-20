@@ -5,21 +5,27 @@ This module provides:
 1. Skills-aware system prompt with metadata injection
 2. Script generation based on SKILL.md guidance
 3. Support for both pure Python execution and MCP tool calls
+
+LLM Configuration:
+- OPENAI_API_KEY, OPENAI_BASE_URL: 由 OpenAI SDK 自动从环境变量读取
+- OPENAI_MODEL: 模型名称，默认 gpt-4o
 """
 
+import logging
 import os
 import json
 from typing import Optional, Dict, Any, List
 from openai import AsyncOpenAI
 
 from app.skills.loader import get_skill_loader
-
 from app.mcp_aggregator import MCPServerConfig
+
 # LLM Configuration - 从环境变量读取，支持自定义配置
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://REDACTED_BASE_URL_HOST/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "REDACTED_API_KEY")
 LLM_MODEL = os.getenv("LLM_MODEL", "us.anthropic.claude-sonnet-4-20250514-v1:0")
 
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 
 def build_skills_system_prompt(skills_meta: str, skill_content: Optional[str] = None) -> str:
     """
@@ -72,93 +78,12 @@ When generating Python code:
     return "\n".join(prompt_parts)
 
 
-async def check_if_workflow_needed(
-    user_prompt: str, 
-    tools: list = None, 
-    file_urls: list = None,
-    skills_meta: str = None
-) -> Dict[str, Any]:
-    """
-    Check if the user's request requires a complex workflow or can be answered directly.
-    
-    Returns: {
-        "needs_workflow": bool,
-        "reasoning": str,
-        "direct_answer": str (if needs_workflow is False),
-        "suggested_skill": str (optional, skill name if workflow needed)
-    }
-    """
-    client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
-    
-    # Get skills metadata if not provided
-    if skills_meta is None:
-        skill_loader = get_skill_loader()
-        skills_meta = skill_loader.build_skills_meta_prompt()
-    
-    # Prepare file context
-    file_context = ""
-    if file_urls:
-        file_context = f"\n\nUser has uploaded the following files:\n" + "\n".join([f"- {url}" for url in file_urls])
-    
-    # Prepare tool summary (for MCP tools if any)
-    tool_summary = ""
-    if tools:
-        tool_names = [t.get('name', 'unknown') for t in tools[:10]]
-        tool_summary = f"\n\nAvailable MCP tools: {', '.join(tool_names)}"
-        if len(tools) > 10:
-            tool_summary += f" (and {len(tools) - 10} more)"
-    
-    system_prompt = f"""You are an intelligent task analyzer. Your job is to determine if a user's request requires:
-1. A COMPLEX WORKFLOW: Tasks requiring code execution, file processing, or multi-step operations
-2. A DIRECT ANSWER: Simple questions, information requests, or explanations
-
-{skills_meta}
-
-Return a JSON response with:
-- "needs_workflow": true/false
-- "reasoning": brief explanation
-- "direct_answer": your answer (ONLY if needs_workflow is false)
-- "suggested_skill": skill name if a skill matches the task (ONLY if needs_workflow is true)
-
-Examples of requests that DON'T need workflow:
-- "What is the URL of the file I just uploaded?"
-- "Tell me about X"
-- "Explain how Y works"
-- "What skills are available?"
-- Simple information queries
-
-Examples of requests that NEED workflow:
-- "Read this Excel file and analyze the data" -> suggested_skill: "xlsx"
-- "Create a spreadsheet with formulas" -> suggested_skill: "xlsx"
-- "Generate a video with X" -> suggested_skill: "video" (if available)
-- "Process this image" -> suggested_skill: "image" (if available)
-"""
-
-    user_message = f"""
-User request: {user_prompt}{file_context}{tool_summary}
-
-Does this require a workflow with code execution, or can you answer directly?
-If a skill is needed, which one?
-"""
-
-    response = await client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message}
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.3
-    )
-    
-    result = json.loads(response.choices[0].message.content)
-    return result
 
 async def generate_workflow_script(user_prompt: str, tools: list, config_to_use: MCPServerConfig = None) -> str:
     """
     Generates a Python script based on the user prompt and available tools.
     """
-    client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+    client = AsyncOpenAI()
 
     from app.tool_search.selector import format_tools_for_llm
 
@@ -200,7 +125,7 @@ Only return the Python code block. Do not include markdown formatting like ```py
     try:
         # Call LLM with tools parameter (MCP-compliant)
         llm_kwargs = {
-            "model": LLM_MODEL,
+            "model": DEFAULT_MODEL,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
@@ -297,7 +222,7 @@ async def generate_script_with_skill(
     Returns:
         Generated Python script
     """
-    client = AsyncOpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+    client = AsyncOpenAI()
     skill_loader = get_skill_loader()
     
     # Get skills metadata
@@ -359,7 +284,7 @@ Only return the Python code block.
     try:
         # Call LLM
         llm_kwargs = {
-            "model": LLM_MODEL,
+            "model": DEFAULT_MODEL,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}

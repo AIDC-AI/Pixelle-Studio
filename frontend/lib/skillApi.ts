@@ -22,9 +22,9 @@ export interface SkillOperationResponse {
 
 export const skillAPI = {
   // 获取所有技能
-  async getSkills(userId?: string): Promise<SkillMeta[]> {
+  async getSkills(userId?: number): Promise<SkillMeta[]> {
     const url = userId 
-      ? `${API_BASE}/skills?user_id=${encodeURIComponent(userId)}`
+      ? `${API_BASE}/skills?user_id=${userId}`
       : `${API_BASE}/skills`;
       
     const response = await fetch(url, {
@@ -38,9 +38,9 @@ export const skillAPI = {
   },
 
   // 获取单个技能详情
-  async getSkill(skillName: string, userId?: string): Promise<Skill> {
+  async getSkill(skillName: string, userId?: number): Promise<Skill> {
     const url = userId
-      ? `${API_BASE}/skills/${encodeURIComponent(skillName)}?user_id=${encodeURIComponent(userId)}`
+      ? `${API_BASE}/skills/${encodeURIComponent(skillName)}?user_id=${userId}`
       : `${API_BASE}/skills/${encodeURIComponent(skillName)}`;
       
     const response = await fetch(url, {
@@ -54,9 +54,9 @@ export const skillAPI = {
   },
 
   // 创建技能
-  async createSkill(request: CreateSkillRequest, userId?: string): Promise<SkillOperationResponse> {
+  async createSkill(request: CreateSkillRequest, userId?: number): Promise<SkillOperationResponse> {
     const url = userId
-      ? `${API_BASE}/skills?user_id=${encodeURIComponent(userId)}`
+      ? `${API_BASE}/skills?user_id=${userId}`
       : `${API_BASE}/skills`;
       
     const response = await fetch(url, {
@@ -75,10 +75,10 @@ export const skillAPI = {
   async updateSkill(
     skillName: string, 
     request: UpdateSkillRequest, 
-    userId?: string
+    userId?: number
   ): Promise<SkillOperationResponse> {
     const url = userId
-      ? `${API_BASE}/skills/${encodeURIComponent(skillName)}?user_id=${encodeURIComponent(userId)}`
+      ? `${API_BASE}/skills/${encodeURIComponent(skillName)}?user_id=${userId}`
       : `${API_BASE}/skills/${encodeURIComponent(skillName)}`;
       
     const response = await fetch(url, {
@@ -94,9 +94,9 @@ export const skillAPI = {
   },
 
   // 删除技能
-  async deleteSkill(skillName: string, userId?: string): Promise<SkillOperationResponse> {
+  async deleteSkill(skillName: string, userId?: number): Promise<SkillOperationResponse> {
     const url = userId
-      ? `${API_BASE}/skills/${encodeURIComponent(skillName)}?user_id=${encodeURIComponent(userId)}`
+      ? `${API_BASE}/skills/${encodeURIComponent(skillName)}?user_id=${userId}`
       : `${API_BASE}/skills/${encodeURIComponent(skillName)}`;
       
     const response = await fetch(url, {
