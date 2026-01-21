@@ -42,6 +42,11 @@ const Chat = () => {
     const [fileList, setFileList] = useState<UploadFile[]>([]);
     const [currentScript, setCurrentScript] = useState<string | null>(null);
     
+    // 流式响应状态
+    const [streamingResponse, setStreamingResponse] = useState<string>('');
+    // 标记是否有工具调用（有工具调用时不应该流式输出）
+    const hasToolCallsRef = useRef<boolean>(false);
+    
     // 文件预览状态
     const [previewFile, setPreviewFile] = useState<OutputFile | null>(null);
     
@@ -235,6 +240,8 @@ const Chat = () => {
       setFileList([]);
       setIsProcessing(true);
       setCurrentScript(null);
+      setStreamingResponse('');
+      hasToolCallsRef.current = false;
       
       // 找到当前session
       let currentSession = sessions.find(s => s.id === activeSessionId)
@@ -287,12 +294,49 @@ const Chat = () => {
         // 2. Connect WebSocket
         const ws = new WebSocket(api.getWebSocketUrl(chat_id));
         wsRef.current = ws;
+        
+        // 立即显示"任务执行中"的状态提示（使用streamingResponse）
+        setStreamingResponse('任务执行中，等待响应...');
 
         ws.onmessage = (event) => {
           const data = JSON.parse(event.data);
           const _messages: Message[] = []
 
-          if (data.type === 'iteration_start') {
+          if (data.type === 'response_delta') {
+            // 只有在没有工具调用的情况下才累积流式输出
+            // 后端已经过滤掉了<execute>标签内的内容，这里做二次检查（快速回撤）
+            if (!hasToolCallsRef.current) {
+              const deltaContent = data.content || '';
+              
+              // 使用函数式更新确保总是使用最新的状态值
+              setStreamingResponse(prev => {
+                // 如果当前是"任务执行中..."的提示，收到第一个真实响应时替换掉它
+                const isLoadingText = prev.includes('任务执行中');
+                const newContent = isLoadingText ? deltaContent : (prev + deltaContent);
+                const trimmedContent = newContent.trim();
+                
+                // 前端快速回撤：检测到不该显示的内容，立即清空
+                if (trimmedContent.includes('{"code') || 
+                    trimmedContent.includes('{ "code') || 
+                    trimmedContent.includes('{\'code') ||
+                    trimmedContent.includes('<execute')) {
+                  // 立即清空并标记
+                  hasToolCallsRef.current = true;
+                  console.log('[Frontend] Detected tool call pattern, rolling back streaming content');
+                  return '';
+                } else if (trimmedContent === '{' || trimmedContent === '{"') {
+                  // 单独的 { 或 {" 也可疑，但不立即清空，而是等待下一个字符
+                  return newContent;
+                } else {
+                  // 安全内容，正常显示
+                  return newContent;
+                }
+              });
+            }
+            // 不添加到messages中，让MessageList实时显示streamingResponse
+          } else if (data.type === 'iteration_start') {
+            // 清除"任务执行中..."提示
+            setStreamingResponse('');
             _messages.push({ 
               type: 'iteration', 
               content: `🔄 Starting iteration ${data.iteration}/${data.max_iterations}`, 
@@ -361,16 +405,77 @@ const Chat = () => {
               // 自动预览可预览的文件
               autoPreviewFile(outputFiles);
             }
+            
+            // 代码执行完成后，重置工具调用标记，允许后续的流式输出
+            hasToolCallsRef.current = false;
           } else if (data.type === 'response') {
-            // Handle direct response from agent
-            _messages.push({
-              type: 'response',
-              content: data.content,
-              timestamp: Date.now()
-            })
+            // Handle direct response from agent (完整响应，非流式)
+            // 如果有流式内容累积，使用累积的内容；否则使用data.content
+            const finalContent = streamingResponse || data.content;
+            if (finalContent) {
+              _messages.push({
+                type: 'response',
+                content: finalContent,
+                timestamp: Date.now()
+              })
+            }
+            // 清空流式响应
+            setStreamingResponse('');
             // Mark that we received a direct response
             // So we don't show duplicate content in final_result
             currentExecCount = -1; // Use -1 as a flag for direct response
+          } else if (data.type === 'tool_call') {
+            // 标记有工具调用，停止流式输出
+            hasToolCallsRef.current = true;
+            // 清除"任务执行中..."提示
+            setStreamingResponse('');
+            
+            // Handle tool call event
+            const toolName = data.name || '';
+            
+            // 特殊处理 execute_code: 直接显示代码而不是工具调用
+            if (toolName === 'execute_code' && data.arguments && data.arguments.code) {
+              currentExecCount = currentExecCount + 1;
+              _messages.push({
+                type: 'code',
+                content: data.arguments.code,
+                timestamp: Date.now(),
+                codeData: {
+                  code: data.arguments.code,
+                  executionCount: currentExecCount,
+                  reasoning: undefined
+                }
+              });
+            } else {
+              // 其他工具正常显示工具调用
+              _messages.push({
+                type: 'tool_call',
+                content: toolName,
+                timestamp: Date.now(),
+                toolCall: {
+                  name: toolName,
+                  arguments: data.arguments,
+                  call_id: data.call_id
+                }
+              });
+            }
+          } else if (data.type === 'tool_result') {
+            // Handle tool result event
+            // 跳过以下情况：
+            // 1. execute_code 的结果（会有单独的 execution_result 事件）
+            // 2. 名称为 'unknown' 的结果（通常是内部错误或未正确识别的工具）
+            if (data.name !== 'execute_code' && data.name !== 'unknown') {
+              _messages.push({
+                type: 'tool_result',
+                content: typeof data.result === 'string' ? data.result : JSON.stringify(data.result),
+                timestamp: Date.now(),
+                toolResult: {
+                  name: data.name,
+                  result: data.result,
+                  call_id: data.call_id
+                }
+              });
+            }
           } else if (data.type === 'skill_loaded') {
             // Handle skill loaded event
             _messages.push({
@@ -380,6 +485,8 @@ const Chat = () => {
               skillName: data.skill_name
             })
           } else if (data.type === 'thinking') {
+            // 清除"任务执行中..."提示
+            setStreamingResponse('');
             // Handle thinking process from LLM
             _messages.push({
               type: 'thinking',
@@ -412,6 +519,15 @@ const Chat = () => {
             const hadDirectResponse = currentExecCount === -1;
             const hadCodeExecution = currentExecCount > 0;
             
+            // 如果有未完成的流式响应，先保存它
+            if (streamingResponse) {
+              _messages.push({
+                type: 'response',
+                content: streamingResponse,
+                timestamp: Date.now()
+              });
+            }
+            
             // Only show final result card if:
             // 1. There was code execution, OR
             // 2. There was an error, OR  
@@ -426,6 +542,9 @@ const Chat = () => {
                 })
               }
             }
+            
+            // 清空流式响应
+            setStreamingResponse('');
             setIsProcessing(false);
             wsRef.current = null;
             ws.close();
@@ -539,6 +658,7 @@ const Chat = () => {
                   messages={messages} 
                   currentScript={currentScript}
                   onFilePreview={setPreviewFile}
+                  streamingResponse={streamingResponse}
               />
               <Input 
                 isProcessing={isProcessing}

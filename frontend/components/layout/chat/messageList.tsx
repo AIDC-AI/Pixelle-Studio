@@ -17,16 +17,21 @@ import SkillLoadedItem from "./items/skillLoadedItem";
 import OutputFilesItem from "./items/outputFilesItem";
 import SystemOperationGroup from "./items/systemOperationGroup";
 import ThinkingItem from "./items/thinkingItem";
+import ToolCallItem from "./items/toolCallItem";
 
 interface IProps {
     messages?: Message[] | null
     currentScript?: string | null
     shouldScrollToBottom?: boolean
     onFilePreview?: (file: OutputFile) => void
+    streamingResponse?: string
 }
 
 // 系统操作类型的消息
-const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system', 'thinking'];
+const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system', 'thinking', 'tool_call'];
+
+// 实质性系统操作（这些才应该触发System Process的显示）
+const SUBSTANTIAL_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'tool_call'];
 
 // 用户交互类型的消息（不放在系统容器里）
 const USER_INTERACTION_TYPES = ['user', 'response', 'result', 'output_files', 'error'];
@@ -38,7 +43,7 @@ interface MessageGroup {
 }
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, shouldScrollToBottom = true, onFilePreview } = props;  
+    const { messages, currentScript, shouldScrollToBottom = true, onFilePreview, streamingResponse } = props;  
 
     const chatEndRef = useRef<HTMLDivElement>(null);
     const lastMessageCountRef = useRef<number>(0);
@@ -60,13 +65,20 @@ const MessageList: React.FC<IProps> = (props) => {
             } else {
                 // 如果有累积的系统操作，先添加它们
                 if (currentSystemGroup.length > 0) {
-                    // 检查下一个消息是否是用户交互类型来判断是否完成
-                    const isComplete = isUserInteraction && (msg.type === 'result' || msg.type === 'response' || msg.type === 'output_files');
-                    groups.push({
-                        type: 'system_operations',
-                        messages: [...currentSystemGroup],
-                        isComplete
-                    });
+                    // 检查是否包含实质性操作
+                    const hasSubstantialOps = currentSystemGroup.some(m => SUBSTANTIAL_OPERATION_TYPES.includes(m.type));
+                    
+                    if (hasSubstantialOps) {
+                        // 只有包含实质性操作才创建SystemOperationGroup
+                        // 检查下一个消息是否是用户交互类型来判断是否完成
+                        const isComplete = isUserInteraction && (msg.type === 'result' || msg.type === 'response' || msg.type === 'output_files');
+                        groups.push({
+                            type: 'system_operations',
+                            messages: [...currentSystemGroup],
+                            isComplete
+                        });
+                    }
+                    // 如果没有实质性操作，则丢弃这些消息（不显示）
                     currentSystemGroup = [];
                 }
                 // 添加单独的消息
@@ -79,11 +91,17 @@ const MessageList: React.FC<IProps> = (props) => {
         
         // 处理剩余的系统操作（正在进行中）
         if (currentSystemGroup.length > 0) {
-            groups.push({
-                type: 'system_operations',
-                messages: currentSystemGroup,
-                isComplete: false
-            });
+            // 检查是否包含实质性操作
+            const hasSubstantialOps = currentSystemGroup.some(m => SUBSTANTIAL_OPERATION_TYPES.includes(m.type));
+            
+            if (hasSubstantialOps) {
+                groups.push({
+                    type: 'system_operations',
+                    messages: currentSystemGroup,
+                    isComplete: false
+                });
+            }
+            // 如果没有实质性操作，则丢弃这些消息
         }
         
         return groups;
@@ -148,6 +166,10 @@ const MessageList: React.FC<IProps> = (props) => {
                 return <OutputFilesItem files={msg.outputFiles || []} onFilePreview={onFilePreview} />
             case 'thinking':
                 return <ThinkingItem content={msg.content} />
+            case 'tool_call':
+                return <ToolCallItem toolCall={msg.toolCall} />
+            case 'tool_result':
+                return <ToolCallItem toolCall={msg.toolResult} isResult={true} />
         }
         return null;
     }
@@ -195,6 +217,22 @@ const MessageList: React.FC<IProps> = (props) => {
                     );
                 }
             })}
+            {/* 流式响应显示 */}
+            {streamingResponse && (
+                streamingResponse.includes('任务执行中') ? (
+                    // 加载状态：小字体，无logo，显示在上方
+                    <div className="flex justify-center w-full py-2">
+                        <div className="text-xs text-gray-400 italic">
+                            {streamingResponse}
+                        </div>
+                    </div>
+                ) : (
+                    // 正常响应：显示机器人logo和内容
+                    <div className="flex flex-col self-start max-w-[85%]">
+                        <ResponseItem content={streamingResponse} isStreaming={true} />
+                    </div>
+                )
+            )}
             {currentScript && (
                 <div className="self-start w-full max-w-[90%]">
                     <div className="bg-slate-800 rounded-xl p-4">

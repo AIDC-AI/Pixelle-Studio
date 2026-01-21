@@ -383,6 +383,10 @@ You MUST call the `execute_code()` tool to actually execute the code!
             current_response_text = ""
             final_output = None
             
+            # 流式输出缓冲区：用于智能过滤 {"code 等工具调用
+            stream_buffer = ""
+            should_block_stream = False  # 标记是否应该阻止流式输出
+            
             async for event in result.stream_events():
                 # Handle different event types
                 if isinstance(event, RawResponsesStreamEvent):
@@ -419,11 +423,66 @@ You MUST call the `execute_code()` tool to actually execute the code!
                             agent_context.pending_code_queue.append(block)
                             logger.info(f"[{session_id}] Extracted execute block #{len(agent_context.pending_code_queue)}, length: {len(block)} chars")
                         
-                        # 只有当有内容时才发送流式输出
-                        if content_text:
+                        # 智能流式输出：使用缓冲区避免显示工具调用的JSON
+                        if should_block_stream:
+                            # 已经检测到工具调用，不再流式输出
+                            continue
+                        
+                        # 检查是否包含明确的工具调用标记
+                        if '<execute' in current_response_text.strip():
+                            should_block_stream = True
+                            stream_buffer = ""
+                            logger.info(f"[{session_id}] Detected <execute> tag, blocking stream")
+                            continue
+                        elif '{"code' in current_response_text.strip() or '{ "code' in current_response_text.strip():
+                            should_block_stream = True
+                            stream_buffer = ""
+                            logger.info(f"[{session_id}] Detected JSON code parameter, blocking stream")
+                            continue
+                        
+                        # 将新内容添加到缓冲区
+                        stream_buffer += content_text
+                        
+                        # 智能缓冲逻辑：只在真正需要时缓冲
+                        output_content = ""
+                        buffer_stripped = stream_buffer.strip()
+                        
+                        # 检查是否是可能的工具调用JSON
+                        # 只有当缓冲区看起来像JSON开头时才等待
+                        if buffer_stripped.startswith('{'):
+                            # 检查缓冲区内容
+                            if len(buffer_stripped) >= 6:
+                                # 已经有足够的字符来判断
+                                if buffer_stripped.startswith('{"code') or buffer_stripped.startswith('{ "code'):
+                                    # 确认是工具调用，阻止后续所有输出
+                                    should_block_stream = True
+                                    stream_buffer = ""
+                                    logger.info(f"[{session_id}] Confirmed JSON code in buffer, blocking stream")
+                                else:
+                                    # 不是代码相关的JSON，安全输出
+                                    output_content = stream_buffer
+                                    stream_buffer = ""
+                            elif buffer_stripped == '{':
+                                # 只有单个 {，等待下一个字符
+                                pass
+                            elif buffer_stripped.startswith('{"') or buffer_stripped.startswith('{ "'):
+                                # 看起来像 JSON 开头，但还不确定，继续等待
+                                # 最多等待到 {"code 的长度
+                                pass
+                            else:
+                                # 不像JSON（比如 "{你好"），立即输出
+                                output_content = stream_buffer
+                                stream_buffer = ""
+                        else:
+                            # 缓冲区不以 { 开头，安全输出
+                            output_content = stream_buffer
+                            stream_buffer = ""
+                        
+                        # 发送输出内容
+                        if output_content:
                             yield {
                                 "type": "response_delta",
-                                "content": content_text,
+                                "content": output_content,
                                 "accumulated": current_response_text
                             }
                 

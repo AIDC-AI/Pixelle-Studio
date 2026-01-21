@@ -8,10 +8,11 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface IProps {
     content: string;
+    isStreaming?: boolean;
 }
 
 const ResponseItem: React.FC<IProps> = (props) => {
-    const { content } = props;
+    const { content, isStreaming = false } = props;
     const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
     const handleCopyCode = async (code: string) => {
@@ -150,6 +151,10 @@ const ResponseItem: React.FC<IProps> = (props) => {
                         >
                             {content}
                         </ReactMarkdown>
+                        {/* 流式响应时显示闪烁光标 */}
+                        {isStreaming && (
+                            <span className="inline-block w-1.5 h-4 ml-0.5 bg-orange-500 animate-pulse"></span>
+                        )}
                     </div>
                 </div>
             </div>
