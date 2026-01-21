@@ -447,7 +447,9 @@ When helping users:
                     model=DEFAULT_MODEL,
                     messages=messages,
                     tools=tools,
-                    stream=True
+                    stream=True,
+                    max_completion_tokens=32768,
+                    max_tokens=16384,
                 )
                 
                 async for chunk in response:
@@ -478,44 +480,62 @@ When helping users:
                     if delta.tool_calls:
                         for tc in delta.tool_calls:
                             if tc.index is not None:
-                                # Ensure we have enough slots
-                                while len(tool_calls_data) <= tc.index:
-                                    tool_calls_data.append({
-                                        "id": None,
-                                        "name": "",
-                                        "arguments": ""
-                                    })
-                                
-                                if tc.id:
-                                    tool_calls_data[tc.index]["id"] = tc.id
-                                if tc.function:
-                                    if tc.function.name:
-                                        tool_calls_data[tc.index]["name"] = tc.function.name
-                                    if tc.function.arguments:
-                                        tool_calls_data[tc.index]["arguments"] += tc.function.arguments
+                                try:
+                                    idx = int(tc.index)  # Ensure it's an integer
+                                    
+                                    # Handle negative indices (some APIs return -1 for all chunks)
+                                    if idx < 0:
+                                        if idx == -1:
+                                            # -1 means: append to last tool call, or create first one
+                                            # If we have an id, it's a new tool call; otherwise append to existing
+                                            if tc.id and tc.id.strip():
+                                                # New tool call with id - append to list
+                                                idx = len(tool_calls_data)
+                                            else:
+                                                # Continuation of existing tool call - use last index
+                                                idx = max(0, len(tool_calls_data) - 1)
+                                        else:
+                                            continue  # Skip other negative indices
+                                    
+                                    # Ensure we have enough slots
+                                    while len(tool_calls_data) <= idx:
+                                        tool_calls_data.append({
+                                            "id": None,
+                                            "name": "",
+                                            "arguments": ""
+                                        })
+                                    
+                                    if tc.id:
+                                        tool_calls_data[idx]["id"] = tc.id
+                                    if tc.function:
+                                        if tc.function.name:
+                                            tool_calls_data[idx]["name"] = tc.function.name
+                                        if tc.function.arguments:
+                                            tool_calls_data[idx]["arguments"] += tc.function.arguments
+                                except (ValueError, IndexError, TypeError) as e:
+                                    logger.warning(f"[{session_id}] Error processing tool call at index {tc.index}: {e}")
                 
                 # Process the complete response
                 finish_reason = chunk.choices[0].finish_reason if chunk.choices else None
                 
                 # Build assistant message for history
-                assistant_message = {"role": "assistant", "content": current_response_text or None}
+                # NOTE: We intentionally avoid using tool_calls field and tool role
+                # because some API gateways don't fully support the OpenAI tool call protocol.
+                # Instead, we use user role to inject tool results (more compatible).
                 
                 if tool_calls_data and tool_calls_data[0]["name"]:
                     # Reset no_tool_call counter
                     no_tool_call_count = 0
                     
-                    # Add tool_calls to assistant message
-                    assistant_message["tool_calls"] = [
-                        {
-                            "id": tc["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tc["name"],
-                                "arguments": tc["arguments"]
-                            }
-                        }
-                        for tc in tool_calls_data if tc["name"]
-                    ]
+                    # Build tool call description for assistant message
+                    # This preserves the LLM's intent without using tool_calls protocol
+                    tool_names = [tc["name"] for tc in tool_calls_data if tc["name"]]
+                    assistant_content = current_response_text or ""
+                    if not assistant_content.strip():
+                        # If LLM only returned tool calls without text, add a description
+                        assistant_content = f"[Calling tools: {', '.join(tool_names)}]"
+                    
+                    assistant_message = {"role": "assistant", "content": assistant_content}
                     messages.append(assistant_message)
                     
                     # Execute each tool call
@@ -598,11 +618,19 @@ When helping users:
                             final_answer_content = agent_context.final_answer_content
                             logger.info(f"[{session_id}] Task completed via final_answer")
                         
-                        # Add tool result to messages
+                        # Add tool result to messages using USER role (for API gateway compatibility)
+                        # This avoids using "tool" role which some gateways don't support properly
+                        tool_result_message = f"""[Tool Result: {tool_name}]
+
+{tool_result}
+
+Based on this result, either:
+1. If the task is complete and results are correct, call `final_answer` with your summary
+2. If there was an error or more work is needed, continue with the appropriate tool call"""
+                        
                         messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call_id,
-                            "content": tool_result
+                            "role": "user",
+                            "content": tool_result_message
                         })
                 
                 else:
@@ -610,7 +638,7 @@ When helping users:
                     no_tool_call_count += 1
                     
                     if current_response_text:
-                        messages.append(assistant_message)
+                        messages.append({"role": "assistant", "content": current_response_text})
                     
                     # If task not completed and no tool calls, inject a continue prompt
                     if not agent_context.task_completed and no_tool_call_count < max_no_tool_calls:
