@@ -122,7 +122,8 @@ class SkillAgent:
         
         # Script storage - scripts/<user_id>/
         # Put outside backend to avoid triggering file watcher
-        script_subdir = self.user_id if self.user_id else "default"
+        # Convert user_id to string for path compatibility
+        script_subdir = str(self.user_id) if self.user_id else "default"
         self.script_dir = Path(__file__).parent.parent / "scripts" / script_subdir
         self.script_dir.mkdir(parents=True, exist_ok=True)
         
