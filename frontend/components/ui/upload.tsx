@@ -129,6 +129,10 @@ export const Upload: React.FC<UploadProps> = ({
             uploadFile.status = 'done';
             uploadFile.percent = 100;
             uploadFile.url = response?.url;
+            // 如果服务器返回了 file_name，更新为服务器保存的文件名
+            if (response?.file_name) {
+              uploadFile.name = response.file_name;
+            }
             const updatedList = newFileList.map((f) =>
               f.uid === uploadFile.uid ? { ...uploadFile } : f
             );
