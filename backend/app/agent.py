@@ -166,39 +166,38 @@ Use these tools to help users accomplish their tasks effectively.
 <code_execution_rules>
 **How to Execute Python Code**:
 
-1. Write code in `<execute lang="python">...</execute>` tags
-2. Call `execute_code()` with NO parameters - code is extracted automatically
+You have TWO options for executing code:
 
-**Example**:
+**Option 1: Direct Method (Recommended)**
+Call execute_code() with code as parameter:
+
 ```
-I'll create the HTML files:
+execute_code(code="import json\\nwith open(script_path('output.html'), 'w') as f:\\n    f.write('<html><body>Hello</body></html>')\\nprint(json.dumps({{'status': 'success', 'output_file_names': ['output.html']}}))")
+```
 
+**Option 2: Two-Step Method (Legacy)**
+Step 1: Write code in `<execute lang="python">...</execute>` tags
+Step 2: Call execute_code() without parameters
+
+```
 <execute lang="python">
 import json
-import os
-
-html_content = '''<!DOCTYPE html>
-<html><body><h1>Hello</h1></body></html>'''
-
 with open(script_path("output.html"), "w") as f:
-    f.write(html_content)
-
-print(json.dumps({{"status": "success", "result": "File created"}}))
+    f.write("<html><body>Hello</body></html>")
+print(json.dumps({{"status": "success", "output_file_names": ["output.html"]}}))
 </execute>
 ```
-
 Then call: execute_code()
 
 **Rules**:
-- **CRITICAL: Each execute block runs as an INDEPENDENT Python script**
-- Variables, DataFrames, and objects DO NOT persist between execute blocks
-- Every execute block MUST be FULLY self-contained:
+- **CRITICAL: Each code execution runs as an INDEPENDENT Python script**
+- Variables, DataFrames, and objects DO NOT persist between executions
+- Every code block MUST be FULLY self-contained:
   - Include ALL imports (pandas, json, etc.)
   - Re-read input files if needed (e.g., `df = pd.read_csv(script_path('file.csv'))`)
   - Include ALL processing logic
-- If you need to both analyze AND generate output, put ALL code in ONE execute block
+- If you need to both analyze AND generate output, put ALL code in ONE execution
 - Always print JSON result at the end
-- **Each execute_code() call runs the MOST RECENT (last) <execute> block in your response**
 
 <pre_injected_helpers>
 The following helper functions are automatically available in your Python code:
@@ -267,12 +266,22 @@ When a skill is loaded:
 When helping users:
 
 1. **Simple Questions**: Answer directly without tools
-2. **Domain Tasks**: First use `load_skill` to get guidance, then `execute_code` to accomplish the task
-3. **File Processing**: Use `execute_code` with appropriate libraries
-4. **External Services**: Use `list_mcp_tools` to discover tools, then `execute_code` with `call_tool()`
+2. **Domain Tasks**: First use `load_skill` to get guidance, then call `execute_code(code="...")` to execute
+3. **File Processing**: Call `execute_code(code="...")` with appropriate code
+4. **External Services**: Use `list_mcp_tools` to discover tools, then call `execute_code(code="...")` with `call_tool()`
 5. **Errors**: Analyze the error, adjust your approach, and try again
 
-**IMPORTANT**: For any task that produces files (PPT, Excel, images, etc.), you MUST call execute_code to actually generate the files. Just describing or showing code is NOT enough - the user needs the actual output files!
+**⚠️ CRITICAL RULE**:
+
+For ANY task that requires:
+- Generating files (HTML, PPT, Excel, images, CSV, etc.)
+- Processing data (reading/writing files, calculations, analysis)
+- Calling external APIs or MCP tools
+- Running ANY computation
+
+You MUST call the `execute_code()` tool to actually execute the code!
+
+**REMEMBER**: The user needs ACTUAL FILES and RESULTS, not just code! You must execute the code to generate the output!
 </decision_flow>
 """        
         return system_prompt
@@ -398,18 +407,20 @@ When helping users:
                                     elif isinstance(part, str):
                                         content_text += part
                         
+                        # 处理内容（即使为空也记录）
+                        current_response_text += content_text
+                        
+                        # Extract <execute> blocks from accumulated response
+                        execute_blocks = self._extract_execute_blocks(current_response_text)
+                        
+                        # Add newly found blocks to queue (avoid duplicates)
+                        existing_count = len(agent_context.pending_code_queue)
+                        for block in execute_blocks[existing_count:]:
+                            agent_context.pending_code_queue.append(block)
+                            logger.info(f"[{session_id}] Extracted execute block #{len(agent_context.pending_code_queue)}, length: {len(block)} chars")
+                        
+                        # 只有当有内容时才发送流式输出
                         if content_text:
-                            current_response_text += content_text
-                            
-                            # Extract <execute> blocks from accumulated response
-                            execute_blocks = self._extract_execute_blocks(current_response_text)
-                            
-                            # Add newly found blocks to queue (avoid duplicates)
-                            existing_count = len(agent_context.pending_code_queue)
-                            for block in execute_blocks[existing_count:]:
-                                agent_context.pending_code_queue.append(block)
-                                logger.info(f"[{session_id}] Extracted execute block #{len(agent_context.pending_code_queue)}, length: {len(block)} chars")
-                            
                             yield {
                                 "type": "response_delta",
                                 "content": content_text,
@@ -429,6 +440,8 @@ When helping users:
                         # Log raw arguments for debugging
                         logger.info(f"[{session_id}] Tool call: {tool_name}")
                         logger.debug(f"[{session_id}] Raw arguments type: {type(tool_args_raw)}, value: {repr(tool_args_raw)[:500]}")
+                        logger.debug(f"[{session_id}] Current response text length: {len(current_response_text)}")
+                        logger.debug(f"[{session_id}] Pending code queue length: {len(agent_context.pending_code_queue)}")
                         
                         # Parse arguments if string
                         tool_args = tool_args_raw
@@ -439,10 +452,9 @@ When helping users:
                                 logger.warning(f"[{session_id}] Failed to parse tool args: {e}, raw: {repr(tool_args_raw)[:200]}")
                                 tool_args = {"raw": tool_args}
                         
-                        if tool_name == "execute_code":
-                            tool_args = {
-                                "code": agent_context.pending_code_queue[-1]
-                            }
+                        # Note: execute_code 工具现在可以接受 code 参数
+                        # 如果模型没有传递参数，工具会自动从队列获取
+                        # 不需要在这里强制设置参数
                         
                         yield {
                             "type": "tool_call",
@@ -502,10 +514,14 @@ When helping users:
                     
                     elif isinstance(item, MessageOutputItem):
                         # Final message from agent
+                        logger.debug(f"[{session_id}] MessageOutputItem: has_content={hasattr(item, 'content')}, content={item.content if hasattr(item, 'content') else 'N/A'}")
+                        
                         if hasattr(item, 'content') and item.content:
                             for content_part in item.content:
                                 if hasattr(content_part, 'text'):
                                     final_output = content_part.text
+                                    logger.debug(f"[{session_id}] Final output length: {len(final_output) if final_output else 0}")
+                                    
                                     # Clean the response content to remove <execute> blocks
                                     clean_content = self._clean_response_text(final_output)
                                     if clean_content:  # Only yield if there's content after cleaning
@@ -513,6 +529,10 @@ When helping users:
                                             "type": "response",
                                             "content": clean_content
                                         }
+                                    else:
+                                        logger.warning(f"[{session_id}] Final output is empty after cleaning")
+                        else:
+                            logger.warning(f"[{session_id}] MessageOutputItem has no content (model may have only called tools)")
                 
                 elif isinstance(event, AgentUpdatedStreamEvent):
                     # Agent status update
