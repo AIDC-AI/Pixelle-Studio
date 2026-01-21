@@ -19,11 +19,19 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from dataclasses import dataclass
 
-from openai import AsyncOpenAI
-
-from agents import RunContextWrapper
-from agents.tool_context import ToolContext
-from agents.usage import Usage
+from agents import Agent, Runner
+from agents.run import RunConfig
+from agents.items import (
+    TResponseInputItem,
+    MessageOutputItem,
+    ToolCallItem,
+    ToolCallOutputItem,
+)
+from agents.stream_events import (
+    RawResponsesStreamEvent,
+    RunItemStreamEvent,
+    AgentUpdatedStreamEvent,
+)
 
 from app.skills.loader import get_skill_loader
 from app.tools import (
@@ -33,7 +41,6 @@ from app.tools import (
     list_skill_tree,
     execute_code,
     list_mcp_tools,
-    final_answer,
     SKILL_TOOLS,
 )
 from app.utils.network import LOCAL_IP, SERVER_PORT
@@ -44,7 +51,11 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# OpenAI client will be initialized per-request
+from agents import Agent, Runner, function_tool, set_default_openai_api, set_tracing_disabled, set_trace_processors
+from langsmith.wrappers import OpenAIAgentsTracingProcessor
+set_tracing_disabled(False)
+set_default_openai_api("chat_completions")
+set_trace_processors([OpenAIAgentsTracingProcessor()])
 
 logging.info(f"DEFAULT_MODEL: {DEFAULT_MODEL}")
 logging.info(f"OPENAI_API_KEY: {os.getenv('OPENAI_API_KEY')}")
@@ -146,7 +157,6 @@ You have access to the following tools:
 3. **list_skill_tree**: List all files in a skill directory
 4. **execute_code**: Execute Python code for computation, file processing, or MCP tool calls
 5. **list_mcp_tools**: Discover available MCP tools for external services
-6. **final_answer**: Submit the final answer when the task is fully completed (REQUIRED to end)
 
 Use these tools to help users accomplish their tasks effectively.
 </capabilities>
@@ -256,7 +266,7 @@ When a skill is loaded:
 <decision_flow>
 When helping users:
 
-1. **Simple Questions**: Answer directly, then call `final_answer` to complete
+1. **Simple Questions**: Answer directly without tools
 2. **Domain Tasks**: First use `load_skill` to get guidance, then `execute_code` to accomplish the task
 3. **File Processing**: Use `execute_code` with appropriate libraries
 4. **External Services**: Use `list_mcp_tools` to discover tools, then `execute_code` with `call_tool()`
@@ -264,24 +274,6 @@ When helping users:
 
 **IMPORTANT**: For any task that produces files (PPT, Excel, images, etc.), you MUST call execute_code to actually generate the files. Just describing or showing code is NOT enough - the user needs the actual output files!
 </decision_flow>
-
-<completion_rules>
-**CRITICAL: How to Complete Tasks**
-
-1. You MUST call `final_answer` tool to submit your final answer when done
-2. NEVER end your response without a tool call - always either:
-   - Call a tool to continue working, OR
-   - Call `final_answer` to complete the task
-3. If code execution returns unexpected results (e.g., 0 records found when expecting some), 
-   analyze and fix the issue before calling `final_answer`
-4. Verify your results are correct before submitting the final answer
-5. The `final_answer` tool is the ONLY way to properly end a task
-
-**Examples of when to continue vs. when to finish:**
-- Code returns error → Fix and retry (DO NOT call final_answer)
-- Results look wrong or empty → Investigate and fix (DO NOT call final_answer)
-- Task completed successfully with correct results → Call final_answer
-</completion_rules>
 """        
         return system_prompt
     
@@ -299,61 +291,6 @@ When helping users:
             tool_call_count=0,
         )
     
-    def _get_tool_schemas(self) -> List[Dict[str, Any]]:
-        """Convert SKILL_TOOLS (FunctionTool objects) to OpenAI function schemas."""
-        schemas = []
-        for tool in SKILL_TOOLS:
-            # FunctionTool objects have name, description, and params_json_schema attributes
-            schema = {
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description or f"Tool: {tool.name}",
-                    "parameters": tool.params_json_schema
-                }
-            }
-            schemas.append(schema)
-        
-        return schemas
-    
-    async def _execute_tool(
-        self, 
-        tool_name: str, 
-        tool_args: Dict[str, Any], 
-        agent_context: AgentContext
-    ) -> str:
-        """Execute a tool by name and return the result."""
-        # Find the tool (FunctionTool object)
-        tool_map = {
-            "load_skill": load_skill,
-            "read_skill_file": read_skill_file,
-            "list_skill_tree": list_skill_tree,
-            "execute_code": execute_code,
-            "list_mcp_tools": list_mcp_tools,
-            "final_answer": final_answer,
-        }
-        
-        tool_func = tool_map.get(tool_name)
-        if not tool_func:
-            return f"Error: Unknown tool '{tool_name}'"
-        
-        try:
-            # Create ToolContext for proper FunctionTool invocation
-            tool_ctx = ToolContext(
-                context=agent_context,
-                usage=Usage(),
-                tool_name=tool_name,
-                tool_call_id=str(uuid.uuid4()),
-                tool_arguments=json.dumps(tool_args)
-            )
-            
-            # Call the tool using on_invoke_tool method
-            result = await tool_func.on_invoke_tool(tool_ctx, json.dumps(tool_args))
-            return result
-        except Exception as e:
-            logger.error(f"[Tool] Error executing {tool_name}: {e}", exc_info=True)
-            return f"Error executing {tool_name}: {str(e)}"
-
     async def run(
         self,
         user_message: str,
@@ -362,12 +299,9 @@ When helping users:
         session_id: str = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Run the agent loop for a user request using custom orchestrator.
+        Run the agent loop for a user request using Runner.run_streamed().
         
-        This implements a custom Agent Loop that:
-        1. Only terminates when final_answer tool is called
-        2. Injects continue prompts if LLM responds without tool calls
-        3. Gives full control over the termination condition
+        This is a generator that yields events as the agent processes the request.
         
         Args:
             user_message: User's input message
@@ -403,194 +337,145 @@ When helping users:
         # Create agent context
         agent_context = self._create_agent_context(session_id)
         
-        # Build messages list for OpenAI API
-        messages: List[Dict[str, Any]] = []
-        
-        # Add system prompt
-        messages.append({"role": "system", "content": self._build_system_prompt()})
+        # Build input messages from history + current message
+        input_messages: List[TResponseInputItem] = []
         
         # Add history messages
         for msg in self.history_messages:
             if msg["role"] == "user":
-                messages.append({"role": "user", "content": msg["content"]})
+                input_messages.append({"role": "user", "content": msg["content"]})
             elif msg["role"] == "assistant":
-                messages.append({"role": "assistant", "content": msg["content"]})
+                input_messages.append({"role": "assistant", "content": msg["content"]})
         
         # Add current user message
-        messages.append({"role": "user", "content": full_user_message})
+        input_messages.append({"role": "user", "content": full_user_message})
         
-        # Get tool schemas
-        tools = self._get_tool_schemas()
+        # Create agent with tools
+        agent = Agent(
+            name="SkillAgent",
+            instructions=self._build_system_prompt(),
+            tools=SKILL_TOOLS,
+            model=DEFAULT_MODEL,
+        )
         
-        # Initialize OpenAI client
-        client = AsyncOpenAI()
-        
-        step_count = 0
-        no_tool_call_count = 0  # Track consecutive responses without tool calls
-        max_no_tool_calls = 3  # Max retries before giving up
-        final_answer_content = ""
+        # Configure run
+        run_config = RunConfig()
         
         try:
-            # Custom Agent Loop - continues until task_completed or max steps
-            while not agent_context.task_completed and step_count < self.max_tool_calls:
-                step_count += 1
-                logger.info(f"[{session_id}] Agent loop step {step_count}/{self.max_tool_calls}")
+            # Run with streaming
+            result = Runner.run_streamed(
+                agent,
+                input=input_messages,
+                context=agent_context,
+                run_config=run_config,
+                max_turns=self.max_tool_calls,
+            )
+            
+            current_response_text = ""
+            final_output = None
+            
+            async for event in result.stream_events():
+                # Handle different event types
+                if isinstance(event, RawResponsesStreamEvent):
+                    # Streaming text from LLM
+                    # Check if event.data has delta attribute (ResponseTextDeltaEvent has it as a string)
+                    if event.data and hasattr(event.data, 'delta') and event.data.delta:
+                        delta = event.data.delta
+                        # delta can be a string directly (ResponseTextDeltaEvent) 
+                        # or an object with content attribute (ResponseDeltaEvent)
+                        content_text = ""
+                        if isinstance(delta, str):
+                            content_text = delta
+                        elif hasattr(delta, 'content') and delta.content:
+                            if isinstance(delta.content, str):
+                                content_text = delta.content
+                            elif isinstance(delta.content, list):
+                                for part in delta.content:
+                                    if hasattr(part, 'text'):
+                                        content_text += part.text
+                                    elif isinstance(part, dict) and 'text' in part:
+                                        content_text += part['text']
+                                    elif isinstance(part, str):
+                                        content_text += part
+                        
+                        if content_text:
+                            current_response_text += content_text
+                            
+                            # Extract <execute> blocks from accumulated response
+                            execute_blocks = self._extract_execute_blocks(current_response_text)
+                            
+                            # Add newly found blocks to queue (avoid duplicates)
+                            existing_count = len(agent_context.pending_code_queue)
+                            for block in execute_blocks[existing_count:]:
+                                agent_context.pending_code_queue.append(block)
+                                logger.info(f"[{session_id}] Extracted execute block #{len(agent_context.pending_code_queue)}, length: {len(block)} chars")
+                            
+                            yield {
+                                "type": "response_delta",
+                                "content": content_text,
+                                "accumulated": current_response_text
+                            }
                 
-                yield {"type": "status", "content": f"Processing step {step_count}..."}
-                
-                # Call LLM with streaming
-                current_response_text = ""
-                tool_calls_data = []  # Accumulate tool calls from stream
-                current_tool_call = None
-                
-                response = await client.chat.completions.create(
-                    model=DEFAULT_MODEL,
-                    messages=messages,
-                    tools=tools,
-                    stream=True,
-                    max_completion_tokens=32768,
-                    max_tokens=16384,
-                )
-                
-                async for chunk in response:
-                    delta = chunk.choices[0].delta if chunk.choices else None
-                    if not delta:
-                        continue
+                elif isinstance(event, RunItemStreamEvent):
+                    item = event.item
                     
-                    # Handle content streaming
-                    if delta.content:
-                        current_response_text += delta.content
+                    if isinstance(item, ToolCallItem):
+                        # ToolCallItem has data in raw_item (ResponseFunctionToolCall)
+                        raw = item.raw_item
+                        tool_name = getattr(raw, 'name', None)
+                        tool_args_raw = getattr(raw, 'arguments', None)
+                        call_id = getattr(raw, 'call_id', None)
                         
-                        # Extract <execute> blocks from accumulated response
-                        execute_blocks = self._extract_execute_blocks(current_response_text)
-                        
-                        # Add newly found blocks to queue
-                        existing_count = len(agent_context.pending_code_queue)
-                        for block in execute_blocks[existing_count:]:
-                            agent_context.pending_code_queue.append(block)
-                            logger.info(f"[{session_id}] Extracted execute block #{len(agent_context.pending_code_queue)}, length: {len(block)} chars")
-                        
-                        yield {
-                            "type": "response_delta",
-                            "content": delta.content,
-                            "accumulated": current_response_text
-                        }
-                    
-                    # Handle tool calls streaming
-                    if delta.tool_calls:
-                        for tc in delta.tool_calls:
-                            if tc.index is not None:
-                                try:
-                                    idx = int(tc.index)  # Ensure it's an integer
-                                    
-                                    # Handle negative indices (some APIs return -1 for all chunks)
-                                    if idx < 0:
-                                        if idx == -1:
-                                            # -1 means: append to last tool call, or create first one
-                                            # If we have an id, it's a new tool call; otherwise append to existing
-                                            if tc.id and tc.id.strip():
-                                                # New tool call with id - append to list
-                                                idx = len(tool_calls_data)
-                                            else:
-                                                # Continuation of existing tool call - use last index
-                                                idx = max(0, len(tool_calls_data) - 1)
-                                        else:
-                                            continue  # Skip other negative indices
-                                    
-                                    # Ensure we have enough slots
-                                    while len(tool_calls_data) <= idx:
-                                        tool_calls_data.append({
-                                            "id": None,
-                                            "name": "",
-                                            "arguments": ""
-                                        })
-                                    
-                                    if tc.id:
-                                        tool_calls_data[idx]["id"] = tc.id
-                                    if tc.function:
-                                        if tc.function.name:
-                                            tool_calls_data[idx]["name"] = tc.function.name
-                                        if tc.function.arguments:
-                                            tool_calls_data[idx]["arguments"] += tc.function.arguments
-                                except (ValueError, IndexError, TypeError) as e:
-                                    logger.warning(f"[{session_id}] Error processing tool call at index {tc.index}: {e}")
-                
-                # Process the complete response
-                finish_reason = chunk.choices[0].finish_reason if chunk.choices else None
-                
-                # Build assistant message for history
-                # NOTE: We intentionally avoid using tool_calls field and tool role
-                # because some API gateways don't fully support the OpenAI tool call protocol.
-                # Instead, we use user role to inject tool results (more compatible).
-                
-                if tool_calls_data and tool_calls_data[0]["name"]:
-                    # Reset no_tool_call counter
-                    no_tool_call_count = 0
-                    
-                    # Build tool call description for assistant message
-                    # This preserves the LLM's intent without using tool_calls protocol
-                    tool_names = [tc["name"] for tc in tool_calls_data if tc["name"]]
-                    assistant_content = current_response_text or ""
-                    if not assistant_content.strip():
-                        # If LLM only returned tool calls without text, add a description
-                        assistant_content = f"[Calling tools: {', '.join(tool_names)}]"
-                    
-                    assistant_message = {"role": "assistant", "content": assistant_content}
-                    messages.append(assistant_message)
-                    
-                    # Execute each tool call
-                    for tc in tool_calls_data:
-                        if not tc["name"]:
-                            continue
-                        
-                        tool_name = tc["name"]
-                        tool_call_id = tc["id"]
-                        
-                        # Parse arguments
-                        try:
-                            tool_args = json.loads(tc["arguments"]) if tc["arguments"] else {}
-                        except json.JSONDecodeError as e:
-                            logger.warning(f"[{session_id}] Failed to parse tool args: {e}")
-                            tool_args = {}
-                        
-                        # Special handling for execute_code - inject code from queue
-                        if tool_name == "execute_code" and agent_context.pending_code_queue:
-                            # Don't pass code arg - the tool will get it from queue
-                            pass
-                        
+                        # Log raw arguments for debugging
                         logger.info(f"[{session_id}] Tool call: {tool_name}")
+                        logger.debug(f"[{session_id}] Raw arguments type: {type(tool_args_raw)}, value: {repr(tool_args_raw)[:500]}")
                         
-                        # Yield tool_call event for frontend
+                        # Parse arguments if string
+                        tool_args = tool_args_raw
+                        if isinstance(tool_args, str):
+                            try:
+                                tool_args = json.loads(tool_args)
+                            except Exception as e:
+                                logger.warning(f"[{session_id}] Failed to parse tool args: {e}, raw: {repr(tool_args_raw)[:200]}")
+                                tool_args = {"raw": tool_args}
+                        
+                        if tool_name == "execute_code":
+                            tool_args = {
+                                "code": agent_context.pending_code_queue[-1]
+                            }
+                        
                         yield {
                             "type": "tool_call",
                             "name": tool_name,
-                            "arguments": tool_args if tool_name != "execute_code" else {"code": agent_context.pending_code_queue[-1] if agent_context.pending_code_queue else ""},
-                            "call_id": tool_call_id
+                            "arguments": tool_args,
+                            "call_id": call_id
                         }
+                    
                         
-                        # Special status for load_skill
+                        # Special handling for load_skill
                         if tool_name == "load_skill" and tool_args:
                             yield {
                                 "type": "status",
                                 "content": f"Loading skill: {tool_args.get('skill_name', 'unknown')}"
                             }
+                    
+                    elif isinstance(item, ToolCallOutputItem):
+                        # Tool execution completed - data is also in raw_item
+                        raw = item.raw_item
+                        tool_result = item.output
                         
-                        # Execute the tool
-                        tool_result = await self._execute_tool(tool_name, tool_args, agent_context)
-                        
-                        logger.info(f"[{session_id}] Tool result: {tool_name}")
-                        
-                        # Yield tool_result event
                         yield {
                             "type": "tool_result",
-                            "name": tool_name,
+                            "name": getattr(raw, 'name', 'unknown') if raw else 'unknown',
                             "result": tool_result,
-                            "call_id": tool_call_id
+                            "call_id": getattr(raw, 'call_id', None) if raw else None
                         }
                         
                         # Special handling for execute_code results
-                        if tool_name == "execute_code" and "Execution Result" in str(tool_result):
+                        if "Execution Result" in str(tool_result):
+                            # Parse execution result for frontend
                             try:
+                                # Extract status, stdout, stderr from the formatted result
                                 result_data = self._parse_execution_result(tool_result)
                                 if result_data:
                                     yield {
@@ -605,72 +490,44 @@ When helping users:
                                 logger.warning(f"Failed to parse execution result: {e}")
                         
                         # Special handling for load_skill results
-                        if tool_name == "load_skill" and "Skill '" in str(tool_result):
+                        if "Skill '" in str(tool_result) and "' Documentation" in str(tool_result):
+                            # Extract skill name
+                            import re
                             match = re.search(r"Skill '([^']+)' Documentation", str(tool_result))
                             if match:
                                 yield {
                                     "type": "skill_loaded",
                                     "skill_name": match.group(1)
                                 }
-                        
-                        # Check if final_answer was called
-                        if tool_name == "final_answer":
-                            final_answer_content = agent_context.final_answer_content
-                            logger.info(f"[{session_id}] Task completed via final_answer")
-                        
-                        # Add tool result to messages using USER role (for API gateway compatibility)
-                        # This avoids using "tool" role which some gateways don't support properly
-                        tool_result_message = f"""[Tool Result: {tool_name}]
-
-{tool_result}
-
-Based on this result, either:
-1. If the task is complete and results are correct, call `final_answer` with your summary
-2. If there was an error or more work is needed, continue with the appropriate tool call"""
-                        
-                        messages.append({
-                            "role": "user",
-                            "content": tool_result_message
-                        })
+                    
+                    elif isinstance(item, MessageOutputItem):
+                        # Final message from agent
+                        if hasattr(item, 'content') and item.content:
+                            for content_part in item.content:
+                                if hasattr(content_part, 'text'):
+                                    final_output = content_part.text
+                                    # Clean the response content to remove <execute> blocks
+                                    clean_content = self._clean_response_text(final_output)
+                                    if clean_content:  # Only yield if there's content after cleaning
+                                        yield {
+                                            "type": "response",
+                                            "content": clean_content
+                                        }
                 
-                else:
-                    # No tool calls in response
-                    no_tool_call_count += 1
-                    
-                    if current_response_text:
-                        messages.append({"role": "assistant", "content": current_response_text})
-                    
-                    # If task not completed and no tool calls, inject a continue prompt
-                    if not agent_context.task_completed and no_tool_call_count < max_no_tool_calls:
-                        logger.info(f"[{session_id}] No tool call but task not completed, injecting continue prompt (attempt {no_tool_call_count})")
-                        
-                        continue_prompt = """[System] You haven't called the `final_answer` tool yet. 
-
-If the task is complete and results are correct, call `final_answer` with your summary.
-If there's more work to do or issues to fix, continue with the appropriate tool call.
-
-Remember: You MUST call `final_answer` to properly complete the task."""
-                        
-                        messages.append({"role": "user", "content": continue_prompt})
-                        
-                        yield {
-                            "type": "status",
-                            "content": "Prompting agent to continue or finalize..."
-                        }
-                    elif no_tool_call_count >= max_no_tool_calls:
-                        # Give up after max retries - force completion
-                        logger.warning(f"[{session_id}] Max no-tool-call retries reached, forcing completion")
-                        agent_context.task_completed = True
-                        final_answer_content = current_response_text
+                elif isinstance(event, AgentUpdatedStreamEvent):
+                    # Agent status update
+                    yield {
+                        "type": "status",
+                        "content": f"Agent processing..."
+                    }
             
-            # Determine final answer
-            if agent_context.final_answer_content:
-                clean_answer = agent_context.final_answer_content
-            else:
-                # Fallback to last response text if no explicit final_answer
-                clean_answer = self._clean_response_text(current_response_text) if current_response_text else "Task completed."
+            # Get final result - final_output is a property, not a method
+            final_result = result.final_output
             
-            logger.info(f"[{session_id}] Final: success")
+            # Clean the response text to remove <execute> code blocks for display
+            # The code blocks are internal implementation details, not user-facing content
+            raw_answer = final_result or current_response_text
+            clean_answer = self._clean_response_text(raw_answer)
             
             yield {
                 "type": "final_result",
