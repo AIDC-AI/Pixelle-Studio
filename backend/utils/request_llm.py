@@ -1,7 +1,13 @@
 import argparse
 import json
 import asyncio
+import os
 from openai import AsyncOpenAI
+
+# # 从环境变量读取LLM配置
+# LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://REDACTED_BASE_URL_HOST/v1")
+# LLM_API_KEY = os.getenv("LLM_API_KEY", "REDACTED_API_KEY")
+# LLM_MODEL = os.getenv("LLM_MODEL", "us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 
 async def main(req_path: str):

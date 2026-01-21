@@ -147,42 +147,73 @@ async def list_skill_tree(ctx: RunContextWrapper[AgentContext], skill_name: str)
 
 
 @function_tool
-async def execute_code(ctx: RunContextWrapper[AgentContext]) -> str:
+async def execute_code(ctx: RunContextWrapper[AgentContext], code: Optional[str] = None) -> str:
     """
-    Execute Python code from the most recent <execute lang="python">...</execute> block in your response.
+    ⚠️ CRITICAL TOOL - Execute Python code to generate files and produce results.
     
-    WORKFLOW:
-    1. Write code in <execute lang="python">...</execute> tags in your response
-    2. Call execute_code() with no parameters
-    3. The code will be automatically extracted and executed
+    Two ways to use this tool:
+    
+    **Method 1 (Direct)**: Pass code directly as parameter
+    ```
+    execute_code(code="import json\\nprint(json.dumps({'status': 'success'}))")
+    ```
+    
+    **Method 2 (Legacy)**: Write code in <execute lang="python">...</execute> tags first, then call with no parameters
+    ```
+    <execute lang="python">
+    import json
+    print(json.dumps({"status": "success"}))
+    </execute>
+    ```
+    Then call: execute_code()
+    
+    Args:
+        code: Python code to execute (optional, will use queue if not provided)
     
     Returns:
-        Execution results including stdout, stderr, and parsed JSON result.
+        Execution results including stdout, stderr, parsed JSON result, and generated file URLs.
     """
     context = ctx.context
     context.tool_call_count += 1
     
-    # Get code from the queue - always take the LAST one (most recent)
-    if not context.pending_code_queue:
-        logger.warning(f"[Tool] execute_code called but no code in queue (call #{context.tool_call_count})")
+    # Determine code source: direct parameter or queue
+    code_to_execute = None
+    code_source = None
+    
+    if code is not None and code.strip():
+        # Method 1: Code passed as parameter (direct)
+        code_to_execute = code.strip()
+        code_source = "parameter"
+        logger.info(f"[Tool] execute_code called with code parameter (call #{context.tool_call_count}), length: {len(code_to_execute)} chars")
+    elif context.pending_code_queue:
+        # Method 2: Code from queue (legacy)
+        code_to_execute = context.pending_code_queue.pop()
+        code_source = "queue"
+        logger.info(f"[Tool] execute_code using code from queue (call #{context.tool_call_count}), length: {len(code_to_execute)} chars, remaining: {len(context.pending_code_queue)}")
+    else:
+        # No code available
+        logger.warning(f"[Tool] execute_code called but no code provided (call #{context.tool_call_count})")
         return """## No Code Found
 
-You called execute_code() but there's no <execute> block in your response yet.
+You called execute_code() but didn't provide any code.
 
-**Write code first**:
+**Option 1 - Pass code directly**:
+```
+execute_code(code="import json\\nprint(json.dumps({'status': 'success'}))")
+```
+
+**Option 2 - Write code block first**:
 ```
 <execute lang="python">
 import json
-# your code here
 print(json.dumps({"status": "success"}))
 </execute>
 ```
-
-Then call execute_code()."""
+Then call: execute_code()
+"""
     
-    # Pop from the end (most recent code)
-    code = context.pending_code_queue.pop()
-    logger.info(f"[Tool] Executing LAST code from queue (call #{context.tool_call_count}), length: {len(code)} chars, remaining: {len(context.pending_code_queue)}")
+    code = code_to_execute
+    logger.info(f"[Tool] Executing code from {code_source}")
     
     # Build skill helpers injection code
     skill_helpers_code = _build_skill_helpers_code(context)

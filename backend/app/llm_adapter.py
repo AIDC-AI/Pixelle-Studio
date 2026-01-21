@@ -20,6 +20,11 @@ from openai import AsyncOpenAI
 from app.skills.loader import get_skill_loader
 from app.mcp_aggregator import MCPServerConfig
 
+# LLM Configuration - 从环境变量读取，支持自定义配置
+# LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://REDACTED_BASE_URL_HOST/v1")
+# LLM_API_KEY = os.getenv("LLM_API_KEY", "REDACTED_API_KEY")
+# LLM_MODEL = os.getenv("LLM_MODEL", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+
 DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 
 def build_skills_system_prompt(skills_meta: str, skill_content: Optional[str] = None) -> str:

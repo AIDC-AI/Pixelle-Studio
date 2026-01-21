@@ -111,14 +111,14 @@ async def generate_title(request: GenerateTitleRequest):
             messages=[
                 {
                     "role": "system", 
-                    "content": """你是一个对话标题生成助手。根据用户的第一条消息，生成一个简洁的对话标题。
+                    "content": """你是一个对话标题生成助手。根据用户的消息，生成一个简洁的对话标题。
                     
 规则：
 1. 标题必须在2-10个字之间，绝对不能超过10个字
 2. 标题应该概括用户请求的核心内容
 3. 使用中文
 4. 不要使用标点符号
-5. 只返回标题文本，不要任何其他内容
+5. 只返回标题文本，不要回复任何其他内容
 
 例如：
 - "帮我分析这个Excel表格的销售数据" -> "销售数据分析"
@@ -130,11 +130,11 @@ async def generate_title(request: GenerateTitleRequest):
                 },
                 {"role": "user", "content": request.message}
             ],
-            temperature=0.3,
-            max_tokens=50
+            temperature=0.3
         )
         
         title = response.choices[0].message.content.strip()
+        log.info(f"Generated title: {title}")
         # 移除可能的引号
         title = title.strip('"\'')
         

@@ -203,7 +203,9 @@ class SkillLoader:
             
         # 2. Scan user directory if provided
         if user_id:
-            user_skill_dir = self.skills_dir / user_id
+            # Convert user_id to string for path compatibility
+            user_id_str = str(user_id) if not isinstance(user_id, str) else user_id
+            user_skill_dir = self.skills_dir / user_id_str
             if user_skill_dir.exists() and user_skill_dir.is_dir():
                 self._scan_dir(user_skill_dir, skills_map, False)  # is_default=False
         

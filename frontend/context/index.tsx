@@ -170,19 +170,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         setActiveSessionId(sessionAPI.getActiveSessionId())
-
-        return clearTimeout
+        
+        // 初始化：如果有token，获取用户信息
+        const initAuth = async () => {
+            if (userAPI.isAuthenticated() && !user) {
+                await getCurrentUser()
+            }
+        }
+        initAuth()
     }, [])
     
     useEffect(() => {
         const isAuthRoute = PUBLIC_ROUTES.includes(pathname);
-        if (!!userAPI.isAuthenticated() && !!isAuthRoute) {
-            getCurrentUser()
-
-        } else {
-
+        
+        if (userAPI.isAuthenticated() && user) {
+            // 已登录且有用户信息：如果在登录页，跳转到主页
+            if (isAuthRoute) {
+                router.push('/')
+            }
+        } else if (!userAPI.isAuthenticated()) {
+            // 未登录：如果不在登录页，跳转到登录页
+            if (!isAuthRoute) {
+                router.push('/auth')
+            }
         }
-    }, [token, router, pathname])
+        // 如果isAuthenticated但user为null（正在加载中），不做任何跳转
+    }, [pathname, user])
 
     return <AppContext.Provider
         value={
