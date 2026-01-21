@@ -19,21 +19,24 @@ const IterationItem: React.FC<IProps> = (props) => {
     const iterNum = iterMatch ? iterMatch[1] : '';
 
     const getIcon = () => {
-        if (isStart) return <RefreshCw className="w-3.5 h-3.5 animate-spin" />;
-        if (isSuccess) return <CheckCircle className="w-3.5 h-3.5" />;
-        if (isFailed) return <XCircle className="w-3.5 h-3.5" />;
-        return <RotateCw className="w-3.5 h-3.5" />;
+        if (isStart) return <RefreshCw className="w-3 h-3 animate-spin" />;
+        if (isSuccess) return <CheckCircle className="w-3 h-3" />;
+        if (isFailed) return <XCircle className="w-3 h-3" />;
+        return <RotateCw className="w-3 h-3" />;
     };
 
     const getStyles = () => {
-        if (isStart) return 'bg-blue-50 border-blue-200 text-blue-700';
-        if (isSuccess) return 'bg-emerald-50 border-emerald-200 text-emerald-700';
+        if (isStart) return 'bg-gray-100 border-gray-200 text-gray-600';
+        if (isSuccess) return 'bg-green-50 border-green-200 text-green-700';
         if (isFailed) return 'bg-red-50 border-red-200 text-red-700';
-        return 'bg-slate-50 border-slate-200 text-slate-700';
+        return 'bg-gray-100 border-gray-200 text-gray-600';
     };
 
     return (
-        <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${getStyles()}`}>
+        <div 
+            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border ${getStyles()}`}
+            style={{ boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)' }}
+        >
             {getIcon()}
             <span>
                 {isStart ? '开始' : isSuccess ? '完成' : isFailed ? '失败' : '迭代'} 

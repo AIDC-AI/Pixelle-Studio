@@ -127,7 +127,8 @@ class SkillMeta:
     linked_files: Optional[List[str]] = None  # Files linked in SKILL.md
     has_scripts: bool = False  # Has scripts/ directory
     has_resources: bool = False  # Has resources/ directory
-    
+    is_default: bool = False # Is default skill
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -168,20 +169,25 @@ class SkillLoader:
     def _get_cache_key(self, user_id: Optional[str]) -> str:
         return user_id or "default"
 
-    def scan_skills(self, user_id: Optional[str] = None) -> List[SkillMeta]:
+    def scan_skills(self, user_id: Optional[str] = None, force_refresh: bool = False) -> List[SkillMeta]:
         """
         Scan skills directory and extract metadata from all SKILL.md files.
         Supports layered loading: default -> user (override).
         
         Args:
             user_id: Optional user ID to load custom skills for
+            force_refresh: If True, force rescan even if cached
             
         Returns:
             List of SkillMeta objects (merged)
         """
         cache_key = self._get_cache_key(user_id)
         
-        # Reset cache for this user to ensure fresh scan
+        # Return cached skills if available and not forcing refresh
+        if not force_refresh and cache_key in self._skills_cache and self._skills_cache[cache_key]:
+            return list(self._skills_cache[cache_key].values())
+        
+        # Reset cache for this user for fresh scan
         self._skills_cache[cache_key] = {}
         
         skills_map: Dict[str, SkillMeta] = {}
@@ -193,13 +199,13 @@ class SkillLoader:
         # 1. Scan default directory
         default_dir = self.skills_dir / "default"
         if default_dir.exists() and default_dir.is_dir():
-            self._scan_dir(default_dir, skills_map)
+            self._scan_dir(default_dir, skills_map, True)  # is_default=True
             
         # 2. Scan user directory if provided
         if user_id:
             user_skill_dir = self.skills_dir / user_id
             if user_skill_dir.exists() and user_skill_dir.is_dir():
-                self._scan_dir(user_skill_dir, skills_map)
+                self._scan_dir(user_skill_dir, skills_map, False)  # is_default=False
         
         # Update cache
         self._skills_cache[cache_key] = skills_map
@@ -208,7 +214,7 @@ class SkillLoader:
         print(f"[SkillLoader] Total skills loaded for {cache_key}: {len(skills)}")
         return skills
 
-    def _scan_dir(self, base_dir: Path, skills_map: Dict[str, SkillMeta]):
+    def _scan_dir(self, base_dir: Path, skills_map: Dict[str, SkillMeta], is_default: bool):
         """Helper to scan a directory and update skills map."""
         for skill_dir in base_dir.iterdir():
             if not skill_dir.is_dir():
@@ -219,14 +225,14 @@ class SkillLoader:
                 continue
             
             try:
-                meta = self._extract_metadata(skill_md_path, skill_dir)
+                meta = self._extract_metadata(skill_md_path, skill_dir, is_default)
                 if meta:
                     skills_map[meta.name] = meta
                     print(f"[SkillLoader] Found skill '{meta.name}' in {base_dir.name}")
             except Exception as e:
                 print(f"[SkillLoader] Error loading skill from {skill_dir}: {e}")
     
-    def _extract_metadata(self, skill_md_path: Path, skill_dir: Path) -> Optional[SkillMeta]:
+    def _extract_metadata(self, skill_md_path: Path, skill_dir: Path, is_default: bool) -> Optional[SkillMeta]:
         """
         Extract YAML frontmatter metadata from SKILL.md file.
         
@@ -260,6 +266,10 @@ class SkillLoader:
         name = frontmatter.get('name')
         description = frontmatter.get('description')
         
+        # Convert name to string if it's not already
+        if name is not None:
+            name = str(name)
+        
         if not name or not description:
             print(f"[SkillLoader] Missing required fields in {skill_md_path}")
             return None
@@ -269,7 +279,8 @@ class SkillLoader:
             description=description,
             path=str(skill_md_path.relative_to(self.skills_dir.parent)),
             directory=str(skill_dir.relative_to(self.skills_dir.parent)),
-            license=frontmatter.get('license')
+            license=frontmatter.get('license'),
+            is_default=is_default
         )
     
     def get_skill_meta(self, skill_name: str, user_id: Optional[str] = None) -> Optional[SkillMeta]:

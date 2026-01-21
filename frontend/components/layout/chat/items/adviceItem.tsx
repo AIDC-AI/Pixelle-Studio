@@ -15,28 +15,31 @@ const AdviceItem: React.FC<IProps> = (props) => {
     const cleanContent = content.replace(/^💡\s*Revision advice.*?:\n?/i, '');
 
     return (
-        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-xl overflow-hidden">
+        <div 
+            className="bg-gray-100 border border-gray-200 rounded-lg overflow-hidden"
+            style={{ boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)' }}
+        >
             {/* Header */}
             <div 
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-amber-100/50 transition-colors"
+                className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-gray-150 transition-colors"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-200/60 text-amber-600">
-                        <Lightbulb className="w-4 h-4" />
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center w-6 h-6 rounded bg-gray-300 text-gray-600">
+                        <Lightbulb className="w-3 h-3" />
                     </div>
-                    <span className="font-medium text-amber-800">修改建议</span>
+                    <span className="text-xs font-medium text-gray-600">修改建议</span>
                 </div>
-                <div className="text-amber-600">
+                <div className="text-gray-500">
                     {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 </div>
             </div>
             
             {/* Content */}
             {isExpanded && (
-                <div className="px-4 pb-4">
-                    <div className="bg-white/60 rounded-lg p-3 border border-amber-100">
-                        <pre className="whitespace-pre-wrap text-sm text-amber-900 font-normal leading-relaxed">
+                <div className="px-3 pb-3">
+                    <div className="bg-white rounded p-2 border border-gray-200">
+                        <pre className="whitespace-pre-wrap text-xs text-gray-700 font-normal leading-relaxed">
                             {cleanContent}
                         </pre>
                     </div>

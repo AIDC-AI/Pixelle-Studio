@@ -20,6 +20,8 @@ services:
       - LOG_LEVEL=INFO
       # 将数据库放在已挂载的 storage 目录中，避免直接挂载文件导致的问题
       - DATABASE_URL=sqlite:///./storage/app.db
+      # 外部访问 IP 地址（用于生成正确的文件下载 URL）
+      - EXTERNAL_IP=30.150.44.149
     env_file:
       - .env
 

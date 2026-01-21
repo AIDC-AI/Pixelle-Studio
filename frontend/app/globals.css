@@ -32,6 +32,11 @@
   --color-gray-700: #374151;
   --color-gray-800: #1f2937;
   --color-gray-900: #111827;
+
+  --color-disabled: #0000000a;
+  --color-success: #389e0d;
+  --color-error: #f5222d;
+  --color-info: #0958d9;
 }
 
 /* Scrollbar Styling */
@@ -85,6 +90,24 @@
   }
 }
 
+@keyframes slideInToast {
+  from {
+    transform: translateX(calc(100% + 25px));
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes hide {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out forwards;
 }
@@ -95,6 +118,14 @@
 
 .animate-pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-slideInToast {
+  animation: slideInToast 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-hide {
+  animation: hide 100ms ease-in;
 }
 
 /* Message animations */

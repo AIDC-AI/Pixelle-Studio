@@ -6,12 +6,26 @@ export interface ChatResponse {
     session_id: string;
 }
 
+export interface GenerateTitleResponse {
+    title: string;
+}
+
 export const api = {
+    generateTitle: async (message: string): Promise<GenerateTitleResponse> => {
+        const res = await fetch(`${API_BASE}/generate-title`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message }),
+        });
+        return res.json();
+    },
+
     createChat: async (
         message: string,
+        userId: number,
         fileUrls?: string[],
         fileNames?: string[],
-        sessionId?: string
+        sessionId?: string,
     ): Promise<ChatResponse> => {
         const res = await fetch(`${API_BASE}/chat`, {
             method: 'POST',
@@ -20,7 +34,8 @@ export const api = {
                 message,
                 file_urls: fileUrls || [],  // Send file URLs
                 file_names: fileNames || [],  // Send uploaded file names for Agent
-                session_id: sessionId || null
+                session_id: sessionId || null,
+                user_id: userId
             }),
         });
         return res.json();

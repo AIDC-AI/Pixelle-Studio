@@ -10,17 +10,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
+import os
 import uuid
 import json
 import shutil
-import socket
 from pathlib import Path
 from datetime import datetime
 
 # Import the simplified agent
 from app.agent import SkillAgent
 # Import modules
-from app.llm_adapter import generate_workflow_script, check_if_workflow_needed
+from app.llm_adapter import generate_workflow_script
 from app.execution.runner import run_script
 from app.mcp_aggregator import MCPAggregator, MCPServerConfig
 # from app.tool_search.selector import select_tools
@@ -31,6 +31,9 @@ from app.skills.loader import get_skill_loader
 
 # Import logger
 from app.utils.logger import log
+
+# Import network utilities
+from app.utils.network import LOCAL_IP
 
 # Import CRUD routes
 from app.routes import mcp_servers, users
@@ -59,20 +62,7 @@ app.add_middleware(
 # STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def get_local_ip():
-    """Get the local IP address of this machine."""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-        s.close()
-        return local_ip
-    except Exception:
-        return "127.0.0.1"
-
-
-LOCAL_IP = get_local_ip()
-log.info(f"Local IP address: {LOCAL_IP}")
+log.info(f"Local IP address: {LOCAL_IP} (EXTERNAL_IP env: {os.environ.get('EXTERNAL_IP', 'not set')})")
 
 # NOTE:
 # Previously we used an in-memory `chats` dict keyed by `chat_id` (one user request).
@@ -91,12 +81,75 @@ class ChatRequest(BaseModel):
     file_urls: Optional[List[str]] = None
     file_names: Optional[List[str]] = None  # 上传后的文件名（如 9120.xlsx）
     session_id: Optional[str] = None  # 可选：复用同一会话（Cursor-like）
-    user_id: Optional[str] = None  # 用户ID，用于多租户隔离
+    user_id: Optional[int] = None  # 用户ID，用于多租户隔离
 
 
 class ChatResponse(BaseModel):
     chat_id: str
     session_id: str
+
+
+class GenerateTitleRequest(BaseModel):
+    message: str  # 用户第一条消息
+    
+
+class GenerateTitleResponse(BaseModel):
+    title: str
+
+
+@app.post("/api/generate-title", response_model=GenerateTitleResponse)
+async def generate_title(request: GenerateTitleRequest):
+    """Generate a concise title for a conversation based on user's first message."""
+    from openai import AsyncOpenAI
+    from app.llm_adapter import DEFAULT_MODEL
+    
+    try:
+        client = AsyncOpenAI()
+        
+        response = await client.chat.completions.create(
+            model=DEFAULT_MODEL,
+            messages=[
+                {
+                    "role": "system", 
+                    "content": """你是一个对话标题生成助手。根据用户的第一条消息，生成一个简洁的对话标题。
+                    
+规则：
+1. 标题必须在2-10个字之间，绝对不能超过10个字
+2. 标题应该概括用户请求的核心内容
+3. 使用中文
+4. 不要使用标点符号
+5. 只返回标题文本，不要任何其他内容
+
+例如：
+- "帮我分析这个Excel表格的销售数据" -> "销售数据分析"
+- "生成一个关于人工智能的PPT" -> "AI主题PPT"
+- "帮我写一段Python代码实现排序" -> "Python排序"
+- "今天天气怎么样" -> "天气查询"
+- "帮我处理一下这个文件" -> "文件处理"
+"""
+                },
+                {"role": "user", "content": request.message}
+            ],
+            temperature=0.3,
+            max_tokens=50
+        )
+        
+        title = response.choices[0].message.content.strip()
+        # 移除可能的引号
+        title = title.strip('"\'')
+        
+        # 如果标题过长，截断到10个字
+        if len(title) > 10:
+            title = title[:10]
+            
+        log.info(f"Generated title: {title} for message: {request.message[:50]}...")
+        return {"title": title}
+        
+    except Exception as e:
+        log.error(f"Failed to generate title: {e}")
+        # 失败时使用简单的截断逻辑
+        fallback_title = request.message[:15] + "..." if len(request.message) > 15 else request.message
+        return {"title": fallback_title}
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -196,7 +249,7 @@ async def process_with_agent(
     user_message: str,
     file_urls: List[str],
     file_names: List[str] = None,
-    user_id: str = None
+    user_id: int = None
 ):
     """
     Process a user message using the single agent.
@@ -258,7 +311,7 @@ async def process_with_agent(
             db.close()
 
         agent = SkillAgent(
-            max_tool_calls=10, 
+            max_tool_calls=20, 
             history_messages=history_messages,
             mcp_server_url=mcp_server_url,
             mcp_server_type=mcp_server_type,
@@ -282,11 +335,21 @@ async def process_with_agent(
                 step_type = event.get("type", "unknown")
                 content = event.get("content")
                 data_json = None
-                if step_type in ("execution_result", "final_result"):
+                
+                # Skip response_delta events (too granular for persistence)
+                if step_type == "response_delta":
+                    db.close()
+                    continue
+                
+                # Events with structured data
+                if step_type in ("execution_result", "final_result", "tool_call", "tool_result"):
                     data_json = json.dumps(event, ensure_ascii=False)
                     content = None
+                
+                # Capture response text for final message
                 if step_type == "response" and isinstance(content, str) and content.strip():
                     final_response_text = content
+                
                 step = ChatStep(
                     chat_id=chat_id,
                     step_index=step_index,
@@ -311,6 +374,16 @@ async def process_with_agent(
                 log.info(f"[{chat_id[:8]}] Executing code #{event.get('execution_count', 0)}")
             elif event_type == "execution_result":
                 log.info(f"[{chat_id[:8]}] Execution result: {event.get('status')}")
+            elif event_type == "tool_call":
+                log.info(f"[{chat_id[:8]}] Tool call: {event.get('name')}")
+            elif event_type == "tool_result":
+                log.info(f"[{chat_id[:8]}] Tool result: {event.get('name')}")
+            elif event_type == "response_delta":
+                pass  # Don't log deltas (too verbose)
+            elif event_type == "response":
+                log.info(f"[{chat_id[:8]}] Response: {str(event.get('content', ''))[:50]}...")
+            elif event_type == "skill_loaded":
+                log.info(f"[{chat_id[:8]}] Skill loaded: {event.get('skill_name')}")
             elif event_type == "final_result":
                 log.info(f"[{chat_id[:8]}] Final: {event.get('status')}")
 
@@ -335,9 +408,17 @@ async def process_with_agent(
                             turn.assistant_message = json.dumps(result_obj, ensure_ascii=False)
 
                         # If final answer is empty, fallback to best-effort response text captured earlier
+                        # Note: final_response_text should already be cleaned by agent.py
                         if (turn.assistant_message is None) or (isinstance(turn.assistant_message, str) and not turn.assistant_message.strip()):
                             if final_response_text:
-                                turn.assistant_message = final_response_text
+                                # Double-check: remove any remaining <execute> blocks
+                                import re
+                                cleaned_fallback = re.sub(
+                                    r'<execute\s+lang=["\']python["\']\s*>.*?</execute>',
+                                    '', final_response_text, flags=re.DOTALL | re.IGNORECASE
+                                )
+                                cleaned_fallback = re.sub(r'\n{3,}', '\n\n', cleaned_fallback).strip()
+                                turn.assistant_message = cleaned_fallback if cleaned_fallback else final_response_text
                         turn.updated_at = datetime.utcnow()
                         db.commit()
                 finally:
@@ -355,18 +436,17 @@ async def process_with_agent(
         except:
             pass
 
-
 # ============================================================================
 # File Upload API
 # ============================================================================
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...), request: Request = None, user_id: Optional[str] = None):
+async def upload_file(file: UploadFile = File(...), request: Request = None, user_id: Optional[int] = None):
     """Upload a file and return a URL for access."""
     try:
         # Determine storage directory based on user_id
         script_root = Path(__file__).parent.parent / "scripts"
-        target_subdir = user_id if user_id else "default"
+        target_subdir = str(user_id) if user_id is not None else "default"
         storage_dir = script_root / target_subdir
         storage_dir.mkdir(parents=True, exist_ok=True)
         
@@ -401,10 +481,10 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, use
 
 
 @app.get("/f/{user_id}/{filename}")
-async def get_user_file(user_id: str, filename: str):
+async def get_user_file(user_id: int, filename: str):
     """Serve uploaded files for a specific user."""
     script_root = Path(__file__).parent.parent / "scripts"
-    file_path = script_root / user_id / filename
+    file_path = script_root / str(user_id) / filename
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -443,16 +523,27 @@ async def health_check():
         "skills_loaded": len(skills_list)
     }
 
-
 # ============================================================================
 # Skills API
 # ============================================================================
 
+class CreateSkillRequest(BaseModel):
+    name: str
+    description: str
+    content: str  # Full SKILL.md content
+
+class UpdateSkillRequest(BaseModel):
+    new_name: Optional[str] = None  # If provided, rename the skill
+    description: str
+    content: str  # Updated SKILL.md content
+
 @app.get("/api/skills")
-async def get_skills(user_id: Optional[str] = None):
+async def get_skills(user_id: Optional[int] = None):
     """Get all available skills metadata (merged view for user)."""
     try:
-        skills = skill_loader.scan_skills(user_id)
+        # Convert user_id to string for file path
+        user_id_str = str(user_id) if user_id is not None else None
+        skills = skill_loader.scan_skills(user_id_str)
         return {
             "skills": [s.to_dict() for s in skills],
             "count": len(skills)
@@ -463,15 +554,17 @@ async def get_skills(user_id: Optional[str] = None):
 
 
 @app.get("/api/skills/{skill_name}")
-async def get_skill_detail(skill_name: str, user_id: Optional[str] = None):
+async def get_skill_detail(skill_name: str, user_id: Optional[int] = None):
     """Get full content of a specific skill."""
     try:
-        content = skill_loader.read_skill(skill_name, user_id)
+        # Convert user_id to string for file path
+        user_id_str = str(user_id) if user_id is not None else None
+        content = skill_loader.read_skill(skill_name, user_id_str)
         if content is None:
             raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
         
-        meta = skill_loader.get_skill_meta(skill_name, user_id)
-        files = skill_loader.list_skill_files(skill_name, user_id)
+        meta = skill_loader.get_skill_meta(skill_name, user_id_str)
+        files = skill_loader.list_skill_files(skill_name, user_id_str)
         
         return {
             "name": skill_name,
@@ -486,19 +579,8 @@ async def get_skill_detail(skill_name: str, user_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-class CreateSkillRequest(BaseModel):
-    name: str
-    content: str  # Full SKILL.md content
-
-
-class UpdateSkillRequest(BaseModel):
-    new_name: Optional[str] = None  # If provided, rename the skill
-    content: str  # Updated SKILL.md content
-
-
 @app.post("/api/skills")
-async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = None):
+async def create_skill(request: CreateSkillRequest, user_id: Optional[int] = None):
     """
     Create a new skill.
     If user_id provided, create in skills/<user_id>, else in skills/default.
@@ -506,7 +588,7 @@ async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = Non
     try:
         # Determine target directory
         skills_root = Path(__file__).parent.parent / "skills"
-        target_subdir = user_id if user_id else "default"
+        target_subdir = str(user_id) if user_id is not None else "default"
         skillset_dir = skills_root / target_subdir
         skillset_dir.mkdir(parents=True, exist_ok=True)
         
@@ -521,6 +603,14 @@ async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = Non
         
         # Create SKILL.md file
         skill_md = skill_dir / "SKILL.md"
+        # create content
+#         skill_content = f"""---
+# name: {request.name}
+# description: {request.description}
+# ---
+
+# {request.content}
+# """
         with open(skill_md, 'w', encoding='utf-8') as f:
             f.write(request.content)
         
@@ -533,7 +623,6 @@ async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = Non
             "success": True,
             "name": request.name,
             "path": str(skill_dir.relative_to(skills_root.parent)),
-            "scope": target_subdir
         }
     
     except HTTPException:
@@ -544,14 +633,14 @@ async def create_skill(request: CreateSkillRequest, user_id: Optional[str] = Non
 
 
 @app.put("/api/skills/{skill_name}")
-async def update_skill(skill_name: str, request: UpdateSkillRequest, user_id: Optional[str] = None):
+async def update_skill(skill_name: str, request: UpdateSkillRequest, user_id: Optional[int] = None):
     """
     Update an existing skill.
     Must provide user_id to update user-specific skills.
     """
     try:
         skills_root = Path(__file__).parent.parent / "skills"
-        target_subdir = user_id if user_id else "default"
+        target_subdir = str(user_id) if user_id is not None else "default"
         skillset_dir = skills_root / target_subdir
         
         skill_dir = skillset_dir / skill_name
@@ -597,13 +686,13 @@ async def update_skill(skill_name: str, request: UpdateSkillRequest, user_id: Op
 
 
 @app.delete("/api/skills/{skill_name}")
-async def delete_skill(skill_name: str, user_id: Optional[str] = None):
+async def delete_skill(skill_name: str, user_id: Optional[int] = None):
     """
     Delete a skill and all its files.
     """
     try:
         skills_root = Path(__file__).parent.parent / "skills"
-        target_subdir = user_id if user_id else "default"
+        target_subdir = str(user_id) if user_id is not None else "default"
         skillset_dir = skills_root / target_subdir
         
         skill_dir = skillset_dir / skill_name
@@ -628,7 +717,6 @@ async def delete_skill(skill_name: str, user_id: Optional[str] = None):
     except Exception as e:
         log.error(f"Error deleting skill {skill_name}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 if __name__ == "__main__":
     import uvicorn

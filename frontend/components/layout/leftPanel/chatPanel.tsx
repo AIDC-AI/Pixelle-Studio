@@ -14,7 +14,7 @@ const ChatPanel: React.FC<IProps> = (props) => {
 
     const { 
         activeSessionId,
-        setActiveSessionId, 
+        setActiveSessionId
     } = useApp()
     
     const handleNewSession = () => {
@@ -54,6 +54,10 @@ const ChatPanel: React.FC<IProps> = (props) => {
                                 setActiveSessionId(session.id)
                             }}
                             onTrash={() => {
+                                // 如果删除当前session，设为空对话
+                                if (activeSessionId === session.id) {
+                                    setActiveSessionId('')
+                                }
                                 handleDeleteSession?.(session.id)
                             }}
                         >

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Code2, Copy, Check } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface IProps {
     code: string;
@@ -25,89 +25,78 @@ const CodeItem: React.FC<IProps> = (props) => {
 
     const lineCount = code.split('\n').length;
 
-    // 自定义样式，与现有设计保持一致
+    // 白色底风格
     const customStyle = {
         margin: 0,
-        padding: '1rem',
-        background: 'transparent',
-        fontSize: '0.875rem',
-        lineHeight: '1.5rem',
+        padding: '0.75rem',
+        background: '#ffffff',
+        fontSize: '0.75rem',
+        lineHeight: '1.25rem',
+        borderRadius: '0.375rem',
     };
 
     return (
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl overflow-hidden shadow-lg border border-slate-700/50">
-            {/* Header */}
+        <div className="bg-white rounded-lg overflow-hidden border border-emerald-200">
+            {/* Header - 浅绿色 */}
             <div 
-                className="flex items-center justify-between px-4 py-3 bg-slate-800/50 cursor-pointer hover:bg-slate-800/80 transition-colors"
+                className="flex items-center justify-between px-3 py-2 bg-emerald-50 cursor-pointer hover:bg-emerald-100 transition-colors border-b border-emerald-200"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400">
-                        <Code2 className="w-4 h-4" />
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center w-5 h-5 rounded bg-emerald-500 text-white">
+                        <Code2 className="w-3 h-3" />
                     </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-slate-200 font-medium">
-                                执行代码 #{executionCount}
-                            </span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">
-                                {lineCount} 行
-                            </span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
-                                {language}
-                            </span>
-                        </div>
-                        {reasoning && (
-                            <p className="text-xs text-slate-400 mt-1 max-w-md truncate">
-                                💡 {reasoning}
-                            </p>
-                        )}
+                    <div className="flex items-center gap-2">
+                        <span className="text-emerald-700 text-xs font-medium">
+                            Execute Code #{executionCount}
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-600">
+                            {lineCount} 行
+                        </span>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
                             handleCopy();
                         }}
-                        className="p-2 rounded-lg hover:bg-slate-700 transition-colors text-slate-400 hover:text-slate-200"
+                        className="p-1 rounded hover:bg-emerald-200 transition-colors text-emerald-600"
                         title="复制代码"
                     >
-                        {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     </button>
-                    <div className="text-slate-400">
-                        {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                    <div className="text-emerald-600">
+                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </div>
                 </div>
             </div>
             
-            {/* Code Content */}
-            <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[600px]' : 'max-h-0'} overflow-hidden`}>
-                <div className="relative overflow-auto max-h-[500px]">
+            {/* Reasoning */}
+            {reasoning && (
+                <div className="px-3 py-1.5 bg-emerald-50/50 border-b border-emerald-100">
+                    <p className="text-xs text-emerald-600 truncate">
+                        💡 {reasoning}
+                    </p>
+                </div>
+            )}
+            
+            {/* Code Content - 白色底 */}
+            <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[500px]' : 'max-h-0'} overflow-hidden`}>
+                <div className="relative overflow-auto max-h-[400px]">
                     <SyntaxHighlighter
                         language={language}
-                        style={vscDarkPlus}
+                        style={vs}
                         customStyle={customStyle}
                         showLineNumbers
                         lineNumberStyle={{
-                            minWidth: '3em',
-                            paddingRight: '1em',
-                            color: '#475569',
+                            minWidth: '2.5em',
+                            paddingRight: '0.75em',
+                            color: '#9ca3af',
                             userSelect: 'none',
+                            fontSize: '0.7rem',
                         }}
                         wrapLines
-                        lineProps={(lineNumber) => ({
-                            style: {
-                                display: 'block',
-                                cursor: 'pointer',
-                            },
-                            onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.3)';
-                            },
-                            onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                            },
-                        })}
                     >
                         {code}
                     </SyntaxHighlighter>
@@ -116,10 +105,10 @@ const CodeItem: React.FC<IProps> = (props) => {
             
             {/* Collapsed preview */}
             {!isExpanded && (
-                <div className="px-4 py-2 border-t border-slate-700/50">
-                    <code className="text-slate-400 text-xs font-mono line-clamp-2">
-                        {code.split('\n').slice(0, 2).join('\n')}
-                        {lineCount > 2 && '...'}
+                <div className="px-3 py-1.5 bg-gray-50">
+                    <code className="text-gray-500 text-xs font-mono line-clamp-1">
+                        {code.split('\n')[0]}
+                        {lineCount > 1 && '...'}
                     </code>
                 </div>
             )}
@@ -128,4 +117,3 @@ const CodeItem: React.FC<IProps> = (props) => {
 };
 
 export default CodeItem;
-

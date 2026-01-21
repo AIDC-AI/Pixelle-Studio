@@ -1,6 +1,6 @@
 'use client';
 
-import { Sparkles, CheckCircle2, XCircle, Clock, FileText, AlertCircle } from 'lucide-react';
+import { Sparkles, CheckCircle2, XCircle, Clock, FileText, AlertCircle, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface IProps {
@@ -54,103 +54,103 @@ const ResultItem: React.FC<IProps> = (props) => {
     const finalContent = answer || displayContent;
 
     return (
-        <div className={`rounded-2xl overflow-hidden shadow-xl border-2 ${
-            isSuccess 
-                ? 'bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 border-violet-200' 
-                : 'bg-gradient-to-br from-red-50 via-rose-50 to-pink-50 border-red-200'
-        }`}>
-            {/* Header */}
-            <div className={`px-5 py-4 ${
-                isSuccess 
-                    ? 'bg-gradient-to-r from-violet-500 to-purple-500' 
-                    : 'bg-gradient-to-r from-red-500 to-rose-500'
-            }`}>
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm">
-                            {isSuccess ? (
-                                <Sparkles className="w-6 h-6 text-white" />
-                            ) : (
-                                <AlertCircle className="w-6 h-6 text-white" />
-                            )}
-                        </div>
-                        <div>
-                            <h3 className="text-white font-bold text-lg">
-                                {isSuccess ? '任务完成' : '任务失败'}
-                            </h3>
-                            {totalIterations && (
-                                <div className="flex items-center gap-1 text-white/80 text-sm">
-                                    <Clock className="w-3 h-3" />
-                                    <span>共 {totalIterations} 次迭代</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
-                        isSuccess ? 'bg-emerald-400/30 text-emerald-100' : 'bg-red-400/30 text-red-100'
-                    }`}>
-                        {isSuccess ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                        <span className="text-sm font-medium">{isSuccess ? 'Success' : 'Failed'}</span>
-                    </div>
+        <div className="flex gap-3">
+            {/* Avatar */}
+            <div className="flex-shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-white" />
                 </div>
             </div>
             
             {/* Content */}
-            <div className="p-5">
-                {typeof finalContent === 'string' ? (
-                    <div className="prose prose-slate max-w-none">
-                        <ReactMarkdown
-                            components={{
-                                p: ({ children }) => <p className="text-slate-700 leading-relaxed mb-4 last:mb-0">{children}</p>,
-                                h1: ({ children }) => <h1 className="text-xl font-bold text-slate-800 mb-3">{children}</h1>,
-                                h2: ({ children }) => <h2 className="text-lg font-bold text-slate-800 mb-2">{children}</h2>,
-                                h3: ({ children }) => <h3 className="text-base font-bold text-slate-800 mb-2">{children}</h3>,
-                                ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-4 text-slate-700">{children}</ul>,
-                                ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-4 text-slate-700">{children}</ol>,
-                                li: ({ children }) => <li className="text-slate-700">{children}</li>,
-                                strong: ({ children }) => <strong className="font-bold text-violet-700">{children}</strong>,
-                                em: ({ children }) => <em className="text-slate-600 italic">{children}</em>,
-                                code: ({ children }) => (
-                                    <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm font-mono text-violet-600">
-                                        {children}
-                                    </code>
-                                ),
-                                pre: ({ children }) => (
-                                    <pre className="bg-slate-800 text-slate-200 p-4 rounded-xl overflow-x-auto my-4 font-mono text-sm">
-                                        {children}
-                                    </pre>
-                                ),
-                                blockquote: ({ children }) => (
-                                    <blockquote className="border-l-4 border-violet-300 pl-4 py-2 my-4 bg-violet-50/50 rounded-r-lg italic text-slate-600">
-                                        {children}
-                                    </blockquote>
-                                ),
-                            }}
-                        >
-                            {finalContent}
-                        </ReactMarkdown>
+            <div className="flex-1 min-w-0">
+                <div className="bg-white rounded-2xl rounded-tl-sm border border-gray-200 overflow-hidden">
+                    {/* Header */}
+                    <div className={`px-4 py-2 border-b ${isSuccess ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                {isSuccess ? (
+                                    <Sparkles className="w-4 h-4 text-green-600" />
+                                ) : (
+                                    <AlertCircle className="w-4 h-4 text-red-600" />
+                                )}
+                                <span className={`text-sm font-medium ${isSuccess ? 'text-green-700' : 'text-red-700'}`}>
+                                    {isSuccess ? '任务完成' : '任务失败'}
+                                </span>
+                                {totalIterations && (
+                                    <span className="flex items-center gap-1 text-xs text-gray-500">
+                                        <Clock className="w-3 h-3" />
+                                        {totalIterations} 次迭代
+                                    </span>
+                                )}
+                            </div>
+                            <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                                isSuccess ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                                {isSuccess ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                                {isSuccess ? '成功' : '失败'}
+                            </div>
+                        </div>
                     </div>
-                ) : (
-                    <div className="space-y-3">
-                        {typeof finalContent === 'object' && finalContent !== null ? (
-                            Object.entries(finalContent).map(([key, value]) => (
-                                <div key={key} className="flex items-start gap-3 p-3 bg-white/60 rounded-xl">
-                                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-violet-100 text-violet-600 flex-shrink-0">
-                                        <FileText className="w-4 h-4" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <span className="text-sm font-medium text-violet-700 block mb-1">{key}</span>
-                                        <span className="text-slate-700 break-words">
-                                            {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))
+                    
+                    {/* Content */}
+                    <div className="p-4">
+                        {typeof finalContent === 'string' ? (
+                            <div className="prose prose-sm max-w-none">
+                                <ReactMarkdown
+                                    components={{
+                                        p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-3 last:mb-0">{children}</p>,
+                                        h1: ({ children }) => <h1 className="text-lg font-bold text-gray-800 mb-2">{children}</h1>,
+                                        h2: ({ children }) => <h2 className="text-base font-bold text-gray-800 mb-2">{children}</h2>,
+                                        h3: ({ children }) => <h3 className="text-sm font-bold text-gray-800 mb-2">{children}</h3>,
+                                        ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">{children}</ul>,
+                                        ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
+                                        li: ({ children }) => <li className="text-gray-700">{children}</li>,
+                                        strong: ({ children }) => <strong className="font-bold text-gray-800">{children}</strong>,
+                                        em: ({ children }) => <em className="text-gray-600 italic">{children}</em>,
+                                        code: ({ children }) => (
+                                            <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-gray-700">
+                                                {children}
+                                            </code>
+                                        ),
+                                        pre: ({ children }) => (
+                                            <pre className="bg-gray-800 text-gray-200 p-3 rounded-lg overflow-x-auto my-3 font-mono text-xs">
+                                                {children}
+                                            </pre>
+                                        ),
+                                        blockquote: ({ children }) => (
+                                            <blockquote className="border-l-3 border-gray-300 pl-3 py-1 my-3 bg-gray-50 rounded-r-lg italic text-gray-600 text-sm">
+                                                {children}
+                                            </blockquote>
+                                        ),
+                                    }}
+                                >
+                                    {finalContent}
+                                </ReactMarkdown>
+                            </div>
                         ) : (
-                            <p className="text-slate-700">{String(finalContent)}</p>
+                            <div className="space-y-2">
+                                {typeof finalContent === 'object' && finalContent !== null ? (
+                                    Object.entries(finalContent).map(([key, value]) => (
+                                        <div key={key} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg">
+                                            <div className="flex items-center justify-center w-6 h-6 rounded bg-gray-200 text-gray-600 flex-shrink-0">
+                                                <FileText className="w-3 h-3" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-xs font-medium text-gray-600 block mb-0.5">{key}</span>
+                                                <span className="text-sm text-gray-700 break-words">
+                                                    {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-gray-700">{String(finalContent)}</p>
+                                )}
+                            </div>
                         )}
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );

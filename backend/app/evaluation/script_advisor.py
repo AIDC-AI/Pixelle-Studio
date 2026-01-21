@@ -29,11 +29,7 @@ class ScriptAdvisor:
         self.llm_client = llm_client
         
         if self.llm_client is None:
-            from app.llm_adapter import LLM_BASE_URL, LLM_API_KEY
-            self.llm_client = AsyncOpenAI(
-                api_key=LLM_API_KEY,
-                base_url=LLM_BASE_URL
-            )
+            self.llm_client = AsyncOpenAI()
     
     async def generate_revision_advice(
         self,

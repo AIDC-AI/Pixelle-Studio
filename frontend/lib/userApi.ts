@@ -45,7 +45,7 @@ export const userAPI = {
     },
 
     // 获取单个用户
-    async getUser(uid: string): Promise<UserResponse> {
+    async getUser(uid: number): Promise<UserResponse> {
         const response = await fetch(`${API_BASE}/users/${uid}`, {
             headers: getAuthHeaders()
         });
@@ -70,7 +70,7 @@ export const userAPI = {
     },
 
     // 更新用户
-    async updateUser(uid: string, user: UpdateUserRequest): Promise<UserResponse> {
+    async updateUser(uid: number, user: UpdateUserRequest): Promise<UserResponse> {
         const response = await fetch(`${API_BASE}/users/${uid}`, {
             method: 'PUT',
             headers: getAuthHeaders(),
@@ -84,7 +84,7 @@ export const userAPI = {
     },
 
     // 删除用户
-    async deleteUser(uid: string): Promise<void> {
+    async deleteUser(uid: number): Promise<void> {
         const response = await fetch(`${API_BASE}/users/${uid}`, {
             method: 'DELETE',
             headers: getAuthHeaders()

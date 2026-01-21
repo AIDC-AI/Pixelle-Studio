@@ -11,7 +11,6 @@ import asyncio
 
 router = APIRouter(prefix="/api/mcp-servers", tags=["MCP Servers"])
 
-
 class MCPServerWithStatus(BaseModel):
     # 基本信息
     id: str
@@ -21,7 +20,7 @@ class MCPServerWithStatus(BaseModel):
     command: str | None
     args: str | None
     error: str | None
-    uid: str
+    uid: int
     created_at: str
     updated_at: str
     
@@ -148,7 +147,7 @@ async def get_all_servers(
             )
             for s in servers
         ]
-    
+    print(f"123123123")
     # 并发检查所有服务器的状态
     status_tasks = [_check_single_server_status(server) for server in servers]
     status_results = await asyncio.gather(*status_tasks, return_exceptions=True)

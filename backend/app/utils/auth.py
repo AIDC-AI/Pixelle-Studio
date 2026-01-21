@@ -23,13 +23,24 @@ def get_current_user(
         )
     
     # Get user from database
-    user_id: str = payload.get("sub")
+    user_id = payload.get("sub")
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Convert to int if it's a string (for backwards compatibility)
+    if isinstance(user_id, str):
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid user ID format",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     
     user = db.query(User).filter(User.uid == user_id).first()
     if user is None:
