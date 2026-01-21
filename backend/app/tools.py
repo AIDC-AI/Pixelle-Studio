@@ -39,6 +39,8 @@ class AgentContext:
     loaded_skills: Dict[str, str] = field(default_factory=dict)
     tool_call_count: int = 0
     pending_code_queue: List[str] = field(default_factory=list)  # Queue for <execute> blocks
+    task_completed: bool = False  # Explicit completion flag - only set by final_answer tool
+    final_answer_content: str = ""  # Store the final answer content
     
     def __post_init__(self):
         """Ensure script_dir exists."""
@@ -321,6 +323,34 @@ async def list_mcp_tools(ctx: RunContextWrapper[AgentContext]) -> str:
         return f"Error listing MCP tools: {str(e)}"
 
 
+@function_tool
+async def final_answer(ctx: RunContextWrapper[AgentContext], answer: str) -> str:
+    """
+    Submit the final answer to complete the task.
+    
+    IMPORTANT: You MUST call this tool when the task is fully completed.
+    Do NOT end your response without calling this tool.
+    
+    Before calling this tool, verify that:
+    1. The task has been fully completed
+    2. All generated files are correct and accessible
+    3. Any code execution results are as expected
+    
+    Args:
+        answer: The final answer/summary for the user, describing what was accomplished
+    
+    Returns:
+        Confirmation that the task is marked as completed
+    """
+    context = ctx.context
+    context.task_completed = True
+    context.final_answer_content = answer
+    
+    logger.info(f"[Tool] final_answer called - task marked as completed")
+    
+    return f"TASK_COMPLETED: {answer}"
+
+
 def _build_skill_helpers_code(context: AgentContext) -> str:
     """
     Build the skill_helpers module code to inject into execution environment.
@@ -396,4 +426,5 @@ SKILL_TOOLS = [
     list_skill_tree,
     execute_code,
     list_mcp_tools,
+    final_answer,
 ]
