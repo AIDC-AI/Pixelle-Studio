@@ -16,7 +16,7 @@ const PopoverCheck: React.FC<IProps> = (props) => {
         title,
         content = '',
         onConfirm,
-        setIsOpen,
+        setIsOpen = true,
         isInParent,
         buttonContent,
         buttonClassName
@@ -47,10 +47,10 @@ const PopoverCheck: React.FC<IProps> = (props) => {
 		<Popover.Portal>
 			<Popover.Content 
                 side="top" 
-                className="p-4 bg-white rounded-lg" 
+                className="p-4 bg-white rounded-lg border border-gray-300" 
                 sideOffset={5}
-                onMouseEnter={() => setIsOpen?.(true)}
-                onMouseLeave={() => setIsOpen?.(false)}
+                // onMouseEnter={() => setIsOpen?.(true)}
+                // onMouseLeave={() => setIsOpen?.(false)}
                 onPointerDownOutside={(e) => {
                     e.stopPropagation()
                 }}
@@ -80,7 +80,16 @@ const PopoverCheck: React.FC<IProps> = (props) => {
                         </button>   
                     </div>
 				</div>
-				<Popover.Arrow fill="#fff" />
+                <Popover.Arrow 
+                    className="fill-gray-300 left-1/2 -translate-x-1/2" 
+                    width={14} 
+                    height={6} 
+                />
+				<Popover.Arrow 
+                    className="fill-white left-1/2 -translate-x-1/2"
+                    width={10} 
+                    height={5} 
+                />
 			</Popover.Content>
 		</Popover.Portal>
 	</Popover.Root>

@@ -538,6 +538,7 @@ const Chat = () => {
               <MessageList 
                   messages={messages} 
                   currentScript={currentScript}
+                  isProcessing={isProcessing}
                   onFilePreview={setPreviewFile}
               />
               <Input 
