@@ -439,10 +439,10 @@ When helping users:
                                 logger.warning(f"[{session_id}] Failed to parse tool args: {e}, raw: {repr(tool_args_raw)[:200]}")
                                 tool_args = {"raw": tool_args}
                         
-                        if tool_name == "execute_code":
-                            tool_args = {
-                                "code": agent_context.pending_code_queue[-1]
-                            }
+                        # Note: execute_code工具现在支持两种方式：
+                        # 1. Method 1 (Direct): 直接传递code参数
+                        # 2. Method 2 (Legacy): 从pending_code_queue获取
+                        # 工具本身会处理这两种情况，不需要在这里强制覆盖
                         
                         yield {
                             "type": "tool_call",
