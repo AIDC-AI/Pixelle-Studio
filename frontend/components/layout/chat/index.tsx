@@ -27,7 +27,8 @@ const Chat = () => {
       loadSessions, 
       createSession, 
       deleteSession,
-      updateSessionBackendId
+      updateSessionBackendId,
+      updateSessionTitle
     } = useChatStorage(activeSessionId)
 
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -149,6 +150,20 @@ const Chat = () => {
       // 如果没有，新建一个
       if (!session) {
         session = await addNewSession(input)
+        
+        // 异步生成标题（不阻塞主流程）
+        api.generateTitle(input).then(({ title }) => {
+          if (title && title.length <= 10) {
+            updateSessionTitle(session!.id, title);
+          } else if (title && title.length > 10) {
+            updateSessionTitle(session!.id, title.substring(0, 10));
+          }
+        }).catch((err) => {
+          console.error('Failed to generate title:', err);
+          // 使用input的前10个字符作为fallback
+          const fallbackTitle = input.substring(0, 10);
+          updateSessionTitle(session!.id, fallbackTitle);
+        });
       }
       
       const currentSession = session;
