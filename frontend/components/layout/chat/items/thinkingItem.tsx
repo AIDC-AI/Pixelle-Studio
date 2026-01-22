@@ -54,3 +54,4 @@ const ThinkingItem: React.FC<IProps> = (props) => {
 export default ThinkingItem;
 
 
+
