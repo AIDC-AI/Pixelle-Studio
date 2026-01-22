@@ -13,13 +13,14 @@ error handling patterns and best practices.
 
 import os
 import json
-import uuid
 import re
+import uuid
 from pathlib import Path
 from typing import Optional, List, Dict, Any, AsyncGenerator
 from dataclasses import dataclass
 
-from agents import Agent, Runner
+from openai import AsyncOpenAI
+from agents import Agent, Runner, ModelSettings, set_default_openai_client
 from agents.run import RunConfig
 from agents.items import (
     TResponseInputItem,
@@ -60,6 +61,13 @@ set_trace_processors([OpenAIAgentsTracingProcessor()])
 logging.info(f"DEFAULT_MODEL: {DEFAULT_MODEL}")
 logging.info(f"OPENAI_API_KEY: {os.getenv('OPENAI_API_KEY')}")
 logging.info(f"OPENAI_BASE_URL: {os.getenv('OPENAI_BASE_URL')}")
+
+# Configure OpenAI client with extended timeout for long-running LLM requests
+# Default timeout is too short for complex tasks like PPT generation
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "300"))  # 5 minutes default
+custom_openai_client = AsyncOpenAI(timeout=LLM_TIMEOUT)
+set_default_openai_client(custom_openai_client)
+logging.info(f"LLM_TIMEOUT: {LLM_TIMEOUT}s")
 
 
 class SkillAgent:
@@ -125,7 +133,7 @@ class SkillAgent:
     def _clean_response_text(text: str) -> str:
         """
         Clean response text by removing <execute> code blocks.
-        This is used to generate a clean final answer without code details.
+        使用字符串方法替代正则表达式。
         
         Args:
             text: Raw LLM response text that may contain <execute> blocks
@@ -358,6 +366,11 @@ When helping users:
             model=DEFAULT_MODEL,
         )
         
+        if DEFAULT_MODEL.lower().find("claude") != -1:
+            agent.model_settings = ModelSettings(
+                max_tokens=16384,
+            )
+        
         # Configure run
         run_config = RunConfig()
         
@@ -406,9 +419,13 @@ When helping users:
                             
                             # Add newly found blocks to queue (avoid duplicates)
                             existing_count = len(agent_context.pending_code_queue)
-                            for block in execute_blocks[existing_count:]:
-                                agent_context.pending_code_queue.append(block)
-                                logger.info(f"[{session_id}] Extracted execute block #{len(agent_context.pending_code_queue)}, length: {len(block)} chars")
+                            new_blocks = execute_blocks[existing_count:]
+                            if new_blocks:
+                                # 只在发现新 block 时才打印日志
+                                logger.debug(f"[{session_id}] Found {len(new_blocks)} new execute block(s)")
+                                for block in new_blocks:
+                                    agent_context.pending_code_queue.append(block)
+                                    logger.info(f"[{session_id}] Extracted execute block #{len(agent_context.pending_code_queue)}, length: {len(block)} chars")
                             
                             yield {
                                 "type": "response_delta",
@@ -471,34 +488,29 @@ When helping users:
                             "call_id": getattr(raw, 'call_id', None) if raw else None
                         }
                         
-                        # Special handling for execute_code results
-                        if "Execution Result" in str(tool_result):
-                            # Parse execution result for frontend
-                            try:
-                                # Extract status, stdout, stderr from the formatted result
-                                result_data = self._parse_execution_result(tool_result)
-                                if result_data:
-                                    yield {
-                                        "type": "execution_result",
-                                        "status": result_data.get("status", "success"),
-                                        "stdout": result_data.get("stdout", ""),
-                                        "stderr": result_data.get("stderr", ""),
-                                        "result": result_data.get("result"),
-                                        "output_files": result_data.get("output_files", [])
-                                    }
-                            except Exception as e:
-                                logger.warning(f"Failed to parse execution result: {e}")
-                        
-                        # Special handling for load_skill results
-                        if "Skill '" in str(tool_result) and "' Documentation" in str(tool_result):
-                            # Extract skill name
-                            import re
-                            match = re.search(r"Skill '([^']+)' Documentation", str(tool_result))
-                            if match:
+                        # 解析结构化工具返回值（JSON 格式，无需正则）
+                        tool_data = self._parse_tool_json(tool_result)
+                        if tool_data:
+                            tool_type = tool_data.get("__tool__")
+                            
+                            if tool_type == "execute_code":
+                                # execute_code 返回的结构化数据
                                 yield {
-                                    "type": "skill_loaded",
-                                    "skill_name": match.group(1)
+                                    "type": "execution_result",
+                                    "status": tool_data.get("status"),  # 直接使用，不设默认值
+                                    "stdout": tool_data.get("stdout", ""),
+                                    "stderr": tool_data.get("stderr", ""),
+                                    "result": tool_data.get("result"),
+                                    "output_files": tool_data.get("output_files", [])
                                 }
+                            
+                            elif tool_type == "load_skill":
+                                # load_skill 返回的结构化数据
+                                if tool_data.get("status") == "success":
+                                    yield {
+                                        "type": "skill_loaded",
+                                        "skill_name": tool_data.get("skill_name")
+                                    }
                     
                     elif isinstance(item, MessageOutputItem):
                         # Final message from agent
@@ -544,51 +556,23 @@ When helping users:
                 "result": {"error": str(e)}
             }
     
-    def _parse_execution_result(self, result_text: str) -> Optional[Dict[str, Any]]:
-        """Parse the formatted execution result text back to structured data."""
-        result = {
-            "status": "success",
-            "stdout": "",
-            "stderr": "",
-            "result": None,
-            "output_files": []
-        }
+    def _parse_tool_json(self, result_text: str) -> Optional[Dict[str, Any]]:
+        """
+        解析工具返回的 JSON 数据。
         
-        # Extract status
-        if "**Status**: error" in result_text:
-            result["status"] = "error"
+        工具现在返回结构化 JSON，不再需要正则匹配。
+        如果解析失败，返回 None（不隐藏错误）。
+        """
+        if not result_text:
+            return None
         
-        # Extract stdout
-        import re
-        stdout_match = re.search(r'\*\*Output\*\*:\n```\n(.*?)\n```', result_text, re.DOTALL)
-        if stdout_match:
-            result["stdout"] = stdout_match.group(1)
+        # 尝试直接解析 JSON
+        result_str = str(result_text).strip()
+        if result_str.startswith("{"):
+            parsed = json.loads(result_str)  # 不捕获异常，让错误暴露
+            return parsed
         
-        # Extract stderr
-        stderr_match = re.search(r'\*\*Errors\*\*:\n```\n(.*?)\n```', result_text, re.DOTALL)
-        if stderr_match:
-            result["stderr"] = stderr_match.group(1)
-        
-        # Extract parsed result
-        json_match = re.search(r'\*\*Parsed Result\*\*:\n```json\n(.*?)\n```', result_text, re.DOTALL)
-        if json_match:
-            try:
-                result["result"] = json.loads(json_match.group(1))
-            except:
-                pass
-        
-        # Extract output files
-        files_section = re.search(r'\*\*Generated Files\*\*:\n(.*?)(?:\n\n|\Z)', result_text, re.DOTALL)
-        if files_section:
-            file_matches = re.findall(r'\- \[([^\]]+)\]\(([^)]+)\) \((\d+) bytes\)', files_section.group(1))
-            for name, url, size in file_matches:
-                result["output_files"].append({
-                    "file_name": name,
-                    "file_url": url,
-                    "file_size": int(size)
-                })
-        
-        return result
+        return None
 
 
 async def run_agent(
