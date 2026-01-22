@@ -13,6 +13,7 @@ scripts
 # Logs
 backend/logs/
 .backend/app/logs/
+.backend/storage/
 
 # Storage
 backend/storage/

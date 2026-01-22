@@ -65,4 +65,6 @@ export interface Message {
   toolCall?: ToolCallInfo;
   // For tool results
   toolResult?: ToolResultInfo;
+  // For streaming responses
+  isStreaming?: boolean;
 }
