@@ -2,8 +2,6 @@
 
 import { Message, ExecutionResult, OutputFile } from "@/types/message";
 import { useEffect, useState, useRef, useCallback } from "react";
-import MessageList from "./messageList";
-import { UploadFile } from "antd";
 import { api } from "@/lib/api";
 import { useApp } from "@/context";
 import { sessionAPI } from "@/lib/sessionApi";
@@ -13,6 +11,8 @@ import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
 import { useMCPServer } from "@/hooks/useMCPServer";
 import FilePreview from "./filePreview";
+import VirtualMessageList from "./virtualMessageList";
+import { UploadFile } from "@/components/ui/upload";
 
 const Chat = () => {
     const { 
@@ -635,7 +635,7 @@ const Chat = () => {
         {/* Left Panel Resizer */}
         {!isLeftPanelCollapsed && (
           <div 
-            className={`w-1.5 cursor-col-resize flex-shrink-0 transition-colors ${
+            className={`w-1.5 cursor-col-resize shrink-0 transition-colors ${
               isLeftDragging ? 'bg-blue-500' : 'bg-gray-200 hover:bg-blue-400'
             }`}
             onMouseDown={handleLeftDragStart}
@@ -647,17 +647,15 @@ const Chat = () => {
         <div ref={containerRef} className="flex flex-1 h-full overflow-hidden min-w-0">
           {/* Chat Area */}
           <div 
-            className="flex flex-col bg-gray-50 h-full overflow-hidden"
+            className="flex flex-col bg-gray-50 h-full overflow-hidden shrink-0"
             style={{ 
               width: previewFile ? `${100 - previewWidthPercent}%` : '100%',
-              flexShrink: 0,
               transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
             }}
           >
-              <MessageList 
+              <VirtualMessageList 
                   messages={messages} 
                   currentScript={currentScript}
-                  isProcessing={isProcessing}
                   onFilePreview={setPreviewFile}
                   streamingResponse={streamingResponse}
               />
@@ -677,7 +675,7 @@ const Chat = () => {
             <>
               {/* Preview Resizer */}
               <div 
-                className={`w-1.5 cursor-col-resize flex-shrink-0 transition-colors ${
+                className={`w-1.5 cursor-col-resize shrink-0 transition-colors ${
                   isPreviewDragging ? 'bg-orange-500' : 'bg-gray-200 hover:bg-orange-400'
                 }`}
                 onMouseDown={handlePreviewDragStart}
@@ -686,10 +684,9 @@ const Chat = () => {
               
               {/* Preview Panel */}
               <div 
-                className="h-full overflow-hidden"
+                className="h-full overflow-hidden shrink-0"
                 style={{ 
                   width: `${previewWidthPercent}%`,
-                  flexShrink: 0,
                   transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
                 }}
               >
