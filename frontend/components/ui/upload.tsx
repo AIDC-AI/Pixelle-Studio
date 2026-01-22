@@ -11,6 +11,7 @@ export interface UploadFile {
   originFileObj?: File;
   percent?: number;
   error?: any;
+  response?: any;
 }
 
 export const LIST_IGNORE = "无法上传更多文件！"

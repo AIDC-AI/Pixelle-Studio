@@ -10,30 +10,41 @@ import ServerCard from "@/components/ui/serverCard";
 import { skillAPI } from "@/lib/skillApi";
 import Description from "@/components/ui/desctiption";
 import { Skeleton } from "@/components/ui/skeleton";
+import SkillConfigureModal from "@/components/ui/skillConfigureModal";
 
 const SkillsPanel = () => {
     const { 
         user, 
-        setSkillEditored, 
-        setCurrentSkillName,
-        mcpTools, 
-        setMcpTools,
-        isChangeSkill,
-        setIsChangeSkill,
+        // setSkillEditored, 
+        // setCurrentSkillName,
+        // mcpTools, 
+        // setMcpTools,
+        // isChangeSkill,
+        // setIsChangeSkill,
         showToast
     } = useApp()
 
     const [loading, setLoading] = useState<boolean>(false);
 
     const [mcpServers, setMcpServers] = useState<MCPServer[]>([])
+    const [mcpTools, setMcpTools] = useState<MCPTool[] | null>(null)
+    const [skillConfigureOpen, setSkillConfigureOpen] = useState<boolean>(false)
     const [toolConfigureOpen, setToolConfigureOpen] = useState<boolean>(false)
     const [skills, setSkills] = useState<SkillMeta[]>([])
 
+    const [selectedSkillName, setSelectedSkillName] = useState<string | null>(null)
     const [selectedMcpServerIndex, setSelectedMcpServerIndex] = useState<number>(-1)
 
     const handleShowSkillEditor = (name: string | null) => {
-        setCurrentSkillName(name)
-        setSkillEditored(true)
+        setSelectedSkillName(name)
+        setSkillConfigureOpen(true)
+    }
+
+    const handleCloseSkillEditor = (isSuccess: boolean) => {
+        setSelectedSkillName(null)
+        setSkillConfigureOpen(false)
+        if (isSuccess) 
+            handleGetSkills()
     }
 
     const handleGetSkills = async () => {
@@ -55,8 +66,8 @@ const SkillsPanel = () => {
         try {
             await skillAPI.deleteSkill(name, user?.uid);
             setSkills(prev => prev.filter((skill) => skill.name !== name))
-            setSkillEditored(false)
-            setCurrentSkillName(null)
+            // setSkillEditored(false)
+            // setCurrentSkillName(null)
             showToast(ToastType.SUCCESS, '删除成功！')
         } catch (error) {
             console.error(`Failed to fetch skills:`, error);
@@ -127,12 +138,12 @@ const SkillsPanel = () => {
         handleGetMcpServers()
     }, [])
 
-    useEffect(() => {
-        if (isChangeSkill) {
-            handleGetSkills()
-            setIsChangeSkill(false)
-        }
-    }, [isChangeSkill])
+    // useEffect(() => {
+    //     if (isChangeSkill) {
+    //         handleGetSkills()
+    //         setIsChangeSkill(false)
+    //     }
+    // }, [isChangeSkill])
 
     // 总的工具数量
     useEffect(() => {
@@ -162,6 +173,7 @@ const SkillsPanel = () => {
                             <span className="text-xs text-gray-400">({skills?.length || 0})</span>
                         </div>
                     }
+                    hoverContent="新建技能"
                     onAdd={() => {
                         handleShowSkillEditor(null)
                     }}
@@ -210,6 +222,7 @@ const SkillsPanel = () => {
                             <span className="text-xs text-gray-400">({mcpTools?.length})</span>
                         </div>
                     }
+                    hoverContent="新建工具"
                     onAdd={() => setToolConfigureOpen(true)}
                 >
                     <div className="p-4 space-y-2">
@@ -226,16 +239,17 @@ const SkillsPanel = () => {
             </>
         }
 
-        {/* <SkillConfigureModal 
+        <SkillConfigureModal 
             open={skillConfigureOpen}
-            skill={skills[selectedSkillIndex] || null}
-            scripts={totalTools}
-            onSuccess={handleGetSkills}
-            onClose={() => {
-                setSelectedSkillIndex(-1)
-                setSkillConfigureOpen(false)
+            skillName={selectedSkillName}
+            mcpTools={mcpTools}
+            onSuccess={() => {
+                handleCloseSkillEditor(true)
             }}
-        /> */}
+            onClose={() => {
+                handleCloseSkillEditor(false)
+            }}
+        />
 
         <ToolConfigureModal
             open={toolConfigureOpen}

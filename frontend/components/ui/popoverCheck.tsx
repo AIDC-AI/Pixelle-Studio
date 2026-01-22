@@ -81,12 +81,12 @@ const PopoverCheck: React.FC<IProps> = (props) => {
                     </div>
 				</div>
                 <Popover.Arrow 
-                    className="fill-gray-300 left-1/2 -translate-x-1/2" 
+                    className="fill-gray-300 -translate-x-0.5" 
                     width={14} 
                     height={6} 
                 />
 				<Popover.Arrow 
-                    className="fill-white left-1/2 -translate-x-1/2"
+                    className="fill-white"
                     width={10} 
                     height={5} 
                 />

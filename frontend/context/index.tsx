@@ -25,17 +25,17 @@ type IProps = {
     activeSessionId: string
     setActiveSessionId: Dispatch<SetStateAction<string>>
 
-    skillEditored: boolean 
-    setSkillEditored: Dispatch<SetStateAction<boolean>>
+    // skillEditored: boolean 
+    // setSkillEditored: Dispatch<SetStateAction<boolean>>
 
-    currentSkillName: string | null
-    setCurrentSkillName: Dispatch<SetStateAction<string | null>>
+    // currentSkillName: string | null
+    // setCurrentSkillName: Dispatch<SetStateAction<string | null>>
 
-    mcpTools: MCPTool[] | null
-    setMcpTools: Dispatch<SetStateAction<MCPTool[] | null>>
+    // mcpTools: MCPTool[] | null
+    // setMcpTools: Dispatch<SetStateAction<MCPTool[] | null>>
 
-    isChangeSkill: boolean
-    setIsChangeSkill: Dispatch<SetStateAction<boolean>>
+    // isChangeSkill: boolean
+    // setIsChangeSkill: Dispatch<SetStateAction<boolean>>
 
     login: (email: string, password: string) => Promise<void>
     register: (username: string, email: string, password: string) => Promise<boolean>
@@ -58,10 +58,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const [activeSessionId, setActiveSessionId] = useState<string>('');
 
-    const [skillEditored, setSkillEditored] = useState<boolean>(false)
-    const [currentSkillName, setCurrentSkillName] = useState<string | null>(null)
-    const [mcpTools, setMcpTools] = useState<MCPTool[] | null>(null)
-    const [isChangeSkill, setIsChangeSkill] = useState<boolean>(false)
+    // const [skillEditored, setSkillEditored] = useState<boolean>(false)
+    // const [currentSkillName, setCurrentSkillName] = useState<string | null>(null)
+    // const [mcpTools, setMcpTools] = useState<MCPTool[] | null>(null)
+    // const [isChangeSkill, setIsChangeSkill] = useState<boolean>(false)
 
     const [toastOpen, setToastOpen] = useState<boolean>(false)
     const [toastType, setToastType] = useState<ToastType>(ToastType.INFO)
@@ -206,14 +206,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setToken,
                 activeSessionId, 
                 setActiveSessionId, 
-                skillEditored, 
-                setSkillEditored,
-                currentSkillName, 
-                setCurrentSkillName,
-                mcpTools, 
-                setMcpTools,
-                isChangeSkill, 
-                setIsChangeSkill,
+                // skillEditored, 
+                // setSkillEditored,
+                // currentSkillName, 
+                // setCurrentSkillName,
+                // mcpTools, 
+                // setMcpTools,
+                // isChangeSkill, 
+                // setIsChangeSkill,
                 login,
                 register,
                 logout,

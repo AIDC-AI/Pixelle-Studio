@@ -113,7 +113,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                         const data = Object.fromEntries(formData)
                         await handleSubmit(data)
                     }}
-                    className="flex flex-col flex-1 gap-4 p-4 overflow-auto"
+                    className="flex flex-col flex-1 gap-4 mt-4 overflow-auto"
                 >
                     <FormInput 
                         name="name"

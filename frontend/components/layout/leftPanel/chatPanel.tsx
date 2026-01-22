@@ -42,7 +42,7 @@ const ChatPanel: React.FC<IProps> = (props) => {
 
         {/* Chat History */}
         <div>
-            <h3 className="font-title text-gray-600 mb-2">对话历史</h3>
+            {/* <h3 className="font-title text-gray-600 mb-2">对话历史</h3> */}
             <div className="space-y-2">
                 {
                     sessions?.map((session) => (

@@ -27,8 +27,8 @@ const FormBase: React.FC<IProps> = (props) => {
 
     const controlProps = useMemo(() => {
         // 基础样式 + 验证失败时的红色边框
-        const baseClassName = `w-full rounded-lg border px-3 py-2 resize-none focus:outline-none transition-colors
-            border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+        const baseClassName = `w-full rounded-lg border px-3 py-2 resize-none focus:outline-none! transition-colors
+            border-gray-300 focus:ring-0! focus:ring-blue-500 focus:border-blue-500
             data-[invalid]:border-red-500 data-[invalid]:focus:ring-red-500 data-[invalid]:focus:border-red-500
             ${isFlexMax ? "flex-1" : ""} ${disabled ? "bg-disabled cursor-not-allowed" : ""} ${className}`;
 

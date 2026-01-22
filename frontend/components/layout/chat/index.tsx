@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useApp } from "@/context";
 import { sessionAPI } from "@/lib/sessionApi";
 import LeftPanel from "../leftPanel";
-import SkillEditor from "../skillEditor";
+// import SkillEditor from "../skillEditor";
 import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
 import FilePreview from "./filePreview";
@@ -18,7 +18,7 @@ const Chat = () => {
       user,
       activeSessionId, 
       setActiveSessionId,
-      skillEditored
+      // skillEditored
     } = useApp();
 
     const { 
@@ -695,7 +695,7 @@ const Chat = () => {
           )}
         </div>
         
-        {skillEditored && <SkillEditor />}
+        {/* {skillEditored && <SkillEditor />} */}
       </div>
     );
 };
