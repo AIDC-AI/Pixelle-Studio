@@ -150,8 +150,6 @@ export function useChatStorage(sessionId?: string) {
   const isInitialLoadRef = useRef(true);
   
   useEffect(() => {
-    console.log('-sessionId->', sessionId)
-    
     // 如果是同一个session，不重新加载（保持流式输出）
     if (sessionIdRef.current === sessionId && !isInitialLoadRef.current) {
       return;

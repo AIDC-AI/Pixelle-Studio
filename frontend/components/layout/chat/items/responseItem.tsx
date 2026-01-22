@@ -13,7 +13,7 @@ const ResponseItem: React.FC<IProps> = (props) => {
     return (
         <div className="flex gap-3">
             {/* Avatar */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
                 <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center">
                     <Bot className="w-5 h-5 text-white" />
                 </div>

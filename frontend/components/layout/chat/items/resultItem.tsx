@@ -66,7 +66,7 @@ const ResultItem: React.FC<IProps> = (props) => {
     return (
         <div className="flex gap-3">
             {/* Avatar */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
                 <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center">
                     <Bot className="w-5 h-5 text-white" />
                 </div>
@@ -109,7 +109,8 @@ const ResultItem: React.FC<IProps> = (props) => {
                             <div className="prose prose-sm max-w-none">
                                 <ReactMarkdown
                                     components={{
-                                        p: ({ children }) => <p className="text-gray-700 leading-relaxed mb-3 last:mb-0">{children}</p>,
+                                        // 不使用 p 标签包裹，改用 div
+                                        p: ({ children }) => <div className="text-gray-700 leading-relaxed mb-3 last:mb-0">{children}</div>,
                                         h1: ({ children }) => <h1 className="text-lg font-bold text-gray-800 mb-2">{children}</h1>,
                                         h2: ({ children }) => <h2 className="text-base font-bold text-gray-800 mb-2">{children}</h2>,
                                         h3: ({ children }) => <h3 className="text-sm font-bold text-gray-800 mb-2">{children}</h3>,
@@ -122,99 +123,57 @@ const ResultItem: React.FC<IProps> = (props) => {
                                             const match = /language-(\w+)/.exec(className || '');
                                             const codeString = String(children).replace(/\n$/, '');
                                             
-                                            // 代码块（有语言标识）
-                                            if (!inline && match) {
-                                                const language = match[1];
+                                            if (inline) {
+                                                // 行内代码
                                                 return (
-                                                    <div className="relative group my-3">
-                                                        <div className="absolute right-2 top-2 z-10">
-                                                            <button
-                                                                onClick={() => handleCopyCode(codeString)}
-                                                                className="p-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                title="复制代码"
-                                                            >
-                                                                {copiedCode === codeString ? (
-                                                                    <Check className="w-3.5 h-3.5" />
-                                                                ) : (
-                                                                    <Copy className="w-3.5 h-3.5" />
-                                                                )}
-                                                            </button>
-                                                        </div>
-                                                        <SyntaxHighlighter
-                                                            language={language}
-                                                            style={vscDarkPlus}
-                                                            customStyle={{
-                                                                margin: 0,
-                                                                borderRadius: '0.5rem',
-                                                                fontSize: '0.8rem',
-                                                                lineHeight: '1.5',
-                                                            }}
-                                                            showLineNumbers
-                                                            lineNumberStyle={{
-                                                                minWidth: '2.5em',
-                                                                paddingRight: '1em',
-                                                                color: '#6e7681',
-                                                                userSelect: 'none',
-                                                                fontSize: '0.75rem',
-                                                            }}
-                                                            wrapLongLines
-                                                        >
-                                                            {codeString}
-                                                        </SyntaxHighlighter>
-                                                    </div>
+                                                    <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-red-600" {...props}>
+                                                        {children}
+                                                    </code>
                                                 );
                                             }
-                                            
-                                            // 代码块（无语言标识，使用通用格式）
-                                            if (!inline) {
-                                                return (
-                                                    <div className="relative group my-3">
-                                                        <div className="absolute right-2 top-2 z-10">
-                                                            <button
-                                                                onClick={() => handleCopyCode(codeString)}
-                                                                className="p-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                title="复制代码"
-                                                            >
-                                                                {copiedCode === codeString ? (
-                                                                    <Check className="w-3.5 h-3.5" />
-                                                                ) : (
-                                                                    <Copy className="w-3.5 h-3.5" />
-                                                                )}
-                                                            </button>
-                                                        </div>
-                                                        <SyntaxHighlighter
-                                                            language="python"
-                                                            style={vscDarkPlus}
-                                                            customStyle={{
-                                                                margin: 0,
-                                                                borderRadius: '0.5rem',
-                                                                fontSize: '0.8rem',
-                                                                lineHeight: '1.5',
-                                                            }}
-                                                            showLineNumbers
-                                                            lineNumberStyle={{
-                                                                minWidth: '2.5em',
-                                                                paddingRight: '1em',
-                                                                color: '#6e7681',
-                                                                userSelect: 'none',
-                                                                fontSize: '0.75rem',
-                                                            }}
-                                                            wrapLongLines
-                                                        >
-                                                            {codeString}
-                                                        </SyntaxHighlighter>
-                                                    </div>
-                                                );
-                                            }
-                                            
-                                            // 行内代码
+                                             
+                                            const language = !!match ? match?.[1] : "python"
+                                            // 代码块
                                             return (
-                                                <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-red-600" {...props}>
-                                                    {children}
-                                                </code>
-                                            );
+                                                <div className="relative group my-3">
+                                                    <div className="absolute right-2 top-2 z-10">
+                                                        <button
+                                                            onClick={() => handleCopyCode(codeString)}
+                                                            className="p-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            title="复制代码"
+                                                        >
+                                                            {copiedCode === codeString ? (
+                                                                <Check className="w-3.5 h-3.5" />
+                                                            ) : (
+                                                                <Copy className="w-3.5 h-3.5" />
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                    <SyntaxHighlighter
+                                                        language={language}
+                                                        style={vscDarkPlus}
+                                                        customStyle={{
+                                                            margin: 0,
+                                                            borderRadius: '0.5rem',
+                                                            fontSize: '0.8rem',
+                                                            lineHeight: '1.5',
+                                                        }}
+                                                        showLineNumbers
+                                                        lineNumberStyle={{
+                                                            minWidth: '2.5em',
+                                                            paddingRight: '1em',
+                                                            color: '#6e7681',
+                                                            userSelect: 'none',
+                                                            fontSize: '0.75rem',
+                                                        }}
+                                                        wrapLongLines
+                                                    >
+                                                        {codeString}
+                                                    </SyntaxHighlighter>
+                                                </div>
+                                            );                          
                                         },
-                                        pre: ({ children }) => <div>{children}</div>,
+                                        pre: ({ children }) => <>{children}</>,
                                         blockquote: ({ children }) => (
                                             <blockquote className="border-l-4 border-blue-500 pl-4 py-2 my-3 bg-blue-50 rounded-r-lg italic text-gray-700 text-sm">
                                                 {children}
@@ -230,12 +189,12 @@ const ResultItem: React.FC<IProps> = (props) => {
                                 {typeof finalContent === 'object' && finalContent !== null ? (
                                     Object.entries(finalContent).map(([key, value]) => (
                                         <div key={key} className="flex items-start gap-2 p-2 bg-gray-50 rounded-lg">
-                                            <div className="flex items-center justify-center w-6 h-6 rounded bg-gray-200 text-gray-600 flex-shrink-0">
+                                            <div className="flex items-center justify-center w-6 h-6 rounded bg-gray-200 text-gray-600 shrink-0">
                                                 <FileText className="w-3 h-3" />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <span className="text-xs font-medium text-gray-600 block mb-0.5">{key}</span>
-                                                <span className="text-sm text-gray-700 break-words">
+                                                <span className="text-sm text-gray-700 wrap-break-word">
                                                     {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
                                                 </span>
                                             </div>
