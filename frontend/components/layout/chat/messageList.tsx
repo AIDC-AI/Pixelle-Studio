@@ -1,7 +1,7 @@
 'use client'
 
 import { Message, OutputFile } from "@/types/message";
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, memo, useCallback } from "react";
 import UserItem from "./items/userItem";
 import SystemItem from "./items/systemItem";
 import IterationItem from "./items/iterationItem";
@@ -42,11 +42,137 @@ interface MessageGroup {
     isComplete?: boolean;
 }
 
+// 优化：使用 memo 包装单个消息项，避免不必要的重渲染
+const MessageItem = memo<{
+    group: MessageGroup;
+    groupIndex: number;
+    isLast: boolean;
+    onFilePreview?: (file: OutputFile) => void;
+    onHeightMeasured?: (index: number, height: number) => void;
+}>(({ group, groupIndex, isLast, onFilePreview, onHeightMeasured }) => {
+    const itemRef = useRef<HTMLDivElement>(null);
+    
+    // 测量高度
+    useEffect(() => {
+        if (itemRef.current && onHeightMeasured) {
+            const height = itemRef.current.getBoundingClientRect().height;
+            onHeightMeasured(groupIndex, height);
+        }
+    }, [groupIndex, onHeightMeasured, group]);
+    
+    const renderItem = useCallback((msg: Message, isLastInGroup: boolean) => {
+        switch (msg.type) {
+            case 'user':
+                return <UserItem content={msg.content} files={msg.outputFiles} />
+            case 'system':
+                return <SystemItem content={msg.content} isLast={isLastInGroup} />
+            case 'iteration':
+                return <IterationItem content={msg.content} />
+            case 'log':
+                return <LogItem content={msg.content} />
+            case 'evaluation':
+                return <EvalutaionItem content={msg.content} />
+            case 'advice':
+                return <AdviceItem content={msg.content} />
+            case 'result':
+                return <ResultItem content={msg.content} />
+            case 'error':
+                return <ErrorItem content={msg.content} />
+            case 'code':
+                return (
+                    <CodeItem 
+                        code={msg.codeData?.code || msg.content} 
+                        executionCount={msg.codeData?.executionCount}
+                        reasoning={msg.codeData?.reasoning}
+                    />
+                )
+            case 'execution_result':
+                return (
+                    <ExecutionResultItem 
+                        result={msg.executionResult || msg.content}
+                        executionCount={msg.codeData?.executionCount}
+                    />
+                )
+            case 'response':
+                return <ResponseItem content={msg.content} />
+            case 'skill_loaded':
+                return <SkillLoadedItem skillName={msg.skillName || msg.content} />
+            case 'output_files':
+                return <OutputFilesItem files={msg.outputFiles || []} onFilePreview={onFilePreview} />
+            case 'thinking':
+                return <ThinkingItem content={msg.content} />
+            case 'tool_call':
+                return <ToolCallItem toolCall={msg.toolCall} />
+            case 'tool_result':
+                return <ToolCallItem toolCall={msg.toolResult} isResult={true} />
+        }
+        return null;
+    }, [onFilePreview]);
+
+    const getMessageClass = useCallback((msg: Message) => {
+        if (msg.type === 'user') {
+            return 'self-end max-w-[85%]';
+        }
+        if (msg.type === 'result' || msg.type === 'output_files') {
+            return 'self-start w-full max-w-[90%]';
+        }
+        if (msg.type === 'response') {
+            return 'self-start max-w-[85%]';
+        }
+        if (msg.type === 'error') {
+            return 'self-start max-w-[80%]';
+        }
+        return 'self-start max-w-[80%]';
+    }, []);
+
+    if (group.type === 'system_operations') {
+        return (
+            <div key={`group-${groupIndex}`} className="self-start w-full max-w-[90%]">
+                <SystemOperationGroup isComplete={group.isComplete}>
+                    {group.messages.map((msg, msgIndex) => (
+                        <div key={`${groupIndex}-${msgIndex}`}>
+                            {renderItem(msg, isLast && msgIndex === group.messages.length - 1)}
+                        </div>
+                    ))}
+                </SystemOperationGroup>
+            </div>
+        );
+    } else {
+        const msg = group.messages[0];
+        return (
+            <div key={`single-${groupIndex}`} className={`flex flex-col ${getMessageClass(msg)}`}>
+                {renderItem(msg, isLast)}
+            </div>
+        );
+    }
+}, (prevProps, nextProps) => {
+    // 自定义比较：只在关键属性变化时重新渲染
+    if (prevProps.groupIndex !== nextProps.groupIndex) return false;
+    if (prevProps.isLast !== nextProps.isLast) return false;
+    if (prevProps.group.type !== nextProps.group.type) return false;
+    if (prevProps.group.isComplete !== nextProps.group.isComplete) return false;
+    if (prevProps.group.messages.length !== nextProps.group.messages.length) return false;
+    
+    // 比较消息内容（浅比较）
+    for (let i = 0; i < prevProps.group.messages.length; i++) {
+        const prevMsg = prevProps.group.messages[i];
+        const nextMsg = nextProps.group.messages[i];
+        if (prevMsg.type !== nextMsg.type) return false;
+        if (prevMsg.content !== nextMsg.content) return false;
+        if (prevMsg.timestamp !== nextMsg.timestamp) return false;
+    }
+    
+    return true;
+});
+
+MessageItem.displayName = 'MessageItem';
+
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, shouldScrollToBottom = true, onFilePreview, streamingResponse } = props;  
+    const { messages, currentScript, onFilePreview, streamingResponse } = props;  
 
     const chatEndRef = useRef<HTMLDivElement>(null);
     const lastMessageCountRef = useRef<number>(0);
+    const containerRef = useRef<HTMLDivElement>(null);
     
     // 分组消息：将连续的系统操作消息放在一起
     const groupedMessages = useMemo(() => {
@@ -55,7 +181,7 @@ const MessageList: React.FC<IProps> = (props) => {
         const groups: MessageGroup[] = [];
         let currentSystemGroup: Message[] = [];
         
-        messages.forEach((msg, index) => {
+        messages.forEach((msg) => {
             const isSystemOp = SYSTEM_OPERATION_TYPES.includes(msg.type);
             const isUserInteraction = USER_INTERACTION_TYPES.includes(msg.type);
             
@@ -107,6 +233,13 @@ const MessageList: React.FC<IProps> = (props) => {
         return groups;
     }, [messages]);
     
+    // 优化滚动：使用 requestAnimationFrame 和防抖
+    const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+        requestAnimationFrame(() => {
+            chatEndRef.current?.scrollIntoView({ behavior });
+        });
+    }, []);
+    
     // 只在收到最终结果时滚动到底部
     useEffect(() => {
         if (!messages || messages.length === 0) return;
@@ -119,104 +252,23 @@ const MessageList: React.FC<IProps> = (props) => {
         
         // 只有在是最终消息或者是用户消息时才滚动
         if (isEndMessage || lastMessage.type === 'user') {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            scrollToBottom('smooth');
         }
         
         lastMessageCountRef.current = messages.length;
-    }, [messages]);
+    }, [messages, scrollToBottom]);
     
-    const renderItem = (msg: Message, isLast: boolean) => {
-        switch (msg.type) {
-            case 'user':
-                return <UserItem content={msg.content} files={msg.outputFiles} />
-            case 'system':
-                return <SystemItem content={msg.content} isLast={isLast} />
-            case 'iteration':
-                return <IterationItem content={msg.content} />
-            case 'log':
-                return <LogItem content={msg.content} />
-            case 'evaluation':
-                return <EvalutaionItem content={msg.content} />
-            case 'advice':
-                return <AdviceItem content={msg.content} />
-            case 'result':
-                return <ResultItem content={msg.content} />
-            case 'error':
-                return <ErrorItem content={msg.content} />
-            case 'code':
-                return (
-                    <CodeItem 
-                        code={msg.codeData?.code || msg.content} 
-                        executionCount={msg.codeData?.executionCount}
-                        reasoning={msg.codeData?.reasoning}
-                    />
-                )
-            case 'execution_result':
-                return (
-                    <ExecutionResultItem 
-                        result={msg.executionResult || msg.content}
-                        executionCount={msg.codeData?.executionCount}
-                    />
-                )
-            case 'response':
-                return <ResponseItem content={msg.content} />
-            case 'skill_loaded':
-                return <SkillLoadedItem skillName={msg.skillName || msg.content} />
-            case 'output_files':
-                return <OutputFilesItem files={msg.outputFiles || []} onFilePreview={onFilePreview} />
-            case 'thinking':
-                return <ThinkingItem content={msg.content} />
-            case 'tool_call':
-                return <ToolCallItem toolCall={msg.toolCall} />
-            case 'tool_result':
-                return <ToolCallItem toolCall={msg.toolResult} isResult={true} />
-        }
-        return null;
-    }
-
-    // 获取单独消息的样式类
-    const getMessageClass = (msg: Message) => {
-        if (msg.type === 'user') {
-            return 'self-end max-w-[85%]';
-        }
-        if (msg.type === 'result' || msg.type === 'output_files') {
-            return 'self-start w-full max-w-[90%]';
-        }
-        if (msg.type === 'response') {
-            return 'self-start max-w-[85%]';
-        }
-        if (msg.type === 'error') {
-            return 'self-start max-w-[80%]';
-        }
-        return 'self-start max-w-[80%]';
-    }
-
     return (
-        <div className="flex flex-1 flex-col p-4 overflow-y-auto gap-4">
-            {groupedMessages.map((group, groupIndex) => {
-                if (group.type === 'system_operations') {
-                    // 渲染系统操作组
-                    return (
-                        <div key={`group-${groupIndex}`} className="self-start w-full max-w-[90%]">
-                            <SystemOperationGroup isComplete={group.isComplete}>
-                                {group.messages.map((msg, msgIndex) => (
-                                    <div key={`${groupIndex}-${msgIndex}`}>
-                                        {renderItem(msg, groupIndex === groupedMessages.length - 1 && msgIndex === group.messages.length - 1)}
-                                    </div>
-                                ))}
-                            </SystemOperationGroup>
-                        </div>
-                    );
-                } else {
-                    // 渲染单独消息
-                    const msg = group.messages[0];
-                    return (
-                        <div key={`single-${groupIndex}`} className={`flex flex-col ${getMessageClass(msg)}`}>
-                            {renderItem(msg, groupIndex === groupedMessages.length - 1)}
-                        </div>
-                    );
-                }
-            })}
+        <div ref={containerRef} className="flex flex-1 flex-col p-4 overflow-y-auto gap-4">
+            {groupedMessages.map((group, groupIndex) => (
+                <MessageItem
+                    key={groupIndex}
+                    group={group}
+                    groupIndex={groupIndex}
+                    isLast={groupIndex === groupedMessages.length - 1}
+                    onFilePreview={onFilePreview}
+                />
+            ))}
             {/* 流式响应显示 */}
             {streamingResponse && (
                 streamingResponse.includes('任务执行中') ? (

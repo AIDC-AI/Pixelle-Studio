@@ -49,6 +49,7 @@ export interface Message {
     | 'response_delta'  // Streaming text delta
     | 'skill_loaded' 
     | 'output_files'
+    | 'thinking'
     | 'tool_call'       // Tool call started
     | 'tool_result';    // Tool execution completed
   content: any;

@@ -97,7 +97,7 @@ const Input: React.FC<IProps> = (props) => {
                         showUploadList={false}
                     >
                         <button 
-                            className="p-2.5 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors flex-shrink-0 border border-gray-200"
+                            className="p-2.5 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors shrink-0 border border-gray-200"
                             disabled={isProcessing}
                         >
                             <Plus className="w-5 h-5 text-gray-500" />
@@ -113,7 +113,7 @@ const Input: React.FC<IProps> = (props) => {
                             }
                         }}
                         placeholder="输入消息...（支持文本和文件）"
-                        className="flex-1 h-full resize-none bg-transparent px-3 py-3 focus:outline-none text-gray-800 placeholder-gray-400"
+                        className="flex-1 h-full resize-none bg-transparent px-3 py-3 focus:ring-0! focus:outline-none! text-gray-800 placeholder-gray-400"
                         rows={1}
                         disabled={isProcessing}
                     />

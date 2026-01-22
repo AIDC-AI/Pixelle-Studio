@@ -9,21 +9,17 @@ import LeftPanel from "../leftPanel";
 import SkillEditor from "../skillEditor";
 import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
-import { useMCPServer } from "@/hooks/useMCPServer";
 import FilePreview from "./filePreview";
-import VirtualMessageList from "./virtualMessageList";
 import { UploadFile } from "@/components/ui/upload";
+import MessageList from "./messageList";
 
 const Chat = () => {
     const { 
       user,
       activeSessionId, 
       setActiveSessionId,
-      skillEditored,
-      setSkillEditored
+      skillEditored
     } = useApp();
-
-    const { tools: mcpTools } = useMCPServer();
 
     const { 
       messages, 
@@ -653,7 +649,7 @@ const Chat = () => {
               transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
             }}
           >
-              <VirtualMessageList 
+              <MessageList 
                   messages={messages} 
                   currentScript={currentScript}
                   onFilePreview={setPreviewFile}
