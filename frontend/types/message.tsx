@@ -50,8 +50,7 @@ export interface Message {
     | 'skill_loaded' 
     | 'output_files'
     | 'tool_call'       // Tool call started
-    | 'tool_result'     // Tool execution completed
-    | 'thinking';       // Thinking content from model
+    | 'tool_result';    // Tool execution completed
   content: any;
   timestamp: number;
   iteration?: number;
@@ -65,6 +64,4 @@ export interface Message {
   toolCall?: ToolCallInfo;
   // For tool results
   toolResult?: ToolResultInfo;
-  // For streaming responses
-  isStreaming?: boolean;
 }

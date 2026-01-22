@@ -9,19 +9,6 @@ interface IProps {
     executionCount?: number;
 }
 
-// 解码Unicode转义字符（如 \u8bf7 -> 请）
-const decodeUnicodeEscapes = (text: string): string => {
-    if (!text) return text;
-    try {
-        // 替换 \uXXXX 格式的Unicode转义
-        return text.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
-            return String.fromCharCode(parseInt(hex, 16));
-        });
-    } catch (e) {
-        return text;
-    }
-};
-
 const ExecutionResultItem: React.FC<IProps> = (props) => {
     const { result, executionCount = 1 } = props;
     const [showDetails, setShowDetails] = useState(false);
@@ -29,10 +16,6 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
     const isSuccess = result.status === 'success';
     const hasStderr = result.stderr && result.stderr.trim().length > 0;
     const hasStdout = result.stdout && result.stdout.trim().length > 0;
-    
-    // 解码Unicode转义字符
-    const decodedStdout = decodeUnicodeEscapes(result.stdout || '');
-    const decodedStderr = decodeUnicodeEscapes(result.stderr || '');
 
     return (
         <div className={`rounded-lg overflow-hidden border ${
@@ -90,7 +73,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                                 <span className="text-xs font-medium text-gray-600">输出</span>
                             </div>
                             <pre className="bg-gray-50 rounded p-2 text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap border border-gray-200">
-                                {decodedStdout}
+                                {result.stdout}
                             </pre>
                         </div>
                     )}
@@ -103,7 +86,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                                 <span className="text-xs font-medium text-amber-700">错误/警告</span>
                             </div>
                             <pre className="bg-amber-50 rounded p-2 text-xs text-amber-800 font-mono overflow-x-auto whitespace-pre-wrap border border-amber-200">
-                                {decodedStderr}
+                                {result.stderr}
                             </pre>
                         </div>
                     )}
@@ -118,8 +101,8 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                             <div className="bg-teal-50 rounded p-2 border border-teal-200">
                                 <pre className="text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap">
                                     {typeof result.result === 'string' 
-                                        ? decodeUnicodeEscapes(result.result)
-                                        : decodeUnicodeEscapes(JSON.stringify(result.result, null, 2))}
+                                        ? result.result 
+                                        : JSON.stringify(result.result, null, 2)}
                                 </pre>
                             </div>
                         </div>
@@ -131,7 +114,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
             {!showDetails && hasStdout && (
                 <div className="px-3 py-1.5 bg-gray-50">
                     <p className="text-xs text-gray-500 font-mono line-clamp-1">
-                        {decodedStdout.split('\n')[0]}...
+                        {result.stdout.split('\n')[0]}...
                     </p>
                 </div>
             )}
