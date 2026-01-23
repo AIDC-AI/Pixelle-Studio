@@ -17,7 +17,9 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
     const isSuccess = result.status === 'success';
     const hasStderr = result.stderr && result.stderr.trim().length > 0;
     const hasStdout = result.stdout && result.stdout.trim().length > 0;
-
+    const resultString = typeof result.result === 'string' 
+                                        ? result.result  
+                                        : JSON.stringify(result.result, null, 2)
     return (
         <div className={`rounded-lg overflow-hidden border ${
             isSuccess 
@@ -80,7 +82,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                     )}
                     
                     {/* Parsed Result or Stdout */}  
-                    {result.result ? (
+                    {resultString ? (
                         <div>
                             <div className="flex items-center gap-1.5 mb-1.5">
                                 <CheckCircle className="w-3 h-3 text-teal-600" />
@@ -88,9 +90,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                             </div>
                             <CodeHighlighter 
                                 language={"json"}
-                                code={typeof result.result === 'string' 
-                                        ? result.result  
-                                        : JSON.stringify(result.result, null, 2)}
+                                code={resultString}
                             />
                             {/* <div className="bg-teal-50 rounded p-2 border border-teal-200">
                                 <pre className="text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap">
@@ -115,10 +115,10 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
             </div>
             
             {/* Quick Preview when collapsed */}
-            {!showDetails && hasStdout && (
+            {!showDetails && resultString && (
                 <div className="px-3 py-1.5 bg-gray-50">
-                    <p className="text-xs text-gray-500 font-mono line-clamp-1">
-                        {result.stdout.split('\n')[0]}...
+                    <p className="text-xs text-gray-500 font-mono truncate">
+                        {resultString}
                     </p>
                 </div>
             )}
