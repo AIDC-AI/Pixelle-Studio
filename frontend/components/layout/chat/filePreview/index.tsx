@@ -1,9 +1,12 @@
 'use client';
 
-import { X, FileText, Image, FileCode, File, ExternalLink, Download, Maximize2, Minimize2, RefreshCw, AlertCircle } from 'lucide-react';
+import { X, FileText, Image, FileCode, File, ExternalLink, Download, Maximize2, Minimize2, RefreshCw, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { OutputFile } from '@/types/message';
 import { API_BASE } from '@/lib/data';
+import * as XLSX from 'xlsx';
+import { DataGrid } from 'react-data-grid';
+import 'react-data-grid/lib/styles.css';
 
 interface IProps {
     file: OutputFile | null;
@@ -15,18 +18,104 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
     const [iframeKey, setIframeKey] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [excelData, setExcelData] = useState<{ columns: any[]; rows: any[] } | null>(null);
+    const [selectedSheet, setSelectedSheet] = useState<string>('');
+    const [sheetNames, setSheetNames] = useState<string[]>([]);
 
     useEffect(() => {
         // 当文件改变时，重新加载
         setIframeKey(prev => prev + 1);
         setIsLoading(true);
         setLoadError(null);
+        setExcelData(null);
+        setSheetNames([]);
+        setSelectedSheet('');
+        
+        // 如果是 Excel 文件，加载数据
+        const ext = getFileExtension(file?.file_name || '');
+        if (file && (ext === 'xlsx' || ext === 'xls' || ext === 'csv')) {
+            loadExcelFile(getFullUrl(file.file_url));
+        }
     }, [file?.file_url]);
 
     if (!file) return null;
 
     const getFileExtension = (filename: string): string => {
         return filename.split('.').pop()?.toLowerCase() || '';
+    };
+
+    // 加载 Excel 文件
+    const loadExcelFile = async (url: string) => {
+        try {
+            setIsLoading(true);
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            
+            const sheets = workbook.SheetNames;
+            setSheetNames(sheets);
+            
+            if (sheets.length > 0) {
+                const firstSheet = sheets[0];
+                setSelectedSheet(firstSheet);
+                loadSheet(workbook, firstSheet);
+            }
+            
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Failed to load Excel file:', error);
+            setLoadError('Excel 文件加载失败');
+            setIsLoading(false);
+        }
+    };
+
+    // 加载指定的工作表
+    const loadSheet = (workbook: XLSX.WorkBook, sheetName: string) => {
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        
+        if (jsonData.length === 0) {
+            setExcelData({ columns: [], rows: [] });
+            return;
+        }
+        
+        // 第一行作为列名
+        const headers = jsonData[0] || [];
+        const columns = headers.map((header, index) => ({
+            key: `col_${index}`,
+            name: header?.toString() || `Column ${index + 1}`,
+            resizable: true,
+            sortable: true,
+        }));
+        
+        // 剩余行作为数据
+        const rows = jsonData.slice(1).map((row, rowIndex) => {
+            const rowData: any = { id: rowIndex };
+            headers.forEach((_, colIndex) => {
+                rowData[`col_${colIndex}`] = row[colIndex]?.toString() || '';
+            });
+            return rowData;
+        });
+        
+        setExcelData({ columns, rows });
+    };
+
+    // 切换工作表
+    const handleSheetChange = async (sheetName: string) => {
+        setSelectedSheet(sheetName);
+        setIsLoading(true);
+        
+        try {
+            const response = await fetch(getFullUrl(file.file_url));
+            const arrayBuffer = await response.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            loadSheet(workbook, sheetName);
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Failed to load sheet:', error);
+            setLoadError('工作表加载失败');
+            setIsLoading(false);
+        }
     };
 
     const getFileIcon = (filename: string) => {
@@ -44,10 +133,13 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             case 'webp':
             case 'svg':
                 return <Image className="w-4 h-4" />;
+            case 'xlsx':
+            case 'xls':
+            case 'csv':
+                return <FileSpreadsheet className="w-4 h-4" />;
             case 'txt':
             case 'md':
             case 'json':
-            case 'csv':
                 return <FileText className="w-4 h-4" />;
             default:
                 return <File className="w-4 h-4" />;
@@ -132,6 +224,58 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         }
 
         switch (ext) {
+            case 'xlsx':
+            case 'xls':
+            case 'csv':
+                return (
+                    <div className="w-full h-full flex flex-col bg-white">
+                        {/* 工作表选择器 */}
+                        {sheetNames.length > 1 && (
+                            <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
+                                <span className="text-sm text-gray-600">工作表:</span>
+                                <div className="flex gap-1">
+                                    {sheetNames.map((name) => (
+                                        <button
+                                            key={name}
+                                            onClick={() => handleSheetChange(name)}
+                                            className={`px-3 py-1 text-sm rounded transition-colors ${
+                                                selectedSheet === name
+                                                    ? 'bg-orange-500 text-white'
+                                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                            }`}
+                                        >
+                                            {name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* 数据表格 */}
+                        <div className="flex-1 overflow-auto">
+                            {isLoading ? (
+                                <div className="w-full h-full flex items-center justify-center">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
+                                        <span className="text-sm text-gray-500">加载中...</span>
+                                    </div>
+                                </div>
+                            ) : excelData && excelData.rows.length > 0 ? (
+                                <DataGrid
+                                    columns={excelData.columns}
+                                    rows={excelData.rows}
+                                    className="rdg-light"
+                                    style={{ height: '100%' }}
+                                    rowKeyGetter={(row) => row.id}
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                    <p className="text-sm">工作表为空</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
             case 'html':
             case 'htm':
                 return (

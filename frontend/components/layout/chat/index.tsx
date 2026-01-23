@@ -12,6 +12,7 @@ import useChatStorage from "@/hooks/useChatStorage";
 import FilePreview from "./filePreview";
 import { UploadFile } from "@/components/ui/upload";
 import MessageList from "./messageList";
+import { canPreviewFile } from "@/utils/utils";
 
 const Chat = () => {
     const { 
@@ -68,12 +69,6 @@ const Chat = () => {
     
     // 强制更新用于拖拽视觉反馈
     const [, forceUpdate] = useState({});
-
-    // 检查文件是否可预览
-    const canPreviewFile = (filename: string): boolean => {
-        const ext = filename.split('.').pop()?.toLowerCase() || '';
-        return ['html', 'htm', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'txt', 'md'].includes(ext);
-    };
 
     // 自动预览可预览的文件
     const autoPreviewFile = (files: OutputFile[]) => {
