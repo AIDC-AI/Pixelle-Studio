@@ -50,8 +50,7 @@ async def load_skill(ctx: RunContextWrapper[AgentContext], skill_name: str) -> s
     """
     Load skill documentation (SKILL.md) for domain-specific guidance.
     
-    Use this tool when you need detailed instructions for a specific task domain
-    like Excel processing, PowerPoint creation, or video generation.
+    Use this tool when you need detailed instructions for a specific task domain.
     
     Args:
         skill_name: Name of the skill to load (e.g., "xlsx", "pptx", "video")
@@ -75,17 +74,23 @@ async def load_skill(ctx: RunContextWrapper[AgentContext], skill_name: str) -> s
         links = skill_loader.parse_skill_links(skill_name, user_id)
         referenced_docs = [link.path for link in links if link.exists and link.path.endswith('.md')]
         
-        result = f"# Skill '{skill_name}' Documentation\n\n{skill_content}"
+        # 返回结构化 JSON，包含 skill_name 便于前端识别
+        result = {
+            "__tool__": "load_skill",  # 标识工具类型
+            "skill_name": skill_name,
+            "content": skill_content,
+            "referenced_docs": referenced_docs[:5] if referenced_docs else [],
+            "status": "success"
+        }
         
-        if referenced_docs:
-            result += "\n\n---\n**Note**: This skill references these detailed documentation files:\n"
-            for doc in referenced_docs[:5]:
-                result += f"- {doc}\n"
-            result += f"\nUse the `read_skill_file` tool to read them if needed."
-        
-        return result
+        return json.dumps(result, ensure_ascii=False)
     else:
-        return f"Skill '{skill_name}' not found. Please check the skill name or try a different approach."
+        return json.dumps({
+            "__tool__": "load_skill",
+            "skill_name": skill_name,
+            "status": "error",
+            "error": f"Skill '{skill_name}' not found. Please check the skill name or try a different approach."
+        }, ensure_ascii=False)
 
 
 @function_tool
@@ -151,22 +156,6 @@ async def execute_code(ctx: RunContextWrapper[AgentContext], code: Optional[str]
     """
     ⚠️ CRITICAL TOOL - Execute Python code to generate files and produce results.
     
-    Two ways to use this tool:
-    
-    **Method 1 (Direct)**: Pass code directly as parameter
-    ```
-    execute_code(code="import json\\nprint(json.dumps({'status': 'success'}))")
-    ```
-    
-    **Method 2 (Legacy)**: Write code in <execute lang="python">...</execute> tags first, then call with no parameters
-    ```
-    <execute lang="python">
-    import json
-    print(json.dumps({"status": "success"}))
-    </execute>
-    ```
-    Then call: execute_code()
-    
     Args:
         code: Python code to execute (optional, will use queue if not provided)
     
@@ -180,36 +169,36 @@ async def execute_code(ctx: RunContextWrapper[AgentContext], code: Optional[str]
     code_to_execute = None
     code_source = None
     
-    if code is not None and code.strip():
+    # Filter out invalid code values (e.g., LLM sometimes sends "None" string instead of null)
+    # A valid code should be non-empty and not just "None" or whitespace
+    valid_code = (
+        code is not None 
+        and code.strip() 
+        and code.strip().lower() != "none"  # Filter out "None" string from LLM
+    )
+    
+    if valid_code:
         # Method 1: Code passed as parameter (direct)
         code_to_execute = code.strip()
         code_source = "parameter"
         logger.info(f"[Tool] execute_code called with code parameter (call #{context.tool_call_count}), length: {len(code_to_execute)} chars")
-    elif context.pending_code_queue:
-        # Method 2: Code from queue (legacy)
-        code_to_execute = context.pending_code_queue.pop()
-        code_source = "queue"
-        logger.info(f"[Tool] execute_code using code from queue (call #{context.tool_call_count}), length: {len(code_to_execute)} chars, remaining: {len(context.pending_code_queue)}")
     else:
-        # No code available
-        logger.warning(f"[Tool] execute_code called but no code provided (call #{context.tool_call_count})")
-        return """## No Code Found
+        # Code parameter is invalid (None, empty, or "None" string)
+        if code is not None and code.strip():
+            # LLM sent invalid code like "None" - log warning
+            logger.warning(f"[Tool] execute_code received invalid code parameter: {repr(code)}, falling back to queue")
+        
+        if context.pending_code_queue:
+            # Method 2: Code from queue (legacy)
+            code_to_execute = context.pending_code_queue.pop()
+            code_source = "queue"
+            logger.info(f"[Tool] execute_code using code from queue (call #{context.tool_call_count}), length: {len(code_to_execute)} chars, remaining: {len(context.pending_code_queue)}")
+        else:
+            # No code available
+            logger.warning(f"[Tool] execute_code called but no code provided (call #{context.tool_call_count})")
+            return """## No Code Found
 
 You called execute_code() but didn't provide any code.
-
-**Option 1 - Pass code directly**:
-```
-execute_code(code="import json\\nprint(json.dumps({'status': 'success'}))")
-```
-
-**Option 2 - Write code block first**:
-```
-<execute lang="python">
-import json
-print(json.dumps({"status": "success"}))
-</execute>
-```
-Then call: execute_code()
 """
     
     code = code_to_execute
@@ -275,8 +264,9 @@ from pathlib import Path
                         "file_size": file_path.stat().st_size
                     })
     
-    # Build result message
+    # Build structured result (返回结构化 JSON，不用正则解析)
     exec_result = {
+        "__tool__": "execute_code",  # 标识工具类型，便于 agent 识别
         "status": status,
         "stdout": "\n".join(output_lines),
         "stderr": "\n".join(error_lines),
@@ -285,24 +275,8 @@ from pathlib import Path
         "output_files": output_files
     }
     
-    # Format as readable string for the LLM
-    result_str = f"## Execution Result\n\n**Status**: {status}\n\n"
-    
-    if output_lines:
-        result_str += f"**Output**:\n```\n{exec_result['stdout']}\n```\n\n"
-    
-    if error_lines:
-        result_str += f"**Errors**:\n```\n{exec_result['stderr']}\n```\n\n"
-    
-    if output_files:
-        result_str += "**Generated Files**:\n"
-        for f in output_files:
-            result_str += f"- [{f['file_name']}]({f['file_url']}) ({f['file_size']} bytes)\n"
-    
-    if result:
-        result_str += f"\n**Parsed Result**:\n```json\n{json.dumps(result, indent=2, ensure_ascii=False)}\n```"
-    
-    return result_str
+    # 返回 JSON 字符串，LLM 可以理解，agent 可以直接解析
+    return json.dumps(exec_result, ensure_ascii=False)
 
 
 @function_tool

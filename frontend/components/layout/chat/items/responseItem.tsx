@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 
 interface IProps {
     content: string;
+    isStreaming?: boolean;
 }
 
 const ResponseItem: React.FC<IProps> = (props) => {
