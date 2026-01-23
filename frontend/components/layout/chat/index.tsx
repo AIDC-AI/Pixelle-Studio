@@ -649,6 +649,7 @@ const Chat = () => {
                   currentScript={currentScript}
                   onFilePreview={setPreviewFile}
                   streamingResponse={streamingResponse}
+                  sessionId={activeSessionId}
               />
               <Input 
                 isProcessing={isProcessing}

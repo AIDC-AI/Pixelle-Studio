@@ -26,6 +26,7 @@ interface IProps {
     shouldScrollToBottom?: boolean
     onFilePreview?: (file: OutputFile) => void
     streamingResponse?: string
+    sessionId?: string // 用于检测会话切换
 }
 
 // 系统操作类型的消息
@@ -169,11 +170,12 @@ const MessageItem = memo<{
 MessageItem.displayName = 'MessageItem';
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, onFilePreview, streamingResponse } = props;  
-    // console.log('-->', messages)
+    const { messages, currentScript, onFilePreview, streamingResponse, sessionId } = props;  
+    
     const chatEndRef = useRef<HTMLDivElement>(null);
     const lastMessageCountRef = useRef<number>(0);
     const containerRef = useRef<HTMLDivElement>(null);
+    const lastSessionIdRef = useRef<string | undefined>(sessionId);
     
     // 分组消息：将连续的系统操作消息放在一起
     const groupedMessages = useMemo(() => {
@@ -234,30 +236,86 @@ const MessageList: React.FC<IProps> = (props) => {
         return groups;
     }, [messages]);
     
-    // 优化滚动：使用 requestAnimationFrame 和防抖
+    // 跟踪用户是否手动滚动过
+    const userScrolledRef = useRef(false);
+    const scrollTimeoutRef = useRef<NodeJS.Timeout>(null);
+    
+    // 监听用户滚动
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        
+        const handleScroll = () => {
+            // 清除之前的定时器
+            if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current);
+            }
+            
+            // 检查是否在底部
+            const threshold = 50;
+            const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+            const isAtBottom = scrollBottom < threshold;
+            
+            // 如果用户滚动到底部，重置标记
+            if (isAtBottom) {
+                userScrolledRef.current = false;
+            } else {
+                // 用户向上滚动，设置标记
+                userScrolledRef.current = true;
+            }
+        };
+        
+        container.addEventListener('scroll', handleScroll, { passive: true });
+        return () => {
+            container.removeEventListener('scroll', handleScroll);
+            if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current);
+            }
+        };
+    }, []);
+    
+    // 优化滚动：使用 requestAnimationFrame
     const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
         requestAnimationFrame(() => {
             chatEndRef.current?.scrollIntoView({ behavior });
+            userScrolledRef.current = false; // 重置滚动标记
         });
     }, []);
     
-    // 只在收到最终结果时滚动到底部
+    // 智能滚动：只在用户已经在底部时才自动滚动
     useEffect(() => {
         if (!messages || messages.length === 0) return;
         
-        const lastMessage = messages[messages.length - 1];
-        const isEndMessage = lastMessage.type === 'result' || 
-                            lastMessage.type === 'response' || 
-                            lastMessage.type === 'error' ||
-                            lastMessage.type === 'output_files';
+        // 检查是否切换了会话
+        // 检查是否切换了会话
+        const sessionChanged = sessionId !== lastSessionIdRef.current;
+        if (sessionChanged) {
+            lastSessionIdRef.current = sessionId;
+            userScrolledRef.current = false; // 重置滚动标记
+            // 会话切换时，延迟滚动到底部以确保内容已渲染
+            setTimeout(() => scrollToBottom('auto'), 100);
+            return;
+        }
         
-        // 只有在是最终消息或者是用户消息时才滚动
-        if (isEndMessage || lastMessage.type === 'user') {
-            scrollToBottom('smooth');
+        // 如果用户没有手动向上滚动，就自动滚动到底部
+        if (!userScrolledRef.current) {
+            const lastMessage = messages[messages.length - 1];
+            const isEndMessage = lastMessage.type === 'result' || 
+                                lastMessage.type === 'response' || 
+                                lastMessage.type === 'error' ||
+                                lastMessage.type === 'output_files';
+            
+            // 最终消息或用户消息时使用平滑滚动
+            if (isEndMessage || lastMessage.type === 'user') {
+                scrollToBottom('smooth');
+            } else {
+                // 其他消息使用即时滚动
+                scrollToBottom('auto');
+            }
         }
         
         lastMessageCountRef.current = messages.length;
-    }, [messages, scrollToBottom]);
+    }, [messages, scrollToBottom, sessionId]);
     
     return (
         <div ref={containerRef} className="flex flex-1 flex-col p-4 overflow-y-auto gap-4">
