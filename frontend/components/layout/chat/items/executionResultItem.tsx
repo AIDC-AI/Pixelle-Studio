@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { CheckCircle, XCircle, ChevronDown, ChevronRight, Terminal, AlertTriangle } from 'lucide-react';
 import { ExecutionResult } from '@/types/message';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface IProps {
     result: ExecutionResult;
@@ -85,13 +87,38 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                                 <CheckCircle className="w-3 h-3 text-teal-600" />
                                 <span className="text-xs font-medium text-teal-700">解析结果</span>
                             </div>
-                            <div className="bg-teal-50 rounded p-2 border border-teal-200">
+                            <SyntaxHighlighter
+                                language={"JSON"}
+                                style={vs}
+                                customStyle={{
+                                    margin: 0,
+                                    padding: '0.75rem',
+                                    background: '#ffffff',
+                                    fontSize: '0.75rem',
+                                    lineHeight: '1.25rem',
+                                    borderRadius: '0.375rem',
+                                }}
+                                showLineNumbers
+                                lineNumberStyle={{
+                                    minWidth: '2.5em',
+                                    paddingRight: '0.75em',
+                                    color: '#9ca3af',
+                                    userSelect: 'none',
+                                    fontSize: '0.7rem',
+                                }}
+                                wrapLines
+                            >
+                                {typeof result.result === 'string' 
+                                        ? result.result  
+                                        : JSON.stringify(result.result, null, 2)}
+                            </SyntaxHighlighter>
+                            {/* <div className="bg-teal-50 rounded p-2 border border-teal-200">
                                 <pre className="text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap">
                                     {typeof result.result === 'string' 
                                         ? result.result  
                                         : JSON.stringify(result.result, null, 2)}
                                 </pre>
-                            </div>
+                            </div> */}
                         </div>
                     ) : (hasStdout && (
                         <div>

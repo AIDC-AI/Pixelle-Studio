@@ -2,6 +2,8 @@
 
 import { Wrench, CheckCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface IProps {
     toolCall?: {
@@ -32,7 +34,7 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
                 }`}
                 onClick={() => (hasArguments || hasResult) && setIsExpanded(!isExpanded)}
             >
-                <div className={`flex-shrink-0 ${isResult ? 'text-green-600' : 'text-blue-600'}`}>
+                <div className={`shrink-0 ${isResult ? 'text-green-600' : 'text-blue-600'}`}>
                     {isResult ? <CheckCircle className="w-3.5 h-3.5" /> : <Wrench className="w-3.5 h-3.5" />}
                 </div>
                 <span className="flex-1 font-medium">
@@ -41,7 +43,7 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
                     {!isResult && hasArguments && ' (...)'}
                 </span>
                 {(hasArguments || hasResult) && (
-                    <div className="flex-shrink-0 text-gray-400">
+                    <div className="shrink-0 text-gray-400">
                         {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     </div>
                 )}
@@ -53,19 +55,67 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
                     {!isResult && hasArguments && (
                         <div className="bg-gray-50 rounded p-2">
                             <div className="text-xs font-medium text-gray-600 mb-1">参数:</div>
-                            <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap">
+                            {/* <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap">
                                 {JSON.stringify(toolCall.arguments, null, 2)}
-                            </pre>
+                            </pre> */}
+                            <SyntaxHighlighter
+                                language={"JSON"}
+                                style={vs}
+                                customStyle={{
+                                    margin: 0,
+                                    padding: '0.75rem',
+                                    background: '#ffffff',
+                                    fontSize: '0.75rem',
+                                    lineHeight: '1.25rem',
+                                    borderRadius: '0.375rem',
+                                }}
+                                showLineNumbers
+                                lineNumberStyle={{
+                                    minWidth: '2.5em',
+                                    paddingRight: '0.75em',
+                                    color: '#9ca3af',
+                                    userSelect: 'none',
+                                    fontSize: '0.7rem',
+                                }}
+                                wrapLines
+                            >
+                                {JSON.stringify(toolCall.arguments, null, 2)}
+                            </SyntaxHighlighter>
                         </div>
                     )}
                     {isResult && hasResult && (
                         <div className="bg-gray-50 rounded p-2">
                             <div className="text-xs font-medium text-gray-600 mb-1">结果:</div>
-                            <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">
+                            {/* <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">
                                 {typeof toolCall.result === 'string' 
                                     ? toolCall.result 
                                     : JSON.stringify(toolCall.result, null, 2)}
-                            </pre>
+                            </pre> */}
+                            <SyntaxHighlighter
+                                language={"JSON"}
+                                style={vs}
+                                customStyle={{
+                                    margin: 0,
+                                    padding: '0.75rem',
+                                    background: '#ffffff',
+                                    fontSize: '0.75rem',
+                                    lineHeight: '1.25rem',
+                                    borderRadius: '0.375rem',
+                                }}
+                                showLineNumbers
+                                lineNumberStyle={{
+                                    minWidth: '2.5em',
+                                    paddingRight: '0.75em',
+                                    color: '#9ca3af',
+                                    userSelect: 'none',
+                                    fontSize: '0.7rem',
+                                }}
+                                wrapLines
+                            >
+                                {typeof toolCall.result === 'string' 
+                                    ? toolCall.result 
+                                    : JSON.stringify(toolCall.result, null, 2)}
+                            </SyntaxHighlighter>
                         </div>
                     )}
                 </div>

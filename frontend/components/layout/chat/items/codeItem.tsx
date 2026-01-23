@@ -83,7 +83,7 @@ const CodeItem: React.FC<IProps> = (props) => {
             
             {/* Code Content - 白色底 */}
             <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[500px]' : 'max-h-0'} overflow-hidden`}>
-                <div className="relative overflow-auto max-h-[400px]">
+                <div className="relative overflow-auto max-h-100">
                     <SyntaxHighlighter
                         language={language}
                         style={vs}
