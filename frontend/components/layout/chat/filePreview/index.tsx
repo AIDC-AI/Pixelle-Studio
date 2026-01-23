@@ -5,12 +5,8 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { OutputFile } from '@/types/message';
 import { API_BASE } from '@/lib/data';
 
-// 动态导入 DataGrid
-const DataGrid = lazy(() => import('react-data-grid').then(mod => {
-    // 动态导入样式
-    import('react-data-grid/lib/styles.css');
-    return { default: mod.DataGrid };
-}));
+// 动态导入 DataGrid（样式在 globals.css 中导入）
+const DataGrid = lazy(() => import('react-data-grid').then(mod => ({ default: mod.DataGrid })));
 
 interface IProps {
     file: OutputFile | null;

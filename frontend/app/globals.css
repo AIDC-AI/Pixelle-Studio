@@ -1,5 +1,6 @@
 /* stylelint-disable at-rule-no-unknown */
 @import "tailwindcss";
+@import "react-data-grid/lib/styles.css";
 
 * {
   overscroll-behavior: none;
