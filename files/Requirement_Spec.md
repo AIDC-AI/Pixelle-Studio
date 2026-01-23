@@ -33,7 +33,7 @@
 *   **Code Runner**: 在独立的子进程中执行 Python 脚本。
 *   **Helper Injection**: 在执行环境中自动注入辅助函数，打通代码与 Skills 资源的路径：
     *   `skill_path(skill_name, ...)`: 定位技能目录下的资源。
-    *   `script_path(...)`: 定位用户工作区的文件。
+    *   `user_file(...)`: 定位用户工作区的文件（上传的输入和生成的输出）。
     *   `call_tool(name, args)`: 异步调用外部 MCP 工具。
 *   **Workspace**: 代码运行在 `backend/` 根目录，但主要读写操作被引导至 `scripts/` 目录。
 

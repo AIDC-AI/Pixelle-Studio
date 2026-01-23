@@ -188,7 +188,7 @@ import os
 html_content = '''<!DOCTYPE html>
 <html><body><h1>Hello</h1></body></html>'''
 
-with open(script_path("output.html"), "w") as f:
+with open(user_file("output.html"), "w") as f:
     f.write(html_content)
 
 print(json.dumps({{"status": "success", "result": "File created"}}))
@@ -202,7 +202,7 @@ Then call: execute_code()
 - Variables, DataFrames, and objects DO NOT persist between execute blocks
 - Every execute block MUST be FULLY self-contained:
   - Include ALL imports (pandas, json, etc.)
-  - Re-read input files if needed (e.g., `df = pd.read_csv(script_path('file.csv'))`)
+  - Re-read input files if needed (e.g., `df = pd.read_csv(user_file('file.csv'))`)
   - Include ALL processing logic
 - If you need to both analyze AND generate output, put ALL code in ONE execute block
 - Always print JSON result at the end
@@ -212,8 +212,8 @@ Then call: execute_code()
 The following helper functions are automatically available in your Python code:
 
 **File Path Helpers:**
-- `skill_path("skill_name", "relative/path")` - Get path to skill resources
-- `script_path("filename")` - Get path to user files in scripts/ directory
+- `skill_path("skill_name", "relative/path")` - Get path to skill's internal resources (scripts, templates, configs defined in SKILL.md)
+- `user_file("filename")` - Get path to user's working files (uploaded inputs, generated outputs)
 
 **MCP Tool Calling (async):**
 - `await call_tool("tool_name", {{"arg1": value1, ...}})` - Call an MCP tool
@@ -240,10 +240,14 @@ Your code runs with working directory at backend root. Key directories:
 </working_directory>
 
 <file_rules>
-**CRITICAL**: File paths are dynamic based on user context.
-- **NEVER** use hardcoded paths like `scripts/filename.ext`.
-- **ALWAYS** use `script_path("filename.ext")` to access input files and write output files.
-- **output_file_names**: List only the filename (NOT the path), e.g., `["output.pptx"]`
+**Path Functions** (two distinct purposes):
+- `user_file("filename")` - For user's files: uploaded inputs, generated outputs. Use this for reading user data and writing final outputs.
+- `skill_path("skill_name", "path")` - For skill's internal resources: scripts/templates referenced in SKILL.md. The path is relative to skill directory.
+
+**Example**: To run a skill's JS script: `skill_path("pptx", "scripts/helper.js")`, NOT `user_file("helper.js")`
+**Example**: To save output: `user_file("output.pptx")`, NOT hardcoded paths
+
+**output_file_names**: List only the filename, e.g., `["output.pptx"]`
 </file_rules>
 
 <output_format>
@@ -330,12 +334,12 @@ When helping users:
         
         if file_names:
             full_user_message += "\n\n## User Uploaded Files:\n"
-            full_user_message += "You must access these files using `script_path('filename')`:\n"
+            full_user_message += "You must access these files using `user_file('filename')`:\n"
             for name in file_names:
                 full_user_message += f"- {name}\n"
         elif file_urls:
             full_user_message += "\n\n## User Uploaded Files:\n"
-            full_user_message += "You must access these files using `script_path('filename')`:\n"
+            full_user_message += "You must access these files using `user_file('filename')`:\n"
             for url in file_urls:
                 filename = url.split("/")[-1]
                 full_user_message += f"- {filename}\n"
