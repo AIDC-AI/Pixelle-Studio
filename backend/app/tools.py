@@ -332,7 +332,7 @@ def _build_skill_helpers_code(context: AgentContext) -> str:
     
     All paths are RELATIVE to the execution cwd (backend root).
     Provides:
-    - skill_path() and script_path() for file paths
+    - skill_path() for skill resources, user_file() for user files
     - call_tool() for MCP tool calling (async)
     """
     # Build MCP server registration if configured
@@ -381,8 +381,12 @@ def skill_path(skill_name: str, *parts) -> str:
         return os.path.join("skills", "default", skill_name, *parts)
     return os.path.join(base_path, *parts)
 
-def script_path(*parts) -> str:
-    """Get relative path: scripts/<user_id>/[parts...]"""
+def user_file(*parts) -> str:
+    """Get path to user's working files: scripts/<user_id>/[parts...]
+    
+    Use this for: user uploaded files, generated outputs, temporary files.
+    NOT for skill resources - use skill_path() for those.
+    """
     return os.path.join(SCRIPTS_ROOT, *parts)
 
 # MCP Tool Calling Support
