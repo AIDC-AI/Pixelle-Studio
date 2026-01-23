@@ -1,9 +1,8 @@
 'use client';
 
+import CodeHighlighter from '@/components/ui/codeHighlighter';
 import { Wrench, CheckCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface IProps {
     toolCall?: {
@@ -58,29 +57,10 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
                             {/* <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap">
                                 {JSON.stringify(toolCall.arguments, null, 2)}
                             </pre> */}
-                            <SyntaxHighlighter
-                                language={"JSON"}
-                                style={vs}
-                                customStyle={{
-                                    margin: 0,
-                                    padding: '0.75rem',
-                                    background: '#ffffff',
-                                    fontSize: '0.75rem',
-                                    lineHeight: '1.25rem',
-                                    borderRadius: '0.375rem',
-                                }}
-                                showLineNumbers
-                                lineNumberStyle={{
-                                    minWidth: '2.5em',
-                                    paddingRight: '0.75em',
-                                    color: '#9ca3af',
-                                    userSelect: 'none',
-                                    fontSize: '0.7rem',
-                                }}
-                                wrapLines
-                            >
-                                {JSON.stringify(toolCall.arguments, null, 2)}
-                            </SyntaxHighlighter>
+                            <CodeHighlighter 
+                                language={"json"}
+                                code={JSON.stringify(toolCall.arguments, null, 2)}
+                            />
                         </div>
                     )}
                     {isResult && hasResult && (
@@ -91,31 +71,12 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
                                     ? toolCall.result 
                                     : JSON.stringify(toolCall.result, null, 2)}
                             </pre> */}
-                            <SyntaxHighlighter
-                                language={"JSON"}
-                                style={vs}
-                                customStyle={{
-                                    margin: 0,
-                                    padding: '0.75rem',
-                                    background: '#ffffff',
-                                    fontSize: '0.75rem',
-                                    lineHeight: '1.25rem',
-                                    borderRadius: '0.375rem',
-                                }}
-                                showLineNumbers
-                                lineNumberStyle={{
-                                    minWidth: '2.5em',
-                                    paddingRight: '0.75em',
-                                    color: '#9ca3af',
-                                    userSelect: 'none',
-                                    fontSize: '0.7rem',
-                                }}
-                                wrapLines
-                            >
-                                {typeof toolCall.result === 'string' 
+                            <CodeHighlighter 
+                                language={"json"}
+                                code={typeof toolCall.result === 'string' 
                                     ? toolCall.result 
                                     : JSON.stringify(toolCall.result, null, 2)}
-                            </SyntaxHighlighter>
+                            />
                         </div>
                     )}
                 </div>

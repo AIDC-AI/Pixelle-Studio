@@ -1,9 +1,9 @@
 'use client';
 
+import CodeHighlighter from '@/components/ui/codeHighlighter';
 import { Sparkles, CheckCircle2, XCircle, Clock, FileText, AlertCircle, Bot, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface IProps {
@@ -149,8 +149,9 @@ const ResultItem: React.FC<IProps> = (props) => {
                                                             )}
                                                         </button>
                                                     </div>
-                                                    <SyntaxHighlighter
+                                                    <CodeHighlighter 
                                                         language={language}
+                                                        code={codeString}
                                                         style={vscDarkPlus}
                                                         customStyle={{
                                                             margin: 0,
@@ -158,7 +159,6 @@ const ResultItem: React.FC<IProps> = (props) => {
                                                             fontSize: '0.8rem',
                                                             lineHeight: '1.5',
                                                         }}
-                                                        showLineNumbers
                                                         lineNumberStyle={{
                                                             minWidth: '2.5em',
                                                             paddingRight: '1em',
@@ -166,10 +166,7 @@ const ResultItem: React.FC<IProps> = (props) => {
                                                             userSelect: 'none',
                                                             fontSize: '0.75rem',
                                                         }}
-                                                        wrapLongLines
-                                                    >
-                                                        {codeString}
-                                                    </SyntaxHighlighter>
+                                                    />
                                                 </div>
                                             );                          
                                         },

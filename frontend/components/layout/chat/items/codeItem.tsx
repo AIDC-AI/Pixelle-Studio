@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Code2, Copy, Check } from 'lucide-react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import CodeHighlighter from '@/components/ui/codeHighlighter';
 
 interface IProps {
     code: string;
@@ -84,22 +83,10 @@ const CodeItem: React.FC<IProps> = (props) => {
             {/* Code Content - 白色底 */}
             <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[500px]' : 'max-h-0'} overflow-hidden`}>
                 <div className="relative overflow-auto max-h-100">
-                    <SyntaxHighlighter
+                    <CodeHighlighter 
                         language={language}
-                        style={vs}
-                        customStyle={customStyle}
-                        showLineNumbers
-                        lineNumberStyle={{
-                            minWidth: '2.5em',
-                            paddingRight: '0.75em',
-                            color: '#9ca3af',
-                            userSelect: 'none',
-                            fontSize: '0.7rem',
-                        }}
-                        wrapLines
-                    >
-                        {code}
-                    </SyntaxHighlighter>
+                        code={code}
+                    />
                 </div>
             </div>
             
