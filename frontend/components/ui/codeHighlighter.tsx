@@ -16,18 +16,12 @@ const CodeHighlighter: React.FC<IProps> = (props) => {
         style = vs,
         customStyle = {
             margin: 0,
-            padding: '0.75rem',
-            background: '#ffffff',
-            fontSize: '0.75rem',
-            lineHeight: '1.25rem',
-            borderRadius: '0.375rem',
+            background: '#fff',
+            fontSize: '16px'
         },
         lineNumberStyle = {
-            minWidth: '2.5em',
-            paddingRight: '0.75em',
-            color: '#9ca3af',
+            color: '#6e7681',
             userSelect: 'none',
-            fontSize: '0.7rem',
         }
     } = props 
 

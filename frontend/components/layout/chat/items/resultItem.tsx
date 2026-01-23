@@ -155,16 +155,7 @@ const ResultItem: React.FC<IProps> = (props) => {
                                                         style={vscDarkPlus}
                                                         customStyle={{
                                                             margin: 0,
-                                                            borderRadius: '0.5rem',
-                                                            fontSize: '0.8rem',
-                                                            lineHeight: '1.5',
-                                                        }}
-                                                        lineNumberStyle={{
-                                                            minWidth: '2.5em',
-                                                            paddingRight: '1em',
-                                                            color: '#6e7681',
-                                                            userSelect: 'none',
-                                                            fontSize: '0.75rem',
+                                                            fontSize: '16px'
                                                         }}
                                                     />
                                                 </div>
