@@ -170,7 +170,7 @@ MessageItem.displayName = 'MessageItem';
 
 const MessageList: React.FC<IProps> = (props) => {
     const { messages, currentScript, onFilePreview, streamingResponse } = props;  
-    console.log('-->', messages)
+    // console.log('-->', messages)
     const chatEndRef = useRef<HTMLDivElement>(null);
     const lastMessageCountRef = useRef<number>(0);
     const containerRef = useRef<HTMLDivElement>(null);
