@@ -1,12 +1,16 @@
 'use client';
 
 import { X, FileText, Image, FileCode, File, ExternalLink, Download, Maximize2, Minimize2, RefreshCw, AlertCircle, FileSpreadsheet } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { OutputFile } from '@/types/message';
 import { API_BASE } from '@/lib/data';
-import * as XLSX from 'xlsx';
-import { DataGrid } from 'react-data-grid';
-import 'react-data-grid/lib/styles.css';
+
+// 动态导入 DataGrid
+const DataGrid = lazy(() => import('react-data-grid').then(mod => {
+    // 动态导入样式
+    import('react-data-grid/lib/styles.css');
+    return { default: mod.DataGrid };
+}));
 
 interface IProps {
     file: OutputFile | null;
@@ -48,6 +52,10 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
     const loadExcelFile = async (url: string) => {
         try {
             setIsLoading(true);
+            
+            // 动态导入 XLSX
+            const XLSX = await import('xlsx');
+            
             const response = await fetch(url);
             const arrayBuffer = await response.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -70,7 +78,10 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
     };
 
     // 加载指定的工作表
-    const loadSheet = (workbook: XLSX.WorkBook, sheetName: string) => {
+    const loadSheet = async (workbook: any, sheetName: string) => {
+        // 动态导入 XLSX
+        const XLSX = await import('xlsx');
+        
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
         
@@ -106,10 +117,13 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         setIsLoading(true);
         
         try {
+            // 动态导入 XLSX
+            const XLSX = await import('xlsx');
+            
             const response = await fetch(getFullUrl(file.file_url));
             const arrayBuffer = await response.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-            loadSheet(workbook, sheetName);
+            await loadSheet(workbook, sheetName);
             setIsLoading(false);
         } catch (error) {
             console.error('Failed to load sheet:', error);
@@ -261,13 +275,19 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                                     </div>
                                 </div>
                             ) : excelData && excelData.rows.length > 0 ? (
-                                <DataGrid
-                                    columns={excelData.columns}
-                                    rows={excelData.rows}
-                                    className="rdg-light"
-                                    style={{ height: '100%' }}
-                                    rowKeyGetter={(row) => row.id}
-                                />
+                                <Suspense fallback={
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
+                                    </div>
+                                }>
+                                    <DataGrid
+                                        columns={excelData.columns}
+                                        rows={excelData.rows}
+                                        className="rdg-light"
+                                        style={{ height: '100%' }}
+                                        rowKeyGetter={(row) => row.id}
+                                    />
+                                </Suspense>
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-gray-400">
                                     <p className="text-sm">工作表为空</p>

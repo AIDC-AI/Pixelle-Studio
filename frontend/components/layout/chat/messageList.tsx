@@ -18,7 +18,7 @@ import OutputFilesItem from "./items/outputFilesItem";
 import SystemOperationGroup from "./items/systemOperationGroup";
 import ThinkingItem from "./items/thinkingItem";
 import ToolCallItem from "./items/toolCallItem";
-import ToolResultItem from "./items/toolResultItem";
+import { useApp } from "@/context";
 
 interface IProps {
     messages?: Message[] | null
@@ -26,7 +26,6 @@ interface IProps {
     shouldScrollToBottom?: boolean
     onFilePreview?: (file: OutputFile) => void
     streamingResponse?: string
-    sessionId?: string // 用于检测会话切换
 }
 
 // 系统操作类型的消息
@@ -148,20 +147,27 @@ const MessageItem = memo<{
         );
     }
 }, (prevProps, nextProps) => {
-    // 自定义比较：只在关键属性变化时重新渲染
-    if (prevProps.groupIndex !== nextProps.groupIndex) return false;
+    // 优化的比较函数：快速失败策略
+    // 1. 先比较最可能变化的属性
     if (prevProps.isLast !== nextProps.isLast) return false;
-    if (prevProps.group.type !== nextProps.group.type) return false;
-    if (prevProps.group.isComplete !== nextProps.group.isComplete) return false;
+    
+    // 2. 比较消息数量
     if (prevProps.group.messages.length !== nextProps.group.messages.length) return false;
     
-    // 比较消息内容（浅比较）
-    for (let i = 0; i < prevProps.group.messages.length; i++) {
-        const prevMsg = prevProps.group.messages[i];
-        const nextMsg = nextProps.group.messages[i];
-        if (prevMsg.type !== nextMsg.type) return false;
-        if (prevMsg.content !== nextMsg.content) return false;
-        if (prevMsg.timestamp !== nextMsg.timestamp) return false;
+    // 3. 比较类型和完成状态
+    if (prevProps.group.type !== nextProps.group.type) return false;
+    if (prevProps.group.isComplete !== nextProps.group.isComplete) return false;
+    
+    // 4. 只比较第一个和最后一个消息的时间戳（优化性能）
+    const prevMsgs = prevProps.group.messages;
+    const nextMsgs = nextProps.group.messages;
+    
+    if (prevMsgs.length > 0) {
+        if (prevMsgs[0].timestamp !== nextMsgs[0].timestamp) return false;
+        if (prevMsgs.length > 1 && 
+            prevMsgs[prevMsgs.length - 1].timestamp !== nextMsgs[nextMsgs.length - 1].timestamp) {
+            return false;
+        }
     }
     
     return true;
@@ -170,12 +176,14 @@ const MessageItem = memo<{
 MessageItem.displayName = 'MessageItem';
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, onFilePreview, streamingResponse, sessionId } = props;  
+    const { messages, currentScript, onFilePreview, streamingResponse } = props;  
+    
+    const { activeSessionId } = useApp()
     
     const chatEndRef = useRef<HTMLDivElement>(null);
     const lastMessageCountRef = useRef<number>(0);
     const containerRef = useRef<HTMLDivElement>(null);
-    const lastSessionIdRef = useRef<string | undefined>(sessionId);
+    const lastSessionIdRef = useRef<string | undefined>(activeSessionId);
     
     // 分组消息：将连续的系统操作消息放在一起
     const groupedMessages = useMemo(() => {
@@ -288,9 +296,9 @@ const MessageList: React.FC<IProps> = (props) => {
         
         // 检查是否切换了会话
         // 检查是否切换了会话
-        const sessionChanged = sessionId !== lastSessionIdRef.current;
+        const sessionChanged = activeSessionId !== lastSessionIdRef.current;
         if (sessionChanged) {
-            lastSessionIdRef.current = sessionId;
+            lastSessionIdRef.current = activeSessionId;
             userScrolledRef.current = false; // 重置滚动标记
             // 会话切换时，延迟滚动到底部以确保内容已渲染
             setTimeout(() => scrollToBottom('auto'), 100);
@@ -315,19 +323,33 @@ const MessageList: React.FC<IProps> = (props) => {
         }
         
         lastMessageCountRef.current = messages.length;
-    }, [messages, scrollToBottom, sessionId]);
+    }, [messages, scrollToBottom, activeSessionId]);
     
     return (
-        <div ref={containerRef} className="flex flex-1 flex-col p-4 overflow-y-auto gap-4">
-            {groupedMessages.map((group, groupIndex) => (
-                <MessageItem
-                    key={groupIndex}
-                    group={group}
-                    groupIndex={groupIndex}
-                    isLast={groupIndex === groupedMessages.length - 1}
-                    onFilePreview={onFilePreview}
-                />
-            ))}
+        <div 
+            ref={containerRef} 
+            className="flex flex-1 flex-col p-4 overflow-y-auto gap-4 overscroll-none"
+            style={{ 
+                willChange: 'scroll-position',
+                contain: 'layout style paint'
+            }}
+        >
+            {groupedMessages.map((group, groupIndex) => {
+                // 使用更稳定的 key，基于消息内容而不是索引
+                const key = group.type === 'system_operations' 
+                    ? `sys-${group.messages[0]?.timestamp || groupIndex}`
+                    : `msg-${group.messages[0]?.timestamp || groupIndex}`;
+                
+                return (
+                    <MessageItem
+                        key={key}
+                        group={group}
+                        groupIndex={groupIndex}
+                        isLast={groupIndex === groupedMessages.length - 1}
+                        onFilePreview={onFilePreview}
+                    />
+                );
+            })}
             {/* 流式响应显示 */}
             {streamingResponse && (
                 streamingResponse.includes('任务执行中') ? (
