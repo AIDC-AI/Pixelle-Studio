@@ -17,9 +17,10 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
     const isSuccess = result.status === 'success';
     const hasStderr = result.stderr && result.stderr.trim().length > 0;
     const hasStdout = result.stdout && result.stdout.trim().length > 0;
-    const resultString = typeof result.result === 'string' 
+    const resultString = !!result.result ? (typeof result.result === 'string' 
                                         ? result.result  
-                                        : JSON.stringify(result.result, null, 2)
+                                        : JSON.stringify(result.result, null, 2)) : null
+                                        
     return (
         <div className={`rounded-lg overflow-hidden border ${
             isSuccess 
