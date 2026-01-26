@@ -38,7 +38,8 @@ const Chat = () => {
     createSession,
     deleteSession,
     updateSessionBackendId,
-    updateSessionTitle
+    updateSessionTitle,
+    messagesLoading
   } = useChatStorage(activeSessionId)
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -668,6 +669,7 @@ const Chat = () => {
               currentScript={currentScript}
               onFilePreview={setPreviewFile}
               streamingResponse={streamingResponse}
+              isLoading={messagesLoading}
             />
           </Suspense>
           <Input
