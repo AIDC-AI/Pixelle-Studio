@@ -1,18 +1,26 @@
 'use client'
 
 import { Message, ExecutionResult, OutputFile } from "@/types/message";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, lazy, Suspense } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/context";
 import { sessionAPI } from "@/lib/sessionApi";
-import LeftPanel from "../leftPanel";
-// import SkillEditor from "../skillEditor";
 import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
-import FilePreview from "./filePreview";
 import { UploadFile } from "@/components/ui/upload";
-import MessageList from "./messageList";
 import { canPreviewFile } from "@/utils/utils";
+
+// 动态导入大型组件
+const LeftPanel = lazy(() => import("../leftPanel"));
+const MessageList = lazy(() => import("./messageList"));
+const FilePreview = lazy(() => import("./filePreview"));
+
+// 加载占位组件
+const LoadingPlaceholder = () => (
+    <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+    </div>
+);
 
 const Chat = () => {
     const { 
@@ -615,12 +623,14 @@ const Chat = () => {
             transition: isLeftDragging ? 'none' : 'width 0.15s ease-out'
           }}
         >
-          <LeftPanel 
-            sessions={sessions} 
-            handleDeleteSession={handleDeleteSession}
-            isCollapsed={isLeftPanelCollapsed}
-            onCollapsedChange={setIsLeftPanelCollapsed}
-          />
+          <Suspense fallback={<LoadingPlaceholder />}>
+            <LeftPanel 
+              sessions={sessions} 
+              handleDeleteSession={handleDeleteSession}
+              isCollapsed={isLeftPanelCollapsed}
+              onCollapsedChange={setIsLeftPanelCollapsed}
+            />
+          </Suspense>
         </div>
         
         {/* Left Panel Resizer */}
@@ -644,12 +654,14 @@ const Chat = () => {
               transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
             }}
           >
-              <MessageList 
-                  messages={messages} 
-                  currentScript={currentScript}
-                  onFilePreview={setPreviewFile}
-                  streamingResponse={streamingResponse}
-              />
+              <Suspense fallback={<LoadingPlaceholder />}>
+                <MessageList 
+                    messages={messages} 
+                    currentScript={currentScript}
+                    onFilePreview={setPreviewFile}
+                    streamingResponse={streamingResponse}
+                />
+              </Suspense>
               <Input 
                 isProcessing={isProcessing}
                 input={input}
@@ -681,10 +693,12 @@ const Chat = () => {
                   transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
                 }}
               >
-                <FilePreview 
-                  file={previewFile}
-                  onClose={() => setPreviewFile(null)}
-                />
+                <Suspense fallback={<LoadingPlaceholder />}>
+                  <FilePreview 
+                    file={previewFile}
+                    onClose={() => setPreviewFile(null)}
+                  />
+                </Suspense>
               </div>
             </>
           )}
