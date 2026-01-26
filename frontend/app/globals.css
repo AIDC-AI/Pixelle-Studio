@@ -250,3 +250,56 @@
 .animate-up-fade {
   animation: slideUpAndFade 400ms cubic-bezier(0.16, 1, 0.3, 1)
 }
+
+/* React Data Grid 自定义样式 */
+.rdg {
+  --rdg-header-background-color: #f8fafc;
+  --rdg-row-hover-background-color: #f1f5f9;
+  --rdg-selection-color: #6366f1;
+  --rdg-background-color: white;
+  --rdg-border-color: #e2e8f0;
+  block-size: 100% !important;
+  font-size: 13px;
+}
+
+.rdg-light {
+  --rdg-header-background-color: #f8fafc;
+  --rdg-row-hover-background-color: #f1f5f9;
+  --rdg-background-color: white;
+  --rdg-border-color: #e2e8f0;
+}
+
+.rdg-header-row {
+  font-weight: 600;
+  background-color: var(--rdg-header-background-color);
+}
+
+.rdg-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
+  border-right: 1px solid var(--rdg-border-color);
+  border-bottom: 1px solid var(--rdg-border-color);
+}
+
+.rdg-cell:hover {
+  white-space: normal;
+  word-wrap: break-word;
+  overflow: visible;
+  z-index: 1;
+  background-color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.rdg-row {
+  border-bottom: 1px solid var(--rdg-border-color);
+}
+
+.rdg-row:nth-child(even) {
+  background-color: #fafafa;
+}
+
+.rdg-row:hover {
+  background-color: var(--rdg-row-hover-background-color);
+}
