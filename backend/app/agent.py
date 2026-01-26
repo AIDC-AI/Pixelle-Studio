@@ -205,32 +205,25 @@ Then call: execute_code()
   - Re-read input files if needed (e.g., `df = pd.read_csv(user_file('file.csv'))`)
   - Include ALL processing logic
 - If you need to both analyze AND generate output, put ALL code in ONE execute block
-- Always print JSON result at the end
 - **Each execute_code() call runs the MOST RECENT (last) <execute> block in your response**
 
 <pre_injected_helpers>
 The following helper functions are automatically available in your Python code:
 
 **File Path Helpers:**
-- `skill_path("skill_name", "relative/path")` - Get path to skill's internal resources (scripts, templates, configs defined in SKILL.md)
-- `user_file("filename")` - Get path to user's working files (uploaded inputs, generated outputs)
+- `user_file("filename")` - For user's files: uploaded inputs, generated outputs
+- `skill_path("skill_name", "relative/path")` - For skill's internal resources: scripts/templates referenced in SKILL.md
+
+**Usage Examples**:
+- To run a skill's JS script: `skill_path("pptx", "scripts/helper.js")`, NOT `user_file("helper.js")`
+- To save output: `user_file("output.pptx")`, NOT hardcoded paths
+
+**CRITICAL**: It is strictly forbidden to create or modify any files in `skill_path("skill_name", "scripts/")` or any subdirectory under skills. All outputs must use `user_file("filename")`.
 
 **MCP Tool Calling (async):**
 - `await call_tool("tool_name", {{"arg1": value1, ...}})` - Call an MCP tool
 - `await list_mcp_tools()` - Discover all available MCP tools
 - Use `asyncio.run(main())` pattern for async code
-
-Example:
-```python
-import asyncio
-import json
-
-async def main():
-    result = await call_tool('some_tool', {{'input': 'value'}})
-    print(json.dumps({{"status": "success", "result": result}}))
-
-asyncio.run(main())
-```
 </pre_injected_helpers>
 
 <working_directory>
@@ -238,17 +231,6 @@ Your code runs with working directory at backend root. Key directories:
 - `skills/` - Skill resources and helper scripts
 - `scripts/` - User files and output files
 </working_directory>
-
-<file_rules>
-**Path Functions** (two distinct purposes):
-- `user_file("filename")` - For user's files: uploaded inputs, generated outputs. Use this for reading user data and writing final outputs.
-- `skill_path("skill_name", "path")` - For skill's internal resources: scripts/templates referenced in SKILL.md. The path is relative to skill directory.
-
-**Example**: To run a skill's JS script: `skill_path("pptx", "scripts/helper.js")`, NOT `user_file("helper.js")`
-**Example**: To save output: `user_file("output.pptx")`, NOT hardcoded paths
-
-**output_file_names**: List only the filename, e.g., `["output.pptx"]`
-</file_rules>
 
 <output_format>
 Always end your code with a JSON status output:
