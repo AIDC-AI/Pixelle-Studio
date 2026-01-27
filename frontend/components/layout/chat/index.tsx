@@ -9,6 +9,7 @@ import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
 import { UploadFile } from "@/components/ui/upload";
 import { canPreviewFile } from "@/utils/utils";
+import { DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_PREVIEW_WIDTH_PERCENT, MAX_LEFT_PANEL_WIDTH, MAX_PREVIEW_WIDTH_PERCENT, MIN_LEFT_PANEL_WIDTH, MIN_PREVIEW_WIDTH_PERCENT } from "@/utils/data";
 
 // 动态导入大型组件
 const LeftPanel = lazy(() => import("../leftPanel"));
@@ -60,11 +61,11 @@ const Chat = () => {
   const wsRef = useRef<WebSocket | null>(null);
 
   // 左侧面板宽度
-  const [leftPanelWidth, setLeftPanelWidth] = useState<number>(256);
+  const [leftPanelWidth, setLeftPanelWidth] = useState<number>(DEFAULT_LEFT_PANEL_WIDTH);
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false);
 
   // 预览面板宽度百分比
-  const [previewWidthPercent, setPreviewWidthPercent] = useState<number>(50);
+  const [previewWidthPercent, setPreviewWidthPercent] = useState<number>(DEFAULT_PREVIEW_WIDTH_PERCENT);
 
   // 拖拽状态使用 ref，避免闭包问题
   const dragStateRef = useRef<{
@@ -153,14 +154,14 @@ const Chat = () => {
 
       if (state.isDragging === 'left') {
         const deltaX = e.clientX - state.startX;
-        const newWidth = Math.max(200, Math.min(500, state.startValue + deltaX));
+        const newWidth = Math.max(MIN_LEFT_PANEL_WIDTH, Math.min(MAX_LEFT_PANEL_WIDTH, state.startValue + deltaX));
         setLeftPanelWidth(newWidth);
       } else if (state.isDragging === 'preview' && containerRef.current) {
         const containerWidth = containerRef.current.offsetWidth;
         if (containerWidth > 0) {
           const deltaX = state.startX - e.clientX;
           const deltaPercent = (deltaX / containerWidth) * 100;
-          const newPercent = Math.max(25, Math.min(75, state.startValue + deltaPercent));
+          const newPercent = Math.max(MIN_PREVIEW_WIDTH_PERCENT, Math.min(MAX_PREVIEW_WIDTH_PERCENT, state.startValue + deltaPercent));
           setPreviewWidthPercent(newPercent);
         }
       }
@@ -321,7 +322,7 @@ const Chat = () => {
               const isLoadingText = prev.includes('任务执行中');
               const newContent = isLoadingText ? deltaContent : (prev + deltaContent);
               const trimmedContent = newContent.trim();
-
+              return newContent;
               // 前端快速回撤：检测到不该显示的内容，立即清空
               if (trimmedContent.includes('{"code') ||
                 trimmedContent.includes('{ "code') ||
@@ -634,7 +635,6 @@ const Chat = () => {
         <Suspense fallback={<LoadingPlaceholder />}>
           <LeftPanel
             sessions={sessions}
-            handleNewSession={handleNewSession}
             handleChangeSession={handleChangeSession}
             handleDeleteSession={handleDeleteSession}
             isCollapsed={isLeftPanelCollapsed}

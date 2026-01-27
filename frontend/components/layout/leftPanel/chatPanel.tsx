@@ -12,27 +12,33 @@ interface IProps {
 }
 
 const ChatPanel: React.FC<IProps> = (props) => {
-    const { sessions, handleNewSession, handleChangeSession, handleDeleteSession } = props
+    const { sessions, handleChangeSession, handleDeleteSession } = props
 
     const {
-        activeSessionId
+        activeSessionId,
+        setActiveSessionId
     } = useApp()
+
+    const handleNewSession = () => {
+        setActiveSessionId("")
+        handleChangeSession?.('')
+    }
 
     return <div className="left-panel p-4 gap-4 overflow-y-auto">
         {/* Knowledge Base */}
-        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+        {/* <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 text-gray-400">
                 <Book className="w-4 h-4" />
                 <span className="text-sm">个人知识库</span>
                 <span className="ml-auto text-xs">即将上线</span>
             </div>
-        </div>
+        </div> */}
 
         {/* New Chat Button */}
         <button
             className="w-full flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
             onClick={() => {
-                handleNewSession?.("新对话")
+                handleNewSession?.()
             }}
         >
             <Plus className="w-4 h-4" />

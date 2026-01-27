@@ -1,0 +1,8 @@
+
+export const DEFAULT_LEFT_PANEL_WIDTH = 300;
+export const MIN_LEFT_PANEL_WIDTH = 300;
+export const MAX_LEFT_PANEL_WIDTH = 500;
+
+export const DEFAULT_PREVIEW_WIDTH_PERCENT = 50;
+export const MIN_PREVIEW_WIDTH_PERCENT = 25;
+export const MAX_PREVIEW_WIDTH_PERCENT = 75;

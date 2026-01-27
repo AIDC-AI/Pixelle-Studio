@@ -8,6 +8,7 @@ import ChatPanel from './chatPanel'
 import SkillsPanel from './skillsPanel'
 import { Session } from '@/types/session'
 import User from '@/components/ui/user'
+import Logo from '@/components/ui/logo'
 
 interface IProps {
   sessions?: Session[]
@@ -34,7 +35,7 @@ const TABS = [
 ]
 
 const LeftPanel: React.FC<IProps> = (props) => {
-  const { sessions, handleNewSession, handleChangeSession, handleDeleteSession, isCollapsed = false, onCollapsedChange } = props
+  const { sessions, handleChangeSession, handleDeleteSession, isCollapsed = false, onCollapsedChange } = props
 
   const [currentTab, setCurrentTab] = useState<TAB_TYPE>('chat')
 
@@ -47,7 +48,6 @@ const LeftPanel: React.FC<IProps> = (props) => {
       case 'chat':
         return <ChatPanel
           sessions={sessions}
-          handleNewSession={handleNewSession}
           handleChangeSession={handleChangeSession}
           handleDeleteSession={handleDeleteSession}
         />
@@ -83,8 +83,11 @@ const LeftPanel: React.FC<IProps> = (props) => {
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex flex-row gap-2 items-center">
-            <User />
-            <h2 className="text-lg font-semibold text-gray-800">Pixelle-Studio</h2>
+            <div className="flex-1">
+              <User />
+            </div>
+            {/* <h2 className="text-lg font-semibold text-gray-800">Pixelle-Studio</h2> */}
+            <Logo width={50} />
           </div>
           <CollaspeButton
             isCollapsed={isCollapsed}

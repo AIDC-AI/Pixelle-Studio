@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Mail, Lock, User, Loader2, Eye, EyeOff } from 'lucide-react'
 import { useApp } from '@/context'
+import Logo from '@/components/ui/logo'
 
 type AuthMode = 'login' | 'register'
 
@@ -55,11 +56,12 @@ const AuthPage = () => {
     <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-900 rounded-2xl mb-4">
+        <div className="flex justify-center itms-center mb-8">
+          {/* <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-900 rounded-2xl mb-4">
             <span className="text-2xl font-bold text-white">P</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Pixelle.AI</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Pixelle.AI</h1> */}
+          <Logo width={50} />
         </div>
 
         {/* Auth Card */}

@@ -185,7 +185,7 @@ const MessageList: React.FC<IProps> = (props) => {
     const lastMessageCountRef = useRef<number>(0);
     const containerRef = useRef<HTMLDivElement>(null);
     const lastSessionIdRef = useRef<string | undefined>(activeSessionId);
-    
+    // console.log('messages--->', messages)
     // 分组消息：将连续的系统操作消息放在一起
     const groupedMessages = useMemo(() => {
         if (!messages || messages.length === 0) return [];
