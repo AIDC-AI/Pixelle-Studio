@@ -136,7 +136,7 @@ When creating a new PowerPoint presentation from scratch, use the **html2pptx** 
 
 **Background Treatments**:
 - Solid color blocks occupying 40-60% of slide
-- Gradient fills (vertical or diagonal only)
+- CSS gradient fills using `linear-gradient()` or `radial-gradient()` (auto-rasterized to PNG)
 - Split backgrounds (two colors, diagonal or vertical)
 - Edge-to-edge color bands
 - Negative space as a design element
@@ -147,26 +147,14 @@ When creating a new PowerPoint presentation from scratch, use the **html2pptx** 
 - **Full-slide layout**: Let the featured content (chart/table) take up the entire slide for maximum impact and readability
 - **NEVER vertically stack**: Do not place charts/tables below text in a single column - this causes poor readability and layout issues
 
-### ⚠️ CRITICAL CONSTRAINTS - READ BEFORE CODING
-Before writing ANY code, you MUST acknowledge these constraints:
-
-1. **NO CSS GRADIENTS**: Never use `linear-gradient()` or `radial-gradient()` in CSS - they don't convert to PowerPoint
-2. **RASTERIZE FIRST**: If you need gradients/icons, create PNG images with Sharp BEFORE writing HTML
-3. **FIXED DIMENSIONS**: Body must be exactly 720pt × 405pt for 16:9 slides
-4. **NO TEXT STYLING**: Do not use `background`, `border`, or `box-shadow` on text elements (only on divs)
-
-**VIOLATION CONSEQUENCES**: Using CSS gradients will cause conversion to fail. There is NO workaround - you must use PNG images.
-
 ### Workflow
 1. **MANDATORY - READ ENTIRE FILE**: Read [`html2pptx.md`](html2pptx.md) completely from start to finish. **NEVER set any range limits when reading this file.** Read the full file content for detailed syntax, critical formatting rules, and best practices before proceeding with presentation creation.
 2. Create an HTML file for each slide with proper dimensions (e.g., 720pt × 405pt for 16:9)
    - Use `<p>`, `<h1>`-`<h6>`, `<ul>`, `<ol>` for all text content
    - Use `class="placeholder"` for areas where charts/tables will be added (render with gray background for visibility)
-   - **CRITICAL**: Rasterize gradients and icons as PNG images FIRST using Sharp, then reference in HTML
+   - **CSS gradients are supported**: You can use `linear-gradient()` and `radial-gradient()` directly in CSS - they will be auto-rasterized to PNG
    - **LAYOUT**: For slides with charts/tables/images, use either full-slide layout or two-column layout for better readability
 3. Create and run a JavaScript file using the [`html2pptx.js`](scripts/html2pptx.js) library to convert HTML slides to PowerPoint and save the presentation
-   - **IMPORTANT**: Run the JavaScript in `skill_path("pptx", "scripts")` directory where `node_modules` exists
-   - Create your conversion script in that directory using absolute paths for HTML files
    - Use the `html2pptx()` function to process each HTML file
    - Add charts and tables to placeholder areas using PptxGenJS API
    - Save the presentation using `pptx.writeFile()`

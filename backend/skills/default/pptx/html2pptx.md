@@ -79,13 +79,16 @@ Every HTML slide must include proper body dimensions:
   - Example: `<div style="box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);">`
   - Note: Inset/inner shadows are not supported by PowerPoint and will be skipped
 
-### Icons & Gradients
+### CSS Gradients (Auto-Supported)
 
-- **CRITICAL: Never use CSS gradients (`linear-gradient`, `radial-gradient`)** - They don't convert to PowerPoint
-- **ALWAYS create gradient/icon PNGs FIRST using Sharp, then reference in HTML**
-- For gradients: Rasterize SVG to PNG background images
-- For icons: Rasterize react-icons SVG to PNG images
-- All visual effects must be pre-rendered as raster images before HTML rendering
+- **CSS gradients are automatically supported!** You can use `linear-gradient()` and `radial-gradient()` directly on `<body>` backgrounds
+- The html2pptx script will automatically rasterize CSS gradients to PNG images
+- Example: `<body style="background: linear-gradient(135deg, #1c2833 0%, #2e4053 100%);">`
+
+### Icons
+
+- For icons: Rasterize react-icons SVG to PNG images using Sharp
+- Icons must be pre-rendered as raster images before HTML rendering
 
 **Rasterizing Icons with Sharp:**
 
@@ -113,33 +116,7 @@ const iconPath = await rasterizeIconPng(FaHome, "4472c4", "256", "home-icon.png"
 // Then reference in HTML: <img src="home-icon.png" style="width: 40pt; height: 40pt;">
 ```
 
-**Rasterizing Gradients with Sharp:**
-
-```javascript
-const sharp = require('sharp');
-
-async function createGradientBackground(filename) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="562.5">
-    <defs>
-      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style="stop-color:#COLOR1"/>
-        <stop offset="100%" style="stop-color:#COLOR2"/>
-      </linearGradient>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#g)"/>
-  </svg>`;
-
-  await sharp(Buffer.from(svg))
-    .png()
-    .toFile(filename);
-
-  return filename;
-}
-
-// Usage: Create gradient background before HTML
-const bgPath = await createGradientBackground("gradient-bg.png");
-// Then in HTML: <body style="background-image: url('gradient-bg.png');">
-```
+**Note:** Gradients on `<body>` backgrounds are auto-rasterized. You do NOT need to manually create gradient PNGs anymore.
 
 ### Example
 
@@ -239,8 +216,7 @@ The library automatically validates and collects all errors before throwing:
 
 1. **HTML dimensions must match presentation layout** - Reports dimension mismatches
 2. **Content must not overflow body** - Reports overflow with exact measurements
-3. **CSS gradients** - Reports unsupported gradient usage
-4. **Text element styling** - Reports backgrounds/borders/shadows on text elements (only allowed on divs)
+3. **Text element styling** - Reports backgrounds/borders/shadows on text elements (only allowed on divs)
 
 **All validation errors are collected and reported together** in a single error message, allowing you to fix all issues at once instead of one at a time.
 

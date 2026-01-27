@@ -249,20 +249,48 @@ from pathlib import Path
         error_lines.append(str(e))
     
     # Check for output files and generate URLs
+    # Support multiple formats from LLM output:
+    # 1. output_files: [{"filename": "file.ext"}] - as specified in system_prompt
+    # 2. output_file_names: ["file.ext"] - legacy format
     output_files = []
     if result and isinstance(result, dict):
-        output_file_names = result.get("output_file_names", [])
-        if output_file_names:
-            for file_name in output_file_names:
-                file_path = context.script_dir / file_name
-                if file_path.exists():
-                    path_prefix = f"{context.user_id}/" if context.user_id else "default/"
-                    file_url = f"http://{LOCAL_IP}:{SERVER_PORT}/f/{path_prefix}{file_name}"
-                    output_files.append({
-                        "file_name": file_name,
-                        "file_url": file_url,
-                        "file_size": file_path.stat().st_size
-                    })
+        # Try output_files first (new format from system_prompt)
+        raw_output_files = result.get("output_files", [])
+        if raw_output_files:
+            for item in raw_output_files:
+                # Extract filename from dict or string
+                if isinstance(item, dict):
+                    file_name = item.get("filename") or item.get("file_name")
+                elif isinstance(item, str):
+                    file_name = item
+                else:
+                    continue
+                
+                if file_name:
+                    file_path = context.script_dir / file_name
+                    if file_path.exists():
+                        path_prefix = f"{context.user_id}/" if context.user_id else "default/"
+                        file_url = f"http://{LOCAL_IP}:{SERVER_PORT}/f/{path_prefix}{file_name}"
+                        output_files.append({
+                            "file_name": file_name,
+                            "file_url": file_url,
+                            "file_size": file_path.stat().st_size
+                        })
+        
+        # Fallback to output_file_names (legacy format)
+        if not output_files:
+            output_file_names = result.get("output_file_names", [])
+            if output_file_names:
+                for file_name in output_file_names:
+                    file_path = context.script_dir / file_name
+                    if file_path.exists():
+                        path_prefix = f"{context.user_id}/" if context.user_id else "default/"
+                        file_url = f"http://{LOCAL_IP}:{SERVER_PORT}/f/{path_prefix}{file_name}"
+                        output_files.append({
+                            "file_name": file_name,
+                            "file_url": file_url,
+                            "file_size": file_path.stat().st_size
+                        })
     
     # Build structured result (返回结构化 JSON，不用正则解析)
     exec_result = {

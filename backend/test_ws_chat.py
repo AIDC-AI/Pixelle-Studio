@@ -239,6 +239,10 @@ async def test_basic():
     await run_chat_test(request, "Basic Chat")
 
 
+async def test_html():
+    request = ChatRequest(message="生成一个贪吃蛇的html")
+    await run_chat_test(request, "Chat with HTML")
+
 async def test_xlsx_total_price():
     """
     Test Case 2: Chat with file - Excel processing.
@@ -307,6 +311,7 @@ async def test_multi_turn_session():
 
 TEST_CASES = {
     "basic": test_basic,
+    "html": test_html,
     "file": test_xlsx_total_price,
     "csv": test_csv_top_10_salary,
     "ppt": test_ppt,
@@ -322,6 +327,9 @@ async def run_all_tests():
     print("="*60)
     
     await test_basic()
+    print("\n" + "-"*60 + "\n")
+    
+    await test_html()
     print("\n" + "-"*60 + "\n")
     
     await test_xlsx_total_price()
@@ -347,6 +355,7 @@ Usage: python test_ws_chat.py [test_name]
 
 Available tests:
   basic   - Simple greeting message (default)
+  html    - Chat with HTML generation
   file    - Chat with Excel file processing
   session - Multi-turn conversation with session context
   all     - Run all tests sequentially
@@ -354,6 +363,7 @@ Available tests:
 Examples:
   python test_ws_chat.py
   python test_ws_chat.py basic
+  python test_ws_chat.py html
   python test_ws_chat.py file
   python test_ws_chat.py session
   python test_ws_chat.py all
