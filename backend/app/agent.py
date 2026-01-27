@@ -199,6 +199,7 @@ Your code runs in a backend environment with a fixed file structure.
 
 - **Path Helpers (Pre-injected)**:
   - `user_file("filename")`: Use this for any file the user uploads or any output you generate. It points to the `scripts/` directory.
+    - Don't define user_file yourself, it's already defined in the system, just call it directly, otherwise it will cause an error.
   - `skill_path("skill_name", "relative/path")`: Use this to reference internal skill resources (e.g., templates or JS scripts) inside the `skills/` directory.
 
 **CRITICAL**: Strictly forbidden to create or modify any files within the `skills/` directory. All generated artifacts MUST use `user_file()`.
@@ -207,7 +208,7 @@ Your code runs in a backend environment with a fixed file structure.
 <python_execution_protocol>
 All logic execution must follow these strict technical rules:
 
-1. **Syntax**: Write code inside `<execute lang="python">...</execute>` tags, then call `execute_code()` with no parameters.
+1. **Syntax**: [**CRITICAL**] Write code inside `<execute lang="python">...</execute>` tags, then **MUST** call `execute_code()` with no parameters.
 2. **Independent Execution**: Each block runs as a FRESH Python script. 
    - Variables, DataFrames, and objects **DO NOT persist** between blocks.
    - Every block must be **FULLY self-contained**: include all imports, re-read files, and define all necessary logic.
@@ -246,15 +247,15 @@ print(json.dumps({{
     "status": "success",  # or "error"
     "result": "Brief description of what was done",
     "output_files": [
-        {{"filename": "generated_file1.pptx"}},
-        {{"filename": "generated_file2.png"}}
+        {{"file_name": "generated_file1.pptx"}},
+        {{"file_name": "generated_file2.png"}}
     ]  # List ALL files created using user_file() - use ONLY the filename, not the full path
 }}))
 ```
 
 **Rules**:
 1. The `output_files` array MUST contain ALL generated files that the user should see
-2. Use `{{"filename": "xxx"}}` format - only the filename, NOT the full path from user_file()
+2. Use `{{"file_name": "xxx"}}` format - only the filename, NOT the full path from user_file()
 3. If NO files are generated, use an empty array: `"output_files": []`
 4. Always print this JSON as the LAST thing in your code
 5. Do NOT wrap in try/except that might suppress this output
