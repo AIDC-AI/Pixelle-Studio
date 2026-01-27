@@ -20,7 +20,7 @@ from typing import Optional, List, Dict, Any, AsyncGenerator
 from dataclasses import dataclass
 
 from openai import AsyncOpenAI
-from agents import Agent, Runner, ModelSettings, set_default_openai_client
+from agents import Agent, Runner, ModelSettings, set_default_openai_client, OpenAIChatCompletionsModel
 from agents.run import RunConfig
 from agents.items import (
     TResponseInputItem,
@@ -68,6 +68,12 @@ LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "300"))  # 5 minutes default
 custom_openai_client = AsyncOpenAI(timeout=LLM_TIMEOUT)
 set_default_openai_client(custom_openai_client)
 logging.info(f"LLM_TIMEOUT: {LLM_TIMEOUT}s")
+# from anthropic import Anthropic
+# claude_client = Anthropic(
+#     auth_token=os.getenv('ANTHROPIC_API_KEY'),
+#     base_url=os.getenv('ANTHROPIC_BASE_URL'),
+#     max_retries=0  # 将最大重试次数设置为0，完全禁用重试
+# )
 
 
 class SkillAgent:
@@ -130,6 +136,23 @@ class SkillAgent:
         return [match.strip() for match in matches if match.strip()]
     
     @staticmethod
+    def _has_incomplete_execute_block(text: str) -> bool:
+        """
+        Check if text contains an incomplete <execute> block (opened but not closed).
+        
+        Returns:
+            bool: True if there's an incomplete execute block
+        """
+        if not text:
+            return False
+        # Count opening and closing tags
+        open_pattern = r'<execute\s+lang=["\']python["\']\s*>'
+        close_pattern = r'</execute>'
+        open_count = len(re.findall(open_pattern, text, re.IGNORECASE))
+        close_count = len(re.findall(close_pattern, text, re.IGNORECASE))
+        return open_count > close_count
+    
+    @staticmethod
     def _clean_response_text(text: str) -> str:
         """
         Clean response text by removing <execute> code blocks.
@@ -155,133 +178,88 @@ class SkillAgent:
         # Use XML format for skills (Claude Code style)
         skills_xml = self.skill_loader.build_skills_xml_prompt(self.user_id)
         
-        system_prompt = f"""You are an intelligent agent that helps users accomplish tasks.
+        system_prompt = f"""You are an intelligent agent designed to help users accomplish complex tasks by leveraging specific skill domains and external tools.
 
 <capabilities>
-You have access to the following tools:
-
-1. **load_skill**: Load detailed documentation for a specific skill domain (Excel, PowerPoint, etc.)
-2. **read_skill_file**: Read specific files from a skill's directory
-3. **list_skill_tree**: List all files in a skill directory
-4. **execute_code**: Execute Python code for computation, file processing, or MCP tool calls
-5. **list_mcp_tools**: Discover available MCP tools for external services
-
-Use these tools to help users accomplish their tasks effectively.
+You have access to the following tools for task execution:
+1. **load_skill**: Load detailed documentation for a specific skill domain (Excel, PowerPoint, etc.).
+2. **read_skill_file**: Read specific files (templates, logic, etc.) from a skill's directory.
+3. **list_skill_tree**: List all files within a skill directory to understand available resources.
+4. **execute_code**: Execute Python code for computation, file processing, or MCP tool calls. Note: The code is extracted from your latest <execute> block.
+5. **list_mcp_tools**: Discover available MCP tools for connecting to external services.
 </capabilities>
 
 {skills_xml}
 
-<code_execution_rules>
-**How to Execute Python Code**:
+<environment_and_paths>
+Your code runs in a backend environment with a fixed file structure.
+- **Working Directory**: The root of the backend.
+  - `skills/`: Contains internal skill resources and helper scripts. (READ-ONLY)
+  - `scripts/`: Destination for all user-related files and outputs. (READ-WRITE)
 
-1. Write code in `<execute lang="python">...</execute>` tags
-2. Call `execute_code()` with NO parameters - code is extracted automatically
+- **Path Helpers (Pre-injected)**:
+  - `user_file("filename")`: Use this for any file the user uploads or any output you generate. It points to the `scripts/` directory.
+    - Don't define user_file yourself, it's already defined in the system, just call it directly, otherwise it will cause an error.
+  - `skill_path("skill_name", "relative/path")`: Use this to reference internal skill resources (e.g., templates or JS scripts) inside the `skills/` directory.
 
-**Example**:
-```
-I'll create the HTML files:
+**CRITICAL**: Strictly forbidden to create or modify any files within the `skills/` directory. All generated artifacts MUST use `user_file()`.
+</environment_and_paths>
 
-<execute lang="python">
-import json
-import os
+<python_execution_protocol>
+All logic execution must follow these strict technical rules:
 
-html_content = '''<!DOCTYPE html>
-<html><body><h1>Hello</h1></body></html>'''
+1. **Syntax**: [**CRITICAL**] Write code inside `<execute lang="python">...</execute>` tags, then **MUST** call `execute_code()` with no parameters.
+2. **Independent Execution**: Each block runs as a FRESH Python script. 
+   - Variables, DataFrames, and objects **DO NOT persist** between blocks.
+   - Every block must be **FULLY self-contained**: include all imports, re-read files, and define all necessary logic.
+3. **MCP Integration (Async)**:
+   - Call MCP tools using: `await call_tool("tool_name", {{"arg1": value1}})`.
+   - Use `asyncio.run(main())` pattern for all async code execution.
+   - Use `await list_mcp_tools()` to discover available external capabilities.
+4. **Execution Trigger**: Each `execute_code()` call only runs the **MOST RECENT** <execute> block in your response.
+</python_execution_protocol>
 
-with open(script_path("output.html"), "w") as f:
-    f.write(html_content)
-
-print(json.dumps({{"status": "success", "result": "File created"}}))
-</execute>
-```
-
-Then call: execute_code()
-
-**Rules**:
-- **CRITICAL: Each execute block runs as an INDEPENDENT Python script**
-- Variables, DataFrames, and objects DO NOT persist between execute blocks
-- Every execute block MUST be FULLY self-contained:
-  - Include ALL imports (pandas, json, etc.)
-  - Re-read input files if needed (e.g., `df = pd.read_csv(script_path('file.csv'))`)
-  - Include ALL processing logic
-- If you need to both analyze AND generate output, put ALL code in ONE execute block
-- Always print JSON result at the end
-- **Each execute_code() call runs the MOST RECENT (last) <execute> block in your response**
-
-<pre_injected_helpers>
-The following helper functions are automatically available in your Python code:
-
-**File Path Helpers:**
-- `skill_path("skill_name", "relative/path")` - Get path to skill resources
-- `script_path("filename")` - Get path to user files in scripts/ directory
-
-**MCP Tool Calling (async):**
-- `await call_tool("tool_name", {{"arg1": value1, ...}})` - Call an MCP tool
-- `await list_mcp_tools()` - Discover all available MCP tools
-- Use `asyncio.run(main())` pattern for async code
-
-Example:
-```python
-import asyncio
-import json
-
-async def main():
-    result = await call_tool('some_tool', {{'input': 'value'}})
-    print(json.dumps({{"status": "success", "result": result}}))
-
-asyncio.run(main())
-```
-</pre_injected_helpers>
-
-<working_directory>
-Your code runs with working directory at backend root. Key directories:
-- `skills/` - Skill resources and helper scripts
-- `scripts/` - User files and output files
-</working_directory>
-
-<file_rules>
-**CRITICAL**: File paths are dynamic based on user context.
-- **NEVER** use hardcoded paths like `scripts/filename.ext`.
-- **ALWAYS** use `script_path("filename.ext")` to access input files and write output files.
-- **output_file_names**: List only the filename (NOT the path), e.g., `["output.pptx"]`
-</file_rules>
-
-<output_format>
-Always end your code with a JSON status output:
-```python
-print(json.dumps({{
-    "status": "success",  # or "error"
-    "result": "Description of what was done",
-    "output_file_names": ["file.ext"]  # Optional: only filenames, not paths
-}}))
-```
-</output_format>
-
-</code_execution_rules>
-
-<skill_usage>
-**CRITICAL**: You MUST strictly follow the loaded skill's documentation!
-
-When a skill is loaded:
-1. **Read ALL referenced docs FIRST**: If SKILL.md says "Read X.md completely", you MUST read it BEFORE writing any code
-2. **EXTRACT CONSTRAINTS BEFORE CODING**: After reading docs, identify ALL "CRITICAL", "NEVER", "ALWAYS", "MUST" rules. List them mentally and OBEY them
-3. **Follow the EXACT workflow**: Execute steps in the exact order specified. Do not skip steps or reorder
-4. **Do NOT improvise**: Your assumptions may be wrong. The skill doc knows the correct approach
-
-**WARNING**: Common failure mode is reading docs but ignoring constraints. Do NOT do this - every "CRITICAL" or "NEVER" rule exists for a reason.
-</skill_usage>
+<skill_usage_sop>
+When a skill domain is involved, you MUST follow this Standard Operating Procedure:
+1. **Discovery**: Read the loaded skill's `SKILL.md` and ALL referenced documentation before writing any code.
+2. **Constraint Extraction**: Identify all "CRITICAL", "NEVER", "ALWAYS", or "MUST" rules. These are non-negotiable.
+3. **Workflow Adherence**: Execute steps in the exact order specified in the documentation. Do not skip or reorder steps.
+4. **No Improvisation**: Do not make assumptions. If the skill documentation provides a specific method, use it exclusively.
+</skill_usage_sop>
 
 <decision_flow>
-When helping users:
-
-1. **Simple Questions**: Answer directly without tools
-2. **Domain Tasks**: First use `load_skill` to get guidance, then `execute_code` to accomplish the task
-3. **File Processing**: Use `execute_code` with appropriate libraries
-4. **External Services**: Use `list_mcp_tools` to discover tools, then `execute_code` with `call_tool()`
-5. **Errors**: Analyze the error, adjust your approach, and try again
-
-**IMPORTANT**: For any task that produces files (PPT, Excel, images, etc.), you MUST call execute_code to actually generate the files. Just describing or showing code is NOT enough - the user needs the actual output files!
+Process user requests using the following logic:
+1. **Analyze**: Identify if the task is a simple question, a domain-specific task (Skill), or requires external data (MCP).
+2. **Initialize**: For domain tasks, use `load_skill` first to get guidance.
+3. **Plan & Act**: For any task producing artifacts (PPT, Excel, etc.), you MUST use `execute_code`. Describing the process is insufficient; the user needs the physical file output.
+4. **Recover**: If an error occurs, analyze the traceback, adjust your logic, and provide a corrected `<execute>` block immediately.
 </decision_flow>
+
+<output_format>
+**CRITICAL**: Every code execution that generates files MUST end by printing a JSON status to stdout.
+This JSON is parsed by the system to display generated files to the user.
+
+```python
+import json
+
+# At the END of your code, after all file operations:
+print(json.dumps({{
+    "status": "success",  # or "error"
+    "result": "Brief description of what was done",
+    "output_files": [
+        {{"file_name": "generated_file1.pptx"}},
+        {{"file_name": "generated_file2.png"}}
+    ]  # List ALL files created using user_file() - use ONLY the filename, not the full path
+}}))
+```
+
+**Rules**:
+1. The `output_files` array MUST contain ALL generated files that the user should see
+2. Use `{{"file_name": "xxx"}}` format - only the filename, NOT the full path from user_file()
+3. If NO files are generated, use an empty array: `"output_files": []`
+4. Always print this JSON as the LAST thing in your code
+5. Do NOT wrap in try/except that might suppress this output
+</output_format>
 """        
         return system_prompt
     
@@ -330,12 +308,12 @@ When helping users:
         
         if file_names:
             full_user_message += "\n\n## User Uploaded Files:\n"
-            full_user_message += "You must access these files using `script_path('filename')`:\n"
+            full_user_message += "You must access these files using `user_file('filename')`:\n"
             for name in file_names:
                 full_user_message += f"- {name}\n"
         elif file_urls:
             full_user_message += "\n\n## User Uploaded Files:\n"
-            full_user_message += "You must access these files using `script_path('filename')`:\n"
+            full_user_message += "You must access these files using `user_file('filename')`:\n"
             for url in file_urls:
                 filename = url.split("/")[-1]
                 full_user_message += f"- {filename}\n"
@@ -367,8 +345,9 @@ When helping users:
         )
         
         if DEFAULT_MODEL.lower().find("claude") != -1:
+            agent.model = OpenAIChatCompletionsModel(DEFAULT_MODEL, openai_client=custom_openai_client)
             agent.model_settings = ModelSettings(
-                max_tokens=16384,
+                max_tokens=32768,
             )
         
         # Configure run
@@ -391,6 +370,10 @@ When helping users:
                 # Handle different event types
                 if isinstance(event, RawResponsesStreamEvent):
                     # Streaming text from LLM
+                    # Log event type for debugging
+                    event_type_name = type(event.data).__name__ if event.data else "None"
+                    logger.debug(f"[{session_id}] RawResponsesStreamEvent: {event_type_name}")
+                    
                     # Check if event.data has delta attribute (ResponseTextDeltaEvent has it as a string)
                     if event.data and hasattr(event.data, 'delta') and event.data.delta:
                         delta = event.data.delta
@@ -536,9 +519,29 @@ When helping users:
             # Get final result - final_output is a property, not a method
             final_result = result.final_output
             
+            # Debug: Log accumulated text vs final_result
+            logger.debug(f"[{session_id}] Stream ended. current_response_text length: {len(current_response_text)}, "
+                        f"final_result length: {len(final_result) if final_result else 0}")
+            if current_response_text and final_result:
+                if len(current_response_text) != len(final_result):
+                    logger.warning(f"[{session_id}] Length mismatch! "
+                                  f"current_response_text: {len(current_response_text)}, "
+                                  f"final_result: {len(final_result)}")
+            
+            # Check for incomplete execute blocks (stream may have been truncated)
+            raw_answer = final_result or current_response_text
+            if self._has_incomplete_execute_block(raw_answer):
+                logger.warning(f"[{session_id}] Detected incomplete <execute> block in response! "
+                              f"Response length: {len(raw_answer)} chars. "
+                              f"Last 200 chars: {raw_answer[-200:] if len(raw_answer) > 200 else raw_answer}")
+                # Yield a warning to frontend
+                yield {
+                    "type": "status",
+                    "content": "⚠️ 检测到响应可能被截断，代码块可能不完整"
+                }
+            
             # Clean the response text to remove <execute> code blocks for display
             # The code blocks are internal implementation details, not user-facing content
-            raw_answer = final_result or current_response_text
             clean_answer = self._clean_response_text(raw_answer)
             
             yield {
