@@ -118,6 +118,11 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
+
+  const getSessionById = useCallback((id: string) => {
+    return sessions.find((s) => s.id === id) || null
+  }, [sessions]);
+
   // 更新会话标题
   const updateSessionTitle = useCallback(async (sessId: string, title: string) => {
     try {
@@ -186,6 +191,7 @@ export function useChatStorage(sessionId?: string) {
     loadSessions,
     createSession,
     deleteSession,
+    getSessionById,
     updateSessionTitle,
     updateSessionBackendId,
   };

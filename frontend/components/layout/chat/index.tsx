@@ -1,7 +1,7 @@
 'use client'
 
 import { Message, ExecutionResult, OutputFile } from "@/types/message";
-import { useEffect, useState, useRef, useCallback, lazy, Suspense } from "react";
+import { useEffect, useState, useRef, useCallback, lazy, Suspense, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/context";
 import { sessionAPI } from "@/lib/sessionApi";
@@ -11,6 +11,8 @@ import { UploadFile } from "@/components/ui/upload";
 import { canPreviewFile } from "@/utils/utils";
 import { DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_PREVIEW_WIDTH_PERCENT, MAX_LEFT_PANEL_WIDTH, MAX_PREVIEW_WIDTH_PERCENT, MIN_LEFT_PANEL_WIDTH, MIN_PREVIEW_WIDTH_PERCENT } from "@/utils/data";
 import { createParserState, filterCodeBlocks } from '@/utils/codeBlockFilter';
+import User from "@/components/ui/user";
+import LogoutButton from "@/components/ui/logoutButton";
 
 // 动态导入大型组件
 const LeftPanel = lazy(() => import("../leftPanel"));
@@ -39,6 +41,7 @@ const Chat = () => {
     loadSessions,
     createSession,
     deleteSession,
+    getSessionById,
     updateSessionBackendId,
     updateSessionTitle,
     messagesLoading
@@ -655,6 +658,10 @@ const Chat = () => {
   const isLeftDragging = dragStateRef.current.isDragging === 'left';
   const isPreviewDragging = dragStateRef.current.isDragging === 'preview';
 
+  const session = useMemo(() => {
+    return getSessionById(activeSessionId)
+  }, [activeSessionId, getSessionById])
+
   return (
     <div className="w-screen h-screen flex overflow-hidden">
       {/* Left Panel with dynamic width */}
@@ -686,67 +693,77 @@ const Chat = () => {
         />
       )}
 
-      {/* Main Content Area (Chat + Preview) */}
-      <div ref={containerRef} className="flex flex-1 h-full overflow-hidden min-w-0">
-        {/* Chat Area */}
-        <div
-          className="flex flex-col bg-gray-50 h-full overflow-hidden shrink-0"
-          style={{
-            width: previewFile ? `${100 - previewWidthPercent}%` : '100%',
-            transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
-          }}
-        >
-          <Suspense fallback={<LoadingPlaceholder />}>
-            <MessageList
-              messages={messages}
-              currentScript={currentScript}
-              onFilePreview={setPreviewFile}
-              streamingResponse={streamingResponse}
-              isLoading={messagesLoading}
-              isCodeBlock={parserState.inCodeBlock}
-            />
-          </Suspense>
-          <Input
-            isProcessing={isProcessing}
-            input={input}
-            setInput={setInput}
-            fileList={fileList}
-            setFileList={setFileList}
-            handleSubmit={handleSubmit}
-            onStop={handleStop}
-          />
+      <div className="flex flex-1 flex-col h-full">
+        <div className="releative flex py-2 min-h-16 items-center justify-center bg-white border-b border-gray-200">
+          <div className="w-1/2 flex justify-center items-center">
+            <span className="font-semibold text-md text-gray-900 truncate">{session?.title || ''}</span>
+          </div>
+          <div className="absolute right-6 flex items-center gap-4">
+            <User />
+            <LogoutButton />
+          </div>
         </div>
-
-        {/* Preview Panel with Resizer */}
-        {previewFile && (
-          <>
-            {/* Preview Resizer */}
-            <div
-              className={`w-1.5 cursor-col-resize shrink-0 transition-colors ${isPreviewDragging ? 'bg-orange-500' : 'bg-gray-200 hover:bg-orange-400'
-                }`}
-              onMouseDown={handlePreviewDragStart}
-              style={{ touchAction: 'none' }}
+        {/* Main Content Area (Chat + Preview) */}
+        <div ref={containerRef} className="flex flex-1 overflow-hidden min-w-0">
+          {/* Chat Area */}
+          <div
+            className="flex flex-col bg-gray-50 h-full overflow-hidden shrink-0"
+            style={{
+              width: previewFile ? `${100 - previewWidthPercent}%` : '100%',
+              transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
+            }}
+          >
+            <Suspense fallback={<LoadingPlaceholder />}>
+              <MessageList
+                messages={messages}
+                currentScript={currentScript}
+                onFilePreview={setPreviewFile}
+                streamingResponse={streamingResponse}
+                isLoading={messagesLoading}
+                isCodeBlock={parserState.inCodeBlock}
+              />
+            </Suspense>
+            <Input
+              isProcessing={isProcessing}
+              input={input}
+              setInput={setInput}
+              fileList={fileList}
+              setFileList={setFileList}
+              handleSubmit={handleSubmit}
+              onStop={handleStop}
             />
+          </div>
 
-            {/* Preview Panel */}
-            <div
-              className="h-full overflow-hidden shrink-0"
-              style={{
-                width: `${previewWidthPercent}%`,
-                transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
-              }}
-            >
-              <Suspense fallback={<LoadingPlaceholder />}>
-                <FilePreview
-                  file={previewFile}
-                  onClose={() => setPreviewFile(null)}
-                />
-              </Suspense>
-            </div>
-          </>
-        )}
+          {/* Preview Panel with Resizer */}
+          {previewFile && (
+            <>
+              {/* Preview Resizer */}
+              <div
+                className={`w-1.5 cursor-col-resize shrink-0 transition-colors ${isPreviewDragging ? 'bg-orange-500' : 'bg-gray-200 hover:bg-orange-400'
+                  }`}
+                onMouseDown={handlePreviewDragStart}
+                style={{ touchAction: 'none' }}
+              />
+
+              {/* Preview Panel */}
+              <div
+                className="h-full overflow-hidden shrink-0"
+                style={{
+                  width: `${previewWidthPercent}%`,
+                  transition: isPreviewDragging ? 'none' : 'width 0.15s ease-out'
+                }}
+              >
+                <Suspense fallback={<LoadingPlaceholder />}>
+                  <FilePreview
+                    file={previewFile}
+                    onClose={() => setPreviewFile(null)}
+                  />
+                </Suspense>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-
       {/* {skillEditored && <SkillEditor />} */}
     </div>
   );

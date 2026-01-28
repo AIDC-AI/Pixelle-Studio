@@ -83,9 +83,6 @@ const LeftPanel: React.FC<IProps> = (props) => {
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex flex-row gap-2 items-center">
-            <div className="flex-1">
-              <User />
-            </div>
             {/* <h2 className="text-lg font-semibold text-gray-800">Pixelle-Studio</h2> */}
             <Logo width={50} />
           </div>
