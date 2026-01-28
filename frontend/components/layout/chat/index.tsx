@@ -10,6 +10,7 @@ import useChatStorage from "@/hooks/useChatStorage";
 import { UploadFile } from "@/components/ui/upload";
 import { canPreviewFile } from "@/utils/utils";
 import { DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_PREVIEW_WIDTH_PERCENT, MAX_LEFT_PANEL_WIDTH, MAX_PREVIEW_WIDTH_PERCENT, MIN_LEFT_PANEL_WIDTH, MIN_PREVIEW_WIDTH_PERCENT } from "@/utils/data";
+import { createParserState, filterCodeBlocks } from '@/utils/codeBlockFilter';
 
 // 动态导入大型组件
 const LeftPanel = lazy(() => import("../leftPanel"));
@@ -66,6 +67,9 @@ const Chat = () => {
 
   // 预览面板宽度百分比
   const [previewWidthPercent, setPreviewWidthPercent] = useState<number>(DEFAULT_PREVIEW_WIDTH_PERCENT);
+
+  // 过滤之后的流式返回数据
+  const [parserState, setParserState] = useState(createParserState());
 
   // 拖拽状态使用 ref，避免闭包问题
   const dragStateRef = useRef<{
@@ -142,6 +146,8 @@ const Chat = () => {
       wsRef.current = null;
     }
     setIsProcessing(false);
+    // Reset parser state
+    setParserState(createParserState());
   }, []);
 
   // 统一的拖拽处理
@@ -249,6 +255,7 @@ const Chat = () => {
     setIsProcessing(true);
     setCurrentScript(null);
     setStreamingResponse('');
+    setParserState(createParserState()); // Reset parser state
     hasToolCallsRef.current = false;
 
     // 找到当前session
@@ -311,36 +318,51 @@ const Chat = () => {
         const _messages: Message[] = []
 
         if (data.type === 'response_delta') {
+          const deltaContent = data.accumulated || '';
+          // Filter code blocks from the content
+          const { filtered, state: newParserState } = filterCodeBlocks(deltaContent.trim(), parserState);
+          setParserState(newParserState);
+          // Update state
+          setStreamingResponse(filtered);
+          // setStreamingResponse(prev => {
+          //   // const newContent = prev + filtered;
+          //   // const trimmedContent = newContent.trim();
+          //   // console.log('prev--->', prev);
+          //   // console.log('filtered2--->', filtered);
+          //   // If this is the first real response after "Processing..." message
+          //   const isLoadingText = prev.includes('任务执行中');
+          //   return isLoadingText ? filtered : filtered;
+          // });
           // 只有在没有工具调用的情况下才累积流式输出
           // 后端已经过滤掉了<execute>标签内的内容，这里做二次检查（快速回撤）
-          if (!hasToolCallsRef.current) {
-            const deltaContent = data.content || '';
+          // if (!hasToolCallsRef.current) {
+          //   const deltaContent = data.content || '';
 
-            // 使用函数式更新确保总是使用最新的状态值
-            setStreamingResponse(prev => {
-              // 如果当前是"任务执行中..."的提示，收到第一个真实响应时替换掉它
-              const isLoadingText = prev.includes('任务执行中');
-              const newContent = isLoadingText ? deltaContent : (prev + deltaContent);
-              const trimmedContent = newContent.trim();
-              return newContent;
-              // 前端快速回撤：检测到不该显示的内容，立即清空
-              if (trimmedContent.includes('{"code') ||
-                trimmedContent.includes('{ "code') ||
-                trimmedContent.includes('{\'code') ||
-                trimmedContent.includes('<execute')) {
-                // 立即清空并标记
-                hasToolCallsRef.current = true;
-                console.log('[Frontend] Detected tool call pattern, rolling back streaming content');
-                return '';
-              } else if (trimmedContent === '{' || trimmedContent === '{"') {
-                // 单独的 { 或 {" 也可疑，但不立即清空，而是等待下一个字符
-                return newContent;
-              } else {
-                // 安全内容，正常显示
-                return newContent;
-              }
-            });
-          }
+          //   // 使用函数式更新确保总是使用最新的状态值
+          //   setStreamingResponse(prev => {
+          //     // 如果当前是"任务执行中..."的提示，收到第一个真实响应时替换掉它
+          //     const isLoadingText = prev.includes('任务执行中');
+          //     const newContent = isLoadingText ? deltaContent : (prev + deltaContent);
+          //     const trimmedContent = newContent.trim();
+          //     return newContent;
+          //     // 前端快速回撤：检测到不该显示的内容，立即清空
+          //     if (trimmedContent.includes('{"code') ||
+          //       trimmedContent.includes('{ "code') ||
+          //       trimmedContent.includes('{\'code') ||
+          //       trimmedContent.includes('<execute')) {
+          //       // 立即清空并标记
+          //       hasToolCallsRef.current = true;
+          //       console.log('[Frontend] Detected tool call pattern, rolling back streaming content');
+          //       return '';
+          //     } else if (trimmedContent === '{' || trimmedContent === '{"') {
+          //       // 单独的 { 或 {" 也可疑，但不立即清空，而是等待下一个字符
+          //       return newContent;
+          //     } else {
+          //       // 安全内容，正常显示
+          //       return newContent;
+          //     }
+          //   });
+          // }
           // 不添加到messages中，让MessageList实时显示streamingResponse
         } else if (data.type === 'iteration_start') {
           // 清除"任务执行中..."提示
@@ -617,6 +639,17 @@ const Chat = () => {
         await loadSessions()
       }
     )()
+
+    // Cleanup function
+    return () => {
+      // Close WebSocket connection if it exists
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      // Reset parser state
+      setParserState(createParserState());
+    }
   }, [])
 
   const isLeftDragging = dragStateRef.current.isDragging === 'left';
@@ -670,6 +703,7 @@ const Chat = () => {
               onFilePreview={setPreviewFile}
               streamingResponse={streamingResponse}
               isLoading={messagesLoading}
+              isCodeBlock={parserState.inCodeBlock}
             />
           </Suspense>
           <Input
