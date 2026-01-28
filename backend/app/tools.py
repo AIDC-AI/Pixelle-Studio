@@ -230,6 +230,14 @@ from pathlib import Path
     script_file = context.script_dir / script_name
     script_file.write_text(wrapped_code)
     
+    # ========== FALLBACK STRATEGY: Record files before execution ==========
+    # Get parent scripts/ directory (to detect files wrongly placed there)
+    scripts_parent_dir = context.script_dir.parent  # This is scripts/
+    files_before_exec = set()
+    if scripts_parent_dir.exists():
+        # Only track files directly in scripts/ (not in subdirectories)
+        files_before_exec = {f.name for f in scripts_parent_dir.iterdir() if f.is_file()}
+    
     # Execute and collect output
     output_lines = []
     error_lines = []
@@ -256,8 +264,33 @@ from pathlib import Path
         status = "error"
         error_lines.append(str(e))
     
+    # ========== FALLBACK STRATEGY: Detect and move misplaced files ==========
+    misplaced_files_moved = []
+    if scripts_parent_dir.exists():
+        files_after_exec = {f.name for f in scripts_parent_dir.iterdir() if f.is_file()}
+        new_files_in_parent = files_after_exec - files_before_exec
+        
+        # Move any new files from scripts/ to scripts/<user_id>/
+        for filename in new_files_in_parent:
+            # Skip Python script files (our own execution scripts)
+            if filename.endswith('.py'):
+                continue
+            
+            src_path = scripts_parent_dir / filename
+            dst_path = context.script_dir / filename
+            
+            try:
+                import shutil
+                shutil.move(str(src_path), str(dst_path))
+                misplaced_files_moved.append(filename)
+                logger.warning(f"[Fallback] Moved misplaced file: scripts/{filename} -> scripts/{context.user_id or 'default'}/{filename}")
+            except Exception as e:
+                logger.error(f"[Fallback] Failed to move misplaced file {filename}: {e}")
+    
     # Check for output files and generate URLs
     output_files = []
+    output_files_set = set()  # Track which files we've already added
+    
     if result and isinstance(result, dict):
         # Try output_files first (new format)
         raw_output_files = result.get("output_files", [])
@@ -271,8 +304,10 @@ from pathlib import Path
                     continue
                 
                 if file_name:
+                    # Strip any path prefix (handle cases like "scripts/xxx" or full paths)
+                    file_name = Path(file_name).name
                     file_path = context.script_dir / file_name
-                    if file_path.exists():
+                    if file_path.exists() and file_name not in output_files_set:
                         path_prefix = f"{context.user_id}/" if context.user_id else "default/"
                         file_url = f"http://{LOCAL_IP}:{SERVER_PORT}/f/{path_prefix}{file_name}"
                         output_files.append({
@@ -280,14 +315,17 @@ from pathlib import Path
                             "file_url": file_url,
                             "file_size": file_path.stat().st_size
                         })
+                        output_files_set.add(file_name)
         
         # Fallback to output_file_names (legacy format)
         if not output_files:
             output_file_names = result.get("output_file_names", [])
             if output_file_names:
                 for file_name in output_file_names:
+                    # Strip any path prefix
+                    file_name = Path(file_name).name
                     file_path = context.script_dir / file_name
-                    if file_path.exists():
+                    if file_path.exists() and file_name not in output_files_set:
                         path_prefix = f"{context.user_id}/" if context.user_id else "default/"
                         file_url = f"http://{LOCAL_IP}:{SERVER_PORT}/f/{path_prefix}{file_name}"
                         output_files.append({
@@ -295,6 +333,23 @@ from pathlib import Path
                             "file_url": file_url,
                             "file_size": file_path.stat().st_size
                         })
+                        output_files_set.add(file_name)
+    
+    # ========== FALLBACK STRATEGY: Add misplaced files that were moved ==========
+    # Even if LLM didn't report these files correctly, we moved them, so add them to output
+    for file_name in misplaced_files_moved:
+        if file_name not in output_files_set:
+            file_path = context.script_dir / file_name
+            if file_path.exists():
+                path_prefix = f"{context.user_id}/" if context.user_id else "default/"
+                file_url = f"http://{LOCAL_IP}:{SERVER_PORT}/f/{path_prefix}{file_name}"
+                output_files.append({
+                    "file_name": file_name,
+                    "file_url": file_url,
+                    "file_size": file_path.stat().st_size
+                })
+                output_files_set.add(file_name)
+                logger.info(f"[Fallback] Added recovered file to output: {file_name}")
     
     # Build structured result
     exec_result = {

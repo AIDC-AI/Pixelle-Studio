@@ -144,7 +144,7 @@ Your code runs in a backend environment with a fixed file structure.
 
 - **Path Helpers (Pre-injected)**:
   - `user_file("filename")`: Use this for any file the user uploads or any output you generate. It points to the `scripts/` directory.
-    - Don't define user_file yourself, it's already defined in the system, just call it directly, otherwise it will cause an error.
+    - [CRITICAL!]Don't define user_file yourself, it's already defined in the system, you should call it directly!
   - `skill_path("skill_name", "relative/path")`: Use this to reference internal skill resources (e.g., templates or JS scripts) inside the `skills/` directory.
 
 **CRITICAL**: Strictly forbidden to create or modify any files within the `skills/` directory. All generated artifacts MUST use `user_file()`.
@@ -340,13 +340,21 @@ print(json.dumps({{
             try:
                 # Call OpenAI API with streaming
                 # max_tokens is important to prevent truncation, especially for Bedrock/Claude
-                response_stream = await self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None,
-                    stream=True,
-                    max_tokens=LLM_MAX_TOKENS
-                )
+                if "claude" in self.model.lower():
+                    response_stream = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None,
+                        stream=True,
+                        max_tokens=LLM_MAX_TOKENS
+                    )
+                else:
+                    response_stream = await self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages,
+                        tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None,
+                        stream=True,
+                    )
                 
                 # Process stream
                 final_content = ""
