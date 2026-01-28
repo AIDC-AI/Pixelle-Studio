@@ -26,6 +26,7 @@ interface IProps {
     shouldScrollToBottom?: boolean
     onFilePreview?: (file: OutputFile) => void
     streamingResponse?: string
+    isLoading?: boolean
 }
 
 // 系统操作类型的消息
@@ -176,7 +177,7 @@ const MessageItem = memo<{
 MessageItem.displayName = 'MessageItem';
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, onFilePreview, streamingResponse } = props;  
+    const { messages, currentScript, onFilePreview, streamingResponse, isLoading } = props;  
     
     const { activeSessionId } = useApp()
     
@@ -184,7 +185,7 @@ const MessageList: React.FC<IProps> = (props) => {
     const lastMessageCountRef = useRef<number>(0);
     const containerRef = useRef<HTMLDivElement>(null);
     const lastSessionIdRef = useRef<string | undefined>(activeSessionId);
-    
+    // console.log('messages--->', messages)
     // 分组消息：将连续的系统操作消息放在一起
     const groupedMessages = useMemo(() => {
         if (!messages || messages.length === 0) return [];
@@ -326,60 +327,75 @@ const MessageList: React.FC<IProps> = (props) => {
     }, [messages, scrollToBottom, activeSessionId]);
     
     return (
-        <div 
-            ref={containerRef} 
-            className="flex flex-1 flex-col p-4 overflow-y-auto gap-4 overscroll-none"
-            style={{ 
-                willChange: 'scroll-position',
-                contain: 'layout style paint'
-            }}
-        >
-            {groupedMessages.map((group, groupIndex) => {
-                // 使用更稳定的 key，基于消息内容而不是索引
-                const key = group.type === 'system_operations' 
-                    ? `sys-${group.messages[0]?.timestamp || groupIndex}`
-                    : `msg-${group.messages[0]?.timestamp || groupIndex}`;
-                
-                return (
-                    <MessageItem
-                        key={key}
-                        group={group}
-                        groupIndex={groupIndex}
-                        isLast={groupIndex === groupedMessages.length - 1}
-                        onFilePreview={onFilePreview}
-                    />
-                );
-            })}
-            {/* 流式响应显示 */}
-            {streamingResponse && (
-                streamingResponse.includes('任务执行中') ? (
-                    // 加载状态：小字体，无logo，显示在上方
-                    <div className="flex justify-center w-full py-2">
-                        <div className="text-xs text-gray-400 italic">
-                            {streamingResponse}
-                        </div>
-                    </div>
-                ) : (
-                    // 正常响应：显示机器人logo和内容
-                    <div className="flex flex-col self-start max-w-[85%]">
-                        <ResponseItem content={streamingResponse} isStreaming={true} />
-                    </div>
-                )
-            )}
-            {currentScript && (
-                <div className="self-start w-full max-w-[90%]">
-                    <div className="bg-slate-800 rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span className="ml-2 text-slate-400 text-sm">Current Workflow Script</span>
-                        </div>
-                        <pre className="text-slate-200 text-sm font-mono overflow-x-auto whitespace-pre-wrap">{currentScript}</pre>
+        <div className="relative flex flex-1 min-h-0">
+            {/* Loading overlay when switching sessions */}
+            {isLoading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-gray-50/70 backdrop-blur-sm">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-orange-500"></div>
+                        <div className="text-xs text-gray-500">Loading messages…</div>
                     </div>
                 </div>
             )}
-            <div ref={chatEndRef} />
+
+            <div 
+                ref={containerRef} 
+                className={[
+                    "flex flex-1 flex-col p-4 overflow-y-auto gap-4 overscroll-none transition-opacity duration-200",
+                    isLoading ? "opacity-0 pointer-events-none" : "opacity-100 animate-fade-in"
+                ].join(" ")}
+                style={{ 
+                    willChange: 'scroll-position',
+                    contain: 'layout style paint'
+                }}
+            >
+                {groupedMessages.map((group, groupIndex) => {
+                    // 使用更稳定的 key，基于消息内容而不是索引
+                    const key = group.type === 'system_operations' 
+                        ? `sys-${group.messages[0]?.timestamp || groupIndex}`
+                        : `msg-${group.messages[0]?.timestamp || groupIndex}`;
+                    
+                    return (
+                        <MessageItem
+                            key={key}
+                            group={group}
+                            groupIndex={groupIndex}
+                            isLast={groupIndex === groupedMessages.length - 1}
+                            onFilePreview={onFilePreview}
+                        />
+                    );
+                })}
+                {/* 流式响应显示 */}
+                {streamingResponse && (
+                    streamingResponse.includes('任务执行中') ? (
+                        // 加载状态：小字体，无logo，显示在上方
+                        <div className="flex justify-center w-full py-2">
+                            <div className="text-xs text-gray-400 italic">
+                                {streamingResponse}
+                            </div>
+                        </div>
+                    ) : (
+                        // 正常响应：显示机器人logo和内容
+                        <div className="flex flex-col self-start max-w-[85%]">
+                            <ResponseItem content={streamingResponse} isStreaming={true} />
+                        </div>
+                    )
+                )}
+                {currentScript && (
+                    <div className="self-start w-full max-w-[90%]">
+                        <div className="bg-slate-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                <span className="ml-2 text-slate-400 text-sm">Current Workflow Script</span>
+                            </div>
+                            <pre className="text-slate-200 text-sm font-mono overflow-x-auto whitespace-pre-wrap">{currentScript}</pre>
+                        </div>
+                    </div>
+                )}
+                <div ref={chatEndRef} />
+            </div>
         </div>
     )
 }

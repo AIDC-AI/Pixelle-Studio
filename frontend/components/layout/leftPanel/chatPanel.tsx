@@ -6,37 +6,42 @@ import { Book, Plus } from "lucide-react"
 
 interface IProps {
     sessions?: Session[]
+    handleNewSession?: (input: string) => void
+    handleChangeSession?: (id: string) => void
     handleDeleteSession?: (id: string) => void
 }
 
 const ChatPanel: React.FC<IProps> = (props) => {
-    const { sessions, handleDeleteSession } = props
+    const { sessions, handleChangeSession, handleDeleteSession } = props
 
-    const { 
+    const {
         activeSessionId,
         setActiveSessionId
     } = useApp()
-    
+
     const handleNewSession = () => {
-        setActiveSessionId('')
+        setActiveSessionId("")
+        handleChangeSession?.('')
     }
 
     return <div className="left-panel p-4 gap-4 overflow-y-auto">
         {/* Knowledge Base */}
-        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+        {/* <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 text-gray-400">
                 <Book className="w-4 h-4" />
                 <span className="text-sm">个人知识库</span>
                 <span className="ml-auto text-xs">即将上线</span>
             </div>
-        </div> 
+        </div> */}
 
         {/* New Chat Button */}
-        <button 
+        <button
             className="w-full flex items-center gap-2 px-4 py-2.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
-            onClick={handleNewSession}
+            onClick={() => {
+                handleNewSession?.()
+            }}
         >
-            <Plus className="w-4 h-4"/>
+            <Plus className="w-4 h-4" />
             <span className="font-default">新建对话</span>
         </button>
 
@@ -51,12 +56,12 @@ const ChatPanel: React.FC<IProps> = (props) => {
                             selected={activeSessionId === session.id}
                             onItem={(e) => {
                                 e.stopPropagation()
-                                setActiveSessionId(session.id)
+                                handleChangeSession?.(session.id)
                             }}
                             onTrash={() => {
                                 // 如果删除当前session，设为空对话
                                 if (activeSessionId === session.id) {
-                                    setActiveSessionId('')
+                                    handleChangeSession?.('')
                                 }
                                 handleDeleteSession?.(session.id)
                             }}
