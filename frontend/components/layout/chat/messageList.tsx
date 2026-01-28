@@ -19,6 +19,7 @@ import SystemOperationGroup from "./items/systemOperationGroup";
 import ThinkingItem from "./items/thinkingItem";
 import ToolCallItem from "./items/toolCallItem";
 import { useApp } from "@/context";
+import LoadingSpinner from "@/components/ui/loadingSpinner";
 
 interface IProps {
     messages?: Message[] | null
@@ -27,6 +28,7 @@ interface IProps {
     onFilePreview?: (file: OutputFile) => void
     streamingResponse?: string
     isLoading?: boolean
+    isCodeBlock?: boolean
 }
 
 // 系统操作类型的消息
@@ -177,7 +179,7 @@ const MessageItem = memo<{
 MessageItem.displayName = 'MessageItem';
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, onFilePreview, streamingResponse, isLoading } = props;  
+    const { messages, currentScript, onFilePreview, streamingResponse, isLoading, isCodeBlock } = props;  
     
     const { activeSessionId } = useApp()
     
@@ -378,6 +380,9 @@ const MessageList: React.FC<IProps> = (props) => {
                         // 正常响应：显示机器人logo和内容
                         <div className="flex flex-col self-start max-w-[85%]">
                             <ResponseItem content={streamingResponse} isStreaming={true} />
+                            {isCodeBlock && <div className="mt-4 w-full flex justify-center items-center">
+                                <LoadingSpinner type="dots" />
+                            </div>}
                         </div>
                     )
                 )}

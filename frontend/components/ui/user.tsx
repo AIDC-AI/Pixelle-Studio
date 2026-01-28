@@ -7,7 +7,7 @@ const User = () => {
     return (
         <DropdownMenu.Root>
 			<DropdownMenu.Trigger asChild>
-				<Avatar.Root className="inline-flex items-center justify-center align-middle overflow-hidden select-none w-6 h-6 rounded-full bg-gray-100">
+				<Avatar.Root className="inline-flex items-center justify-center align-middle overflow-hidden select-none w-7 h-7 rounded-full bg-gray-100">
                     <Avatar.Fallback className="text-gray-900 text-xs">{user?.username?.[0]}</Avatar.Fallback>
                 </Avatar.Root>
 			</DropdownMenu.Trigger>
