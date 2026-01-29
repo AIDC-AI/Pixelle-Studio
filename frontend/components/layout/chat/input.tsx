@@ -108,6 +108,9 @@ const Input: React.FC<IProps> = (props) => {
                         onChange={(e) => setInput?.(e.target.value)}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey && !isProcessing) {
+                                if (e.nativeEvent.isComposing) {
+                                    return;
+                                }
                                 e.preventDefault();
                                 handleSubmit?.();
                             }
