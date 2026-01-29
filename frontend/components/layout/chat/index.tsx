@@ -397,10 +397,10 @@ const Chat = () => {
           currentExecCount = data.execution_count || currentExecCount + 1;
           _messages.push({
             type: 'code',
-            content: data.content,
+            content: data.code || data.content,
             timestamp: Date.now(),
             codeData: {
-              code: data.content,
+              code: data.code || data.content,
               executionCount: currentExecCount,
               reasoning: data.reasoning
             }

@@ -380,12 +380,12 @@ const MessageList: React.FC<IProps> = (props) => {
                         // 正常响应：显示机器人logo和内容
                         <div className="flex flex-col self-start max-w-[85%]">
                             <ResponseItem content={streamingResponse} isStreaming={true} />
-                            {isCodeBlock && <div className="mt-4 w-full flex justify-center items-center">
-                                <LoadingSpinner type="dots" />
-                            </div>}
                         </div>
                     )
                 )}
+                {isCodeBlock && <div className="w-full flex justify-center items-center">
+                    <LoadingSpinner type="dots" />
+                </div>}
                 {currentScript && (
                     <div className="self-start w-full max-w-[90%]">
                         <div className="bg-slate-800 rounded-xl p-4">

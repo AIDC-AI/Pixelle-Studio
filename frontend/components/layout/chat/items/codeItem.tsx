@@ -22,17 +22,9 @@ const CodeItem: React.FC<IProps> = (props) => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const lineCount = code.split('\n').length;
+    if (!code) return null;
 
-    // 白色底风格
-    const customStyle = {
-        margin: 0,
-        padding: '0.75rem',
-        background: '#ffffff',
-        fontSize: '0.75rem',
-        lineHeight: '1.25rem',
-        borderRadius: '0.375rem',
-    };
+    const lineCount = code?.split('\n').length;
 
     return (
         <div className="bg-white rounded-lg overflow-hidden border border-emerald-200">
