@@ -16,7 +16,7 @@ const User = () => {
 
 			<HoverCard.Portal>
 				<HoverCard.Content 
-                    className="flex flex-col gap-1 w-40 bg-gray-900 rounded-md p-2 animate-up-fade will-change-[transform,opacity]"
+                    className="flex flex-col gap-1 w-40 bg-[rgba(40,40,40,0.6)] backdrop-blur-sm rounded-md p-2 animate-up-fade will-change-[transform,opacity]"
                     sideOffset={5}
                 >
                     <span

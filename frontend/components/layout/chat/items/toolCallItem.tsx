@@ -22,6 +22,34 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
     const hasArguments = toolCall.arguments && Object.keys(toolCall.arguments).length > 0;
     const hasResult = toolCall.result !== undefined;
 
+    // 格式化JSON字符串，处理可能的解析错误
+    const formatJson = (data: any): string => {
+        if (typeof data === 'string') {
+            try {
+                const parsed = JSON.parse(data);
+                return JSON.stringify(parsed, null, 2);
+            } catch {
+                return data;
+            }
+        }
+        return JSON.stringify(data, null, 2);
+    };
+
+    // 渲染代码块
+    const renderCodeBlock = (code: string, title: string) => (
+        <div className="bg-gray-50 rounded p-2">
+            <div className="text-xs font-medium text-gray-600 mb-1">{title}:</div>
+            <CodeHighlighter 
+                language="json"
+                code={code}
+                customStyle={{ 
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all'
+                }}
+            />
+        </div>
+    );
+
     return (
         <div className="text-xs">
             {/* Tool call header */}
@@ -51,34 +79,8 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
             {/* Arguments/Result details */}
             {isExpanded && (
                 <div className="mt-1 ml-4 pl-3 border-l-2 border-gray-200">
-                    {!isResult && hasArguments && (
-                        <div className="bg-gray-50 rounded p-2">
-                            <div className="text-xs font-medium text-gray-600 mb-1">参数:</div>
-                            {/* <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap">
-                                {JSON.stringify(toolCall.arguments, null, 2)}
-                            </pre> */}
-                            <CodeHighlighter 
-                                language={"json"}
-                                code={JSON.stringify(toolCall.arguments, null, 2)}
-                            />
-                        </div>
-                    )}
-                    {isResult && hasResult && (
-                        <div className="bg-gray-50 rounded p-2">
-                            <div className="text-xs font-medium text-gray-600 mb-1">结果:</div>
-                            {/* <pre className="text-xs text-gray-700 overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">
-                                {typeof toolCall.result === 'string' 
-                                    ? toolCall.result 
-                                    : JSON.stringify(toolCall.result, null, 2)}
-                            </pre> */}
-                            <CodeHighlighter 
-                                language={"json"}
-                                code={typeof toolCall.result === 'string' 
-                                    ? toolCall.result 
-                                    : JSON.stringify(toolCall.result, null, 2)}
-                            />
-                        </div>
-                    )}
+                    {!isResult && hasArguments && renderCodeBlock(formatJson(toolCall.arguments), "参数")}
+                    {isResult && hasResult && (renderCodeBlock(formatJson(toolCall.result), "结果"))}
                 </div>
             )}
         </div>
