@@ -437,6 +437,12 @@ print(json.dumps({{
                 logger.info(f"[Agent] Creating Synthetic Tool Call for code block (length: {len(code_to_exec)})")
                 yield {"type": "status", "content": "Executing code..."}
                 
+                # Yield the original code to frontend
+                yield {
+                    "type": "code",
+                    "code": code_to_exec
+                }
+                
                 # Add assistant message with synthetic tool_calls
                 assistant_msg = {
                     "role": "assistant",
