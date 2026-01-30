@@ -25,6 +25,8 @@ const CodeHighlighter: React.FC<IProps> = (props) => {
             margin: 0,
             background: '#fff',
             fontSize: '16px',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-all',
             ...customStyle
         }}
         lineNumberStyle={{

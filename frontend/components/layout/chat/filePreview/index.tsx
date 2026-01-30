@@ -4,6 +4,7 @@ import { X, FileText, Image, FileCode, File, ExternalLink, Download, Maximize2, 
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { OutputFile } from '@/types/message';
 import { API_BASE } from '@/lib/data';
+import MarkDown from '@/components/ui/markDown';
 
 // 动态导入 DataGrid（样式在 globals.css 中导入）
 const DataGrid = lazy(() => import('react-data-grid').then(mod => ({ default: mod.DataGrid })));
@@ -19,6 +20,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [excelData, setExcelData] = useState<{ columns: any[]; rows: any[] } | null>(null);
+    const [markdownContent, setMarkdownContent] = useState<string>('');
     const [selectedSheet, setSelectedSheet] = useState<string>('');
     const [sheetNames, setSheetNames] = useState<string[]>([]);
 
@@ -35,7 +37,9 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         const ext = getFileExtension(file?.file_name || '');
         if (file && (ext === 'xlsx' || ext === 'xls' || ext === 'csv')) {
             loadExcelFile(getFullUrl(file.file_url));
-        }
+        }else if (file && ext === 'md') {
+            loadMarkdownFile(getFullUrl(file.file_url));
+        } 
     }, [file?.file_url]);
 
     if (!file) return null;
@@ -69,6 +73,22 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         } catch (error) {
             console.error('Failed to load Excel file:', error);
             setLoadError('Excel 文件加载失败');
+            setIsLoading(false);
+        }
+    };
+
+    const loadMarkdownFile = async (url: string) => {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Failed to load markdown file');
+            }
+            const content = await response.text();
+            setMarkdownContent(content);
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Error loading markdown file:', error);
+            setLoadError('加载 Markdown 文件失败');
             setIsLoading(false);
         }
     };
@@ -413,7 +433,6 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                     </div>
                 );
             case 'txt':
-            case 'md':
                 return (
                     <div className="w-full h-full relative">
                         {isLoading && (
@@ -431,6 +450,34 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                         />
                     </div>
                 );
+            case 'md':
+                return (
+                    <div className="w-full h-full relative">
+                        {isLoading ? (
+                            <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
+                                <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
+                            </div>
+                        ) : loadError ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center p-4">
+                                <AlertCircle className="w-8 h-8 text-red-500 mb-2" />
+                                <p className="text-sm text-gray-600 mb-2">{loadError}</p>
+                                <a
+                                    href={fullUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3 py-1.5 bg-orange-500 text-white rounded text-sm hover:bg-orange-600 transition-colors flex items-center gap-1"
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    在新窗口打开
+                                </a>
+                            </div>
+                        ) : (
+                            <div className="w-full h-full p-4 overflow-auto">
+                                <MarkDown content={markdownContent || ''} />
+                            </div>
+                        )}
+                    </div>
+                )
             default:
                 return (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 text-gray-500">

@@ -1,10 +1,8 @@
 'use client';
 
-import CodeHighlighter from '@/components/ui/codeHighlighter';
-import { Sparkles, CheckCircle2, XCircle, Clock, FileText, AlertCircle, Bot, Copy, Check } from 'lucide-react';
+import MarkDown from '@/components/ui/markDown';
+import { Sparkles, CheckCircle2, XCircle, Clock, FileText, AlertCircle, Bot } from 'lucide-react';
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface IProps {
     content: any;
@@ -14,15 +12,8 @@ interface IProps {
 
 const ResultItem: React.FC<IProps> = (props) => {
     const { content, status = 'success', totalIterations } = props;
-    const [copiedCode, setCopiedCode] = useState<string | null>(null);
     
     const isSuccess = status === 'success';
-
-    const handleCopyCode = async (code: string) => {
-        await navigator.clipboard.writeText(code);
-        setCopiedCode(code);
-        setTimeout(() => setCopiedCode(null), 2000);
-    };
     
     // Parse content if it's a stringified result
     let displayContent = content;
@@ -107,70 +98,7 @@ const ResultItem: React.FC<IProps> = (props) => {
                     <div className="p-4">
                         {typeof finalContent === 'string' ? (
                             <div className="prose prose-sm max-w-none">
-                                <ReactMarkdown
-                                    components={{
-                                        // 不使用 p 标签包裹，改用 div
-                                        p: ({ children }) => <div className="text-gray-700 leading-relaxed mb-3 last:mb-0">{children}</div>,
-                                        h1: ({ children }) => <h1 className="text-lg font-bold text-gray-800 mb-2">{children}</h1>,
-                                        h2: ({ children }) => <h2 className="text-base font-bold text-gray-800 mb-2">{children}</h2>,
-                                        h3: ({ children }) => <h3 className="text-sm font-bold text-gray-800 mb-2">{children}</h3>,
-                                        ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">{children}</ul>,
-                                        ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
-                                        li: ({ children }) => <li className="text-gray-700">{children}</li>,
-                                        strong: ({ children }) => <strong className="font-bold text-gray-800">{children}</strong>,
-                                        em: ({ children }) => <em className="text-gray-600 italic">{children}</em>,
-                                        code: ({ node, inline, className, children, ...props }: any) => {
-                                            const match = /language-(\w+)/.exec(className || '');
-                                            const codeString = String(children).replace(/\n$/, '');
-                                            
-                                            if (inline) {
-                                                // 行内代码
-                                                return (
-                                                    <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-red-600" {...props}>
-                                                        {children}
-                                                    </code>
-                                                );
-                                            }
-                                             
-                                            const language = !!match ? match?.[1] : "python"
-                                            // 代码块
-                                            return (
-                                                <div className="relative group my-3">
-                                                    <div className="absolute right-2 top-2 z-10">
-                                                        <button
-                                                            onClick={() => handleCopyCode(codeString)}
-                                                            className="p-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            title="复制代码"
-                                                        >
-                                                            {copiedCode === codeString ? (
-                                                                <Check className="w-3.5 h-3.5" />
-                                                            ) : (
-                                                                <Copy className="w-3.5 h-3.5" />
-                                                            )}
-                                                        </button>
-                                                    </div>
-                                                    <CodeHighlighter 
-                                                        language={language}
-                                                        code={codeString}
-                                                        style={vscDarkPlus}
-                                                        customStyle={{
-                                                            margin: 0,
-                                                            fontSize: '16px'
-                                                        }}
-                                                    />
-                                                </div>
-                                            );                          
-                                        },
-                                        pre: ({ children }) => <>{children}</>,
-                                        blockquote: ({ children }) => (
-                                            <blockquote className="border-l-4 border-blue-500 pl-4 py-2 my-3 bg-blue-50 rounded-r-lg italic text-gray-700 text-sm">
-                                                {children}
-                                            </blockquote>
-                                        ),
-                                    }}
-                                >
-                                    {finalContent}
-                                </ReactMarkdown>
+                                <MarkDown content={finalContent} />
                             </div>
                         ) : (
                             <div className="space-y-2">

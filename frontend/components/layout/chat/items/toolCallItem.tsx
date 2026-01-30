@@ -42,10 +42,6 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
             <CodeHighlighter 
                 language="json"
                 code={code}
-                customStyle={{ 
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all'
-                }}
             />
         </div>
     );
