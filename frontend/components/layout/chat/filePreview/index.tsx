@@ -33,16 +33,20 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         setSheetNames([]);
         setSelectedSheet('');
 
+        loadData()
+    }, [file?.file_url]);
+
+    if (!file) return null;
+
+    const loadData = () => {
         // 如果是 Excel 文件，加载数据
         const ext = getFileExtension(file?.file_name || '');
         if (file && (ext === 'xlsx' || ext === 'xls' || ext === 'csv')) {
             loadExcelFile(getFullUrl(file.file_url));
-        }else if (file && ext === 'md') {
+        }else if (file && ext === 'md') { // md文件
             loadMarkdownFile(getFullUrl(file.file_url));
         } 
-    }, [file?.file_url]);
-
-    if (!file) return null;
+    }
 
     const getFileExtension = (filename: string): string => {
         return filename.split('.').pop()?.toLowerCase() || '';
@@ -232,6 +236,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         setIframeKey(prev => prev + 1);
         setIsLoading(true);
         setLoadError(null);
+        loadData()
     };
 
     const handleIframeLoad = () => {
