@@ -663,10 +663,15 @@ const Chat = () => {
   }, [activeSessionId, getSessionById])
 
   return (
-    <div className="w-screen h-screen flex overflow-hidden">
+    <div
+      className="w-[calc(100vh-${leftPanelWidth}px)] h-screen flex overflow-hidden"
+      style={{
+        paddingLeft: isLeftPanelCollapsed ? 48 : leftPanelWidth
+      }}
+    >
       {/* Left Panel with dynamic width */}
       <div
-        className="shrink-0 h-full"
+        className="h-screen fixed left-0 top-0 z-40"
         style={{
           width: isLeftPanelCollapsed ? 48 : leftPanelWidth,
           transition: isLeftDragging ? 'none' : 'width 0.15s ease-out'
@@ -686,14 +691,21 @@ const Chat = () => {
       {/* Left Panel Resizer */}
       {!isLeftPanelCollapsed && (
         <div
-          className={`w-1.5 cursor-col-resize shrink-0 transition-colors ${isLeftDragging ? 'bg-blue-500' : 'bg-gray-200 hover:bg-blue-400'
+          className={`w-1.5 cursor-col-resize transition-colors ${isLeftDragging ? 'bg-blue-500' : 'bg-gray-200 hover:bg-blue-400'
             }`}
           onMouseDown={handleLeftDragStart}
-          style={{ touchAction: 'none' }}
+          style={{
+            touchAction: 'none',
+            position: 'fixed',
+            top: 0,
+            left: (isLeftPanelCollapsed ? 48 : leftPanelWidth) - 3,
+            height: '100vh',
+            zIndex: 50
+          }}
         />
       )}
 
-      <div className="flex flex-1 flex-col h-full">
+      <div className={`flex flex-1 flex-col h-full w-full`}>
         <div className="releative flex py-2 min-h-16 items-center justify-center bg-white border-b border-gray-200">
           <div className="w-1/2 flex justify-center items-center">
             <span className="font-semibold text-md text-gray-900 truncate">{session?.title || ''}</span>
@@ -704,7 +716,7 @@ const Chat = () => {
           </div>
         </div>
         {/* Main Content Area (Chat + Preview) */}
-        <div ref={containerRef} className="flex flex-1 overflow-hidden min-w-0">
+        <div ref={containerRef} className="flex flex-1 overflow-hidden w-full">
           {/* Chat Area */}
           <div
             className="flex flex-col bg-gray-50 h-full overflow-hidden shrink-0"

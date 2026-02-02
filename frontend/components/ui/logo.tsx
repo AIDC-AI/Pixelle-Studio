@@ -5,12 +5,12 @@ interface IProps {
     className?: string
 }
 
-const Logo: React.FC<IProps> = ({ width = "full", className = "" }) => {
+const Logo: React.FC<IProps> = ({ width = "232", className = "" }) => {
     return (
         <img 
             src="/logo.png"
             alt="Pixelle.Studio"
-            className={`w-${width} h-full object-contain ${className}`}
+            className={`w-[${width}px] h-auto object-contain ${className}`}
         />
     )
 }

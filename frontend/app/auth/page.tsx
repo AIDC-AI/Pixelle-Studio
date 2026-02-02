@@ -61,7 +61,7 @@ const AuthPage = () => {
             <span className="text-2xl font-bold text-white">P</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Pixelle.AI</h1> */}
-          <Logo width={50} />
+          <Logo />
         </div>
 
         {/* Auth Card */}

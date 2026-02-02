@@ -118,7 +118,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
             {/* Quick Preview when collapsed */}
             {!showDetails && resultString && (
                 <div className="px-3 py-1.5 bg-gray-50">
-                    <p className="text-xs text-gray-500 font-mono">
+                    <p className="text-xs text-gray-500 font-mono truncate">
                         {resultString}
                     </p>
                 </div>
