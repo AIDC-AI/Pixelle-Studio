@@ -730,14 +730,16 @@ class SkillLoader:
         xml_prompt = f"""<skills_instructions>
 When users ask you to perform tasks, check if any of the available skills below can help complete the task more effectively.
 
-How to use skills:
-- Invoke skills using [LOAD_SKILL: <actual_skill_name>] to load the skill's detailed documentation
-  Example: [LOAD_SKILL: pptx] or [LOAD_SKILL: xlsx]
-- When you invoke a skill, the skill's prompt will expand and provide detailed instructions
-- Use [READ_SKILL_FILE: <actual_skill_name>, <filepath>] to read specific files
-  Example: [READ_SKILL_FILE: pptx, html2pptx.md]
-- Use [LIST_SKILL_TREE: <actual_skill_name>] to see the full directory structure
-  Example: [LIST_SKILL_TREE: pptx]
+**CRITICAL - When to use skills:**
+1. **DO NOT load skills for simple tasks** - writing a snake game, answering questions, basic file operations, etc. do NOT require any skill.
+2. **Only load a skill when the task clearly matches that skill's domain** - e.g., creating a PowerPoint presentation → load "pptx" skill.
+3. **Load at most ONE skill per task** - choose the most relevant one based on the description.
+4. **If no skill matches, proceed without loading any skill** - you can still write Python code directly.
+
+**How to use skills (only when needed):**
+- Use `load_skill` tool to load the skill's detailed documentation
+- Use `read_skill_file` tool to read specific helper files
+- Use `list_skill_tree` tool to see available resources
 
 Important:
 - ALWAYS use actual skill names from <available_skills> below (e.g., pptx, xlsx), NOT placeholders
