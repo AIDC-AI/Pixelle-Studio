@@ -5,6 +5,7 @@ This is a chat-based interface where a single agent handles all user requests,
 using skill guidance when appropriate.
 """
 
+from app.utils.prompt import get_full_message
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -275,7 +276,11 @@ async def process_with_agent(
             history_messages = []
             for t in prior_turns:
                 if t.user_message:
-                    history_messages.append({"role": "user", "content": t.user_message})
+                    # Reconstruct the full message with file context (if any)
+                    prior_file_urls = json.loads(t.file_urls_json) if t.file_urls_json else []
+                    prior_file_names = json.loads(t.file_names_json) if t.file_names_json else []
+                    full_prior_message = get_full_message(t.user_message, prior_file_urls, prior_file_names)
+                    history_messages.append({"role": "user", "content": full_prior_message})
 
                 assistant_text = t.assistant_message
                 if not assistant_text:
@@ -290,7 +295,33 @@ async def process_with_agent(
                     if last_resp and last_resp.content:
                         assistant_text = last_resp.content
 
+                # Extract generated files from execution_result steps
+                generated_files = []
+                exec_results = (
+                    db.query(ChatStep)
+                    .filter(ChatStep.chat_id == t.chat_id)
+                    .filter(ChatStep.step_type == "execution_result")
+                    .all()
+                )
+                for step in exec_results:
+                    if step.data_json:
+                        try:
+                            step_data = json.loads(step.data_json)
+                            output_files = step_data.get("output_files", [])
+                            for f in output_files:
+                                if isinstance(f, dict) and f.get("file_name"):
+                                    generated_files.append(f["file_name"])
+                                elif isinstance(f, str):
+                                    generated_files.append(f)
+                        except json.JSONDecodeError:
+                            pass
+
+                # Append generated files info to assistant message
                 if assistant_text:
+                    if generated_files:
+                        assistant_text += "\n\n## Generated Files (use `user_file('filename')` to access):\n"
+                        for fname in generated_files:
+                            assistant_text += f"- {fname}\n"
                     history_messages.append({"role": "assistant", "content": assistant_text})
             
             # Load first enabled MCP server for tool calls
@@ -321,9 +352,7 @@ async def process_with_agent(
         step_index = 0
         final_response_text: Optional[str] = None
         async for event in agent.run(
-            user_message=user_message,
-            file_urls=file_urls,
-            file_names=file_names or [],
+            user_message=get_full_message(user_message or "", file_urls or [], file_names or []),
             session_id=chat_id[:8]
         ):
             # Forward all events to the frontend
