@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Code2, Copy, Check } from 'lucide-react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import CodeHighlighter from '@/components/ui/codeHighlighter';
 
 interface IProps {
     code: string;
@@ -23,17 +22,9 @@ const CodeItem: React.FC<IProps> = (props) => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const lineCount = code.split('\n').length;
+    if (!code) return null;
 
-    // 白色底风格
-    const customStyle = {
-        margin: 0,
-        padding: '0.75rem',
-        background: '#ffffff',
-        fontSize: '0.75rem',
-        lineHeight: '1.25rem',
-        borderRadius: '0.375rem',
-    };
+    const lineCount = code?.split('\n').length;
 
     return (
         <div className="bg-white rounded-lg overflow-hidden border border-emerald-200">
@@ -83,23 +74,11 @@ const CodeItem: React.FC<IProps> = (props) => {
             
             {/* Code Content - 白色底 */}
             <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[500px]' : 'max-h-0'} overflow-hidden`}>
-                <div className="relative overflow-auto max-h-[400px]">
-                    <SyntaxHighlighter
+                <div className="relative overflow-auto max-h-100">
+                    <CodeHighlighter 
                         language={language}
-                        style={vs}
-                        customStyle={customStyle}
-                        showLineNumbers
-                        lineNumberStyle={{
-                            minWidth: '2.5em',
-                            paddingRight: '0.75em',
-                            color: '#9ca3af',
-                            userSelect: 'none',
-                            fontSize: '0.7rem',
-                        }}
-                        wrapLines
-                    >
-                        {code}
-                    </SyntaxHighlighter>
+                        code={code}
+                    />
                 </div>
             </div>
             

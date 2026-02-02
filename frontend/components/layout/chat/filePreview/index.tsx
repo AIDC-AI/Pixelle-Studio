@@ -1,9 +1,13 @@
 'use client';
 
-import { X, FileText, Image, FileCode, File, ExternalLink, Download, Maximize2, Minimize2, RefreshCw, AlertCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { X, FileText, Image, FileCode, File, ExternalLink, Download, Maximize2, Minimize2, RefreshCw, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { OutputFile } from '@/types/message';
 import { API_BASE } from '@/lib/data';
+import MarkDown from '@/components/ui/markDown';
+
+// 动态导入 DataGrid（样式在 globals.css 中导入）
+const DataGrid = lazy(() => import('react-data-grid').then(mod => ({ default: mod.DataGrid })));
 
 interface IProps {
     file: OutputFile | null;
@@ -15,18 +19,189 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
     const [iframeKey, setIframeKey] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [excelData, setExcelData] = useState<{ columns: any[]; rows: any[] } | null>(null);
+    const [markdownContent, setMarkdownContent] = useState<string>('');
+    const [selectedSheet, setSelectedSheet] = useState<string>('');
+    const [sheetNames, setSheetNames] = useState<string[]>([]);
 
     useEffect(() => {
         // 当文件改变时，重新加载
         setIframeKey(prev => prev + 1);
         setIsLoading(true);
         setLoadError(null);
+        setExcelData(null);
+        setSheetNames([]);
+        setSelectedSheet('');
+
+        loadData()
     }, [file?.file_url]);
 
     if (!file) return null;
 
+    const loadData = () => {
+        // 如果是 Excel 文件，加载数据
+        const ext = getFileExtension(file?.file_name || '');
+        if (file && (ext === 'xlsx' || ext === 'xls' || ext === 'csv')) {
+            loadExcelFile(getFullUrl(file.file_url));
+        }else if (file && ext === 'md') { // md文件
+            loadMarkdownFile(getFullUrl(file.file_url));
+        } 
+    }
+
     const getFileExtension = (filename: string): string => {
         return filename.split('.').pop()?.toLowerCase() || '';
+    };
+
+    // 加载 Excel 文件
+    const loadExcelFile = async (url: string) => {
+        try {
+            setIsLoading(true);
+
+            // 动态导入 XLSX
+            const XLSX = await import('xlsx');
+
+            const response = await fetch(url);
+            const arrayBuffer = await response.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+            const sheets = workbook.SheetNames;
+            setSheetNames(sheets);
+
+            if (sheets.length > 0) {
+                const firstSheet = sheets[0];
+                setSelectedSheet(firstSheet);
+                loadSheet(workbook, firstSheet);
+            }
+
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Failed to load Excel file:', error);
+            setLoadError('Excel 文件加载失败');
+            setIsLoading(false);
+        }
+    };
+
+    const loadMarkdownFile = async (url: string) => {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Failed to load markdown file');
+            }
+            const content = await response.text();
+            setMarkdownContent(content);
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Error loading markdown file:', error);
+            setLoadError('加载 Markdown 文件失败');
+            setIsLoading(false);
+        }
+    };
+
+    // 计算列宽度的辅助函数
+    const calculateColumnWidth = (columnData: string[], headerName: string): number => {
+        const MIN_WIDTH = 80;
+        const MAX_WIDTH = 400;
+        const CHAR_WIDTH = 10; // 每个字符的平均宽度
+        const PADDING = 24; // 单元格内边距
+
+        // 计算表头宽度
+        let maxLength = headerName?.toString().length || 0;
+
+        // 遍历列数据找到最大长度，只检查前100行以提高性能
+        const sampleSize = Math.min(columnData.length, 100);
+        for (let i = 0; i < sampleSize; i++) {
+            const cellValue = columnData[i]?.toString() || '';
+            maxLength = Math.max(maxLength, cellValue.length);
+        }
+
+        // 计算宽度，考虑中文字符占用更多空间
+        const calculatedWidth = maxLength * CHAR_WIDTH + PADDING;
+        return Math.min(Math.max(calculatedWidth, MIN_WIDTH), MAX_WIDTH);
+    };
+
+    // 加载指定的工作表
+    const loadSheet = async (workbook: any, sheetName: string) => {
+        // 动态导入 XLSX
+        const XLSX = await import('xlsx');
+
+        const worksheet = workbook.Sheets[sheetName];
+        // raw: false 保留 Excel 格式化后的显示值（如百分比、日期等）
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: false }) as any[][];
+
+        if (jsonData.length === 0) {
+            setExcelData({ columns: [], rows: [] });
+            return;
+        }
+
+        // 找到最大列数（有些行可能有更多的列）
+        let maxCols = 0;
+        jsonData.forEach(row => {
+            if (Array.isArray(row)) {
+                maxCols = Math.max(maxCols, row.length);
+            }
+        });
+
+        // 第一行作为列名
+        const headers = jsonData[0] || [];
+
+        // 提取每列的数据用于计算宽度
+        const columnDataArrays: string[][] = [];
+        for (let colIndex = 0; colIndex < maxCols; colIndex++) {
+            const colData: string[] = [];
+            for (let rowIndex = 1; rowIndex < jsonData.length; rowIndex++) {
+                const row = jsonData[rowIndex];
+                colData.push(row[colIndex]?.toString() || '');
+            }
+            columnDataArrays.push(colData);
+        }
+
+        // 创建列配置，带有自动计算的宽度
+        const columns = [];
+        for (let index = 0; index < maxCols; index++) {
+            const headerName = headers[index]?.toString() || `Column ${index + 1}`;
+            const columnData = columnDataArrays[index] || [];
+            const width = calculateColumnWidth(columnData, headerName);
+
+            columns.push({
+                key: `col_${index}`,
+                name: headerName,
+                resizable: true,
+                sortable: true,
+                width: width,
+                minWidth: 60,
+            });
+        }
+
+        // 剩余行作为数据
+        const rows = jsonData.slice(1).map((row, rowIndex) => {
+            const rowData: any = { id: rowIndex };
+            for (let colIndex = 0; colIndex < maxCols; colIndex++) {
+                rowData[`col_${colIndex}`] = row[colIndex]?.toString() || '';
+            }
+            return rowData;
+        });
+        setExcelData({ columns, rows });
+    };
+
+    // 切换工作表
+    const handleSheetChange = async (sheetName: string) => {
+        setSelectedSheet(sheetName);
+        setIsLoading(true);
+
+        try {
+            // 动态导入 XLSX
+            const XLSX = await import('xlsx');
+
+            const response = await fetch(getFullUrl(file.file_url));
+            const arrayBuffer = await response.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            await loadSheet(workbook, sheetName);
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Failed to load sheet:', error);
+            setLoadError('工作表加载失败');
+            setIsLoading(false);
+        }
     };
 
     const getFileIcon = (filename: string) => {
@@ -44,10 +219,13 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             case 'webp':
             case 'svg':
                 return <Image className="w-4 h-4" />;
+            case 'xlsx':
+            case 'xls':
+            case 'csv':
+                return <FileSpreadsheet className="w-4 h-4" />;
             case 'txt':
             case 'md':
             case 'json':
-            case 'csv':
                 return <FileText className="w-4 h-4" />;
             default:
                 return <File className="w-4 h-4" />;
@@ -58,6 +236,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         setIframeKey(prev => prev + 1);
         setIsLoading(true);
         setLoadError(null);
+        loadData()
     };
 
     const handleIframeLoad = () => {
@@ -75,7 +254,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         if (url.startsWith('http://') || url.startsWith('https://')) {
             return url;
         }
-        
+
         // 构造后端文件URL
         // 如果API_BASE包含localhost，且当前访问不是localhost，则替换为当前host
         let baseUrl = API_BASE;
@@ -84,7 +263,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         } else if (baseUrl.endsWith('/api/')) {
             baseUrl = baseUrl.slice(0, -5);
         }
-        
+
         // 如果在浏览器环境，且API_BASE使用localhost，但当前访问不是localhost
         // 则将localhost替换为当前host，以支持IP访问
         if (typeof window !== 'undefined') {
@@ -93,7 +272,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                 baseUrl = baseUrl.replace('localhost', currentHost).replace('127.0.0.1', currentHost);
             }
         }
-        
+
         return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
     };
 
@@ -132,6 +311,63 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         }
 
         switch (ext) {
+            case 'xlsx':
+            case 'xls':
+            case 'csv':
+                return (
+                    <div className="w-full h-full flex flex-col bg-white">
+                        {/* 工作表选择器 */}
+                        {sheetNames.length > 1 && (
+                            <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
+                                <span className="text-sm text-gray-600">工作表:</span>
+                                <div className="flex gap-1">
+                                    {sheetNames.map((name) => (
+                                        <button
+                                            key={name}
+                                            onClick={() => handleSheetChange(name)}
+                                            className={`px-3 py-1 text-sm rounded transition-colors ${selectedSheet === name
+                                                ? 'bg-orange-500 text-white'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                                }`}
+                                        >
+                                            {name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 数据表格 */}
+                        <div className="flex-1 overflow-auto">
+                            {isLoading ? (
+                                <div className="w-full h-full flex items-center justify-center">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
+                                        <span className="text-sm text-gray-500">加载中...</span>
+                                    </div>
+                                </div>
+                            ) : excelData && excelData.rows.length > 0 ? (
+                                <Suspense fallback={
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
+                                    </div>
+                                }>
+                                    <DataGrid
+                                        columns={excelData.columns}
+                                        rows={excelData.rows}
+                                        className="rdg-light"
+                                        style={{ height: '100%' }}
+                                        rowKeyGetter={(row) => row.id}
+                                    />
+                                </Suspense>
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                    <p className="text-sm">工作表为空</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
             case 'html':
             case 'htm':
                 return (
@@ -202,7 +438,6 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                     </div>
                 );
             case 'txt':
-            case 'md':
                 return (
                     <div className="w-full h-full relative">
                         {isLoading && (
@@ -220,6 +455,34 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                         />
                     </div>
                 );
+            case 'md':
+                return (
+                    <div className="w-full h-full relative">
+                        {isLoading ? (
+                            <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
+                                <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
+                            </div>
+                        ) : loadError ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center p-4">
+                                <AlertCircle className="w-8 h-8 text-red-500 mb-2" />
+                                <p className="text-sm text-gray-600 mb-2">{loadError}</p>
+                                <a
+                                    href={fullUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3 py-1.5 bg-orange-500 text-white rounded text-sm hover:bg-orange-600 transition-colors flex items-center gap-1"
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    在新窗口打开
+                                </a>
+                            </div>
+                        ) : (
+                            <div className="w-full h-full p-4 overflow-auto">
+                                <MarkDown content={markdownContent || ''} />
+                            </div>
+                        )}
+                    </div>
+                )
             default:
                 return (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 text-gray-500">

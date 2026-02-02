@@ -1,6 +1,7 @@
 'use client';
 
 import { OutputFile } from '@/types/message';
+import { canPreviewFile } from '@/utils/utils';
 import { Download, FileSpreadsheet, FileImage, FileText, File, FolderDown, Bot, Eye, FileCode } from 'lucide-react';
 
 interface IProps {
@@ -35,12 +36,6 @@ const getFileIcon = (fileName: string) => {
         default:
             return <File className="w-4 h-4" />;
     }
-};
-
-// Check if file can be previewed
-const canPreview = (fileName: string): boolean => {
-    const ext = fileName.split('.').pop()?.toLowerCase() || '';
-    return ['html', 'htm', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'txt', 'md'].includes(ext);
 };
 
 // Format file size
@@ -101,7 +96,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
     };
 
     const handlePreview = (file: OutputFile) => {
-        if (onFilePreview && canPreview(file.file_name)) {
+        if (onFilePreview && canPreviewFile(file.file_name)) {
             onFilePreview(file);
         }
     };
@@ -109,7 +104,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
     return (
         <div className="flex gap-3">
             {/* Avatar */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
                 <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center">
                     <Bot className="w-5 h-5 text-white" />
                 </div>
@@ -135,7 +130,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
                             <div
                                 key={index}
                                 className="group flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all cursor-pointer"
-                                onClick={() => canPreview(file.file_name) ? handlePreview(file) : handleDownload(file)}
+                                onClick={() => canPreviewFile(file.file_name) ? handlePreview(file) : handleDownload(file)}
                             >
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                     {/* File Icon */}
@@ -152,7 +147,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
                                             <span>{getFileTypeLabel(file.file_name)}</span>
                                             <span>•</span>
                                             <span>{formatFileSize(file.file_size)}</span>
-                                            {canPreview(file.file_name) && (
+                                            {canPreviewFile(file.file_name) && (
                                                 <>
                                                     <span>•</span>
                                                     <span className="text-orange-500">可预览</span>
@@ -164,7 +159,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
 
                                 {/* Action Buttons */}
                                 <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-all">
-                                    {canPreview(file.file_name) && (
+                                    {canPreviewFile(file.file_name) && (
                                         <button
                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white text-xs rounded hover:bg-orange-600 transition-all"
                                             onClick={(e) => {

@@ -41,7 +41,7 @@ const SystemOperationGroup: React.FC<IProps> = ({ children, isComplete = false }
             </div>
             
             {/* Content */}
-            <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-none' : 'max-h-0'} overflow-hidden`}>
+            <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-none' : 'max-h-0'} overflow-auto`}>
                 <div className="p-3 space-y-2">
                     {children}
                 </div>
@@ -51,7 +51,6 @@ const SystemOperationGroup: React.FC<IProps> = ({ children, isComplete = false }
 };
 
 export default SystemOperationGroup;
-
 
 
 

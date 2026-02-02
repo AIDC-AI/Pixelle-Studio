@@ -8,9 +8,12 @@ import ChatPanel from './chatPanel'
 import SkillsPanel from './skillsPanel'
 import { Session } from '@/types/session'
 import User from '@/components/ui/user'
+import Logo from '@/components/ui/logo'
 
 interface IProps {
   sessions?: Session[]
+  handleNewSession?: (input: string) => void
+  handleChangeSession?: (id: string) => void
   handleDeleteSession?: (id: string) => void
   isCollapsed?: boolean
   onCollapsedChange?: (collapsed: boolean) => void
@@ -32,55 +35,58 @@ const TABS = [
 ]
 
 const LeftPanel: React.FC<IProps> = (props) => {
-    const { sessions, handleDeleteSession, isCollapsed = false, onCollapsedChange } = props
+  const { sessions, handleChangeSession, handleDeleteSession, isCollapsed = false, onCollapsedChange } = props
 
-    const [currentTab, setCurrentTab] = useState<TAB_TYPE>('chat')
+  const [currentTab, setCurrentTab] = useState<TAB_TYPE>('chat')
 
-    const handleCollapse = () => {
-        onCollapsedChange?.(!isCollapsed)
-    }
+  const handleCollapse = () => {
+    onCollapsedChange?.(!isCollapsed)
+  }
 
-	const renderTabPanel = () => {
-		switch (currentTab) {
-			case 'chat':
-				return <ChatPanel 
-          sessions={sessions} 
+  const renderTabPanel = () => {
+    switch (currentTab) {
+      case 'chat':
+        return <ChatPanel
+          sessions={sessions}
+          handleChangeSession={handleChangeSession}
           handleDeleteSession={handleDeleteSession}
         />
-			case 'skills':
-				return <SkillsPanel />
-		}
-	}
-
-    if (isCollapsed) {
-        return (
-            <div className="w-12 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-4">
-                <CollaspeButton 
-                    isCollapsed={isCollapsed}
-                    onClick={handleCollapse}
-                />
-                {
-                  TABS?.map((tab) => <TabButton 
-                    key={tab.title}
-                    isCollapsed={isCollapsed}
-                    isActive={currentTab === tab.type}
-                    onClick={() => setCurrentTab(tab.type as TAB_TYPE)}
-                  >
-                      {tab.icon}
-                  </TabButton>)
-                }
-            </div>
-        )
+      case 'skills':
+        return <SkillsPanel />
     }
+  }
+
+  if (isCollapsed) {
+    return (
+      <div className="w-12 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-4">
+        <CollaspeButton
+          isCollapsed={isCollapsed}
+          onClick={handleCollapse}
+        />
+        {
+          TABS?.map((tab) => <TabButton
+            key={tab.title}
+            isCollapsed={isCollapsed}
+            isActive={currentTab === tab.type}
+            onClick={() => setCurrentTab(tab.type as TAB_TYPE)}
+          >
+            {tab.icon}
+          </TabButton>)
+        }
+      </div>
+    )
+  }
 
   return (
     <div className="w-full h-full bg-white flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
-          <User />
-          <h2 className="text-lg font-semibold text-gray-800">Pixelle-Studio</h2>
-          <CollaspeButton 
+          <div className="flex flex-row gap-2 items-center">
+            {/* <h2 className="text-lg font-semibold text-gray-800">Pixelle-Studio</h2> */}
+            <Logo />
+          </div>
+          <CollaspeButton
             isCollapsed={isCollapsed}
             onClick={handleCollapse}
           />
@@ -89,14 +95,14 @@ const LeftPanel: React.FC<IProps> = (props) => {
         {/* Tabs */}
         <div className="grid grid-cols-2 gap-2">
           {
-            TABS?.map((tab, index) => <TabButton 
+            TABS?.map((tab, index) => <TabButton
               key={tab.title}
               isCollapsed={isCollapsed}
               isActive={currentTab === tab.type}
               onClick={() => setCurrentTab(tab.type as TAB_TYPE)}
               className={TABS.length % 2 !== 0 && index === TABS.length - 1 ? 'col-span-2' : ''}
             >
-                {tab.icon}
+              {tab.icon}
               <span className="font-default">{tab.title}</span>
             </TabButton>)
           }

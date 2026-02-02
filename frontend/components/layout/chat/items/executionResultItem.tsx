@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CheckCircle, XCircle, ChevronDown, ChevronRight, Terminal, AlertTriangle } from 'lucide-react';
 import { ExecutionResult } from '@/types/message';
+import CodeHighlighter from '@/components/ui/codeHighlighter';
 
 interface IProps {
     result: ExecutionResult;
@@ -16,7 +17,10 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
     const isSuccess = result.status === 'success';
     const hasStderr = result.stderr && result.stderr.trim().length > 0;
     const hasStdout = result.stdout && result.stdout.trim().length > 0;
-
+    const resultString = !!result.result ? (typeof result.result === 'string' 
+                                        ? result.result  
+                                        : JSON.stringify(result.result, null, 2)) : null
+                                        
     return (
         <div className={`rounded-lg overflow-hidden border ${
             isSuccess 
@@ -65,19 +69,6 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
             {/* Details */}
             <div className={`transition-all duration-300 ease-in-out ${showDetails ? 'max-h-[600px]' : 'max-h-0'} overflow-hidden`}>
                 <div className="p-3 space-y-3 bg-white">
-                    {/* Stdout */}
-                    {hasStdout && (
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                                <Terminal className="w-3 h-3 text-gray-500" />
-                                <span className="text-xs font-medium text-gray-600">输出</span>
-                            </div>
-                            <pre className="bg-gray-50 rounded p-2 text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap border border-gray-200">
-                                {result.stdout}
-                            </pre>
-                        </div>
-                    )}
-                    
                     {/* Stderr */}
                     {hasStderr && (
                         <div>
@@ -91,30 +82,44 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                         </div>
                     )}
                     
-                    {/* Parsed Result */}
-                    {result.result && (
+                    {/* Parsed Result or Stdout */}  
+                    {resultString ? (
                         <div>
                             <div className="flex items-center gap-1.5 mb-1.5">
                                 <CheckCircle className="w-3 h-3 text-teal-600" />
                                 <span className="text-xs font-medium text-teal-700">解析结果</span>
                             </div>
-                            <div className="bg-teal-50 rounded p-2 border border-teal-200">
+                            <CodeHighlighter 
+                                language={"json"}
+                                code={resultString}
+                            />
+                            {/* <div className="bg-teal-50 rounded p-2 border border-teal-200">
                                 <pre className="text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap">
                                     {typeof result.result === 'string' 
-                                        ? result.result 
+                                        ? result.result  
                                         : JSON.stringify(result.result, null, 2)}
                                 </pre>
-                            </div>
+                            </div> */}
                         </div>
-                    )}
+                    ) : (hasStdout && (
+                        <div>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <Terminal className="w-3 h-3 text-gray-500" />
+                                <span className="text-xs font-medium text-gray-600">输出</span>
+                            </div>
+                            <pre className="bg-gray-50 rounded p-2 text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap border border-gray-200">
+                                {result.stdout}
+                            </pre>
+                        </div>
+                    ))}
                 </div>
             </div>
             
             {/* Quick Preview when collapsed */}
-            {!showDetails && hasStdout && (
+            {!showDetails && resultString && (
                 <div className="px-3 py-1.5 bg-gray-50">
-                    <p className="text-xs text-gray-500 font-mono line-clamp-1">
-                        {result.stdout.split('\n')[0]}...
+                    <p className="text-xs text-gray-500 font-mono truncate">
+                        {resultString}
                     </p>
                 </div>
             )}

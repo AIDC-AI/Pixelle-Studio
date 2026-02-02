@@ -162,7 +162,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
         .replace(regex, '')  // 删除块
       })
     );
-    setScripts(prev => prev.filter((script) => scriptServerName ? (script.name !== scriptName && script.server_name !== scriptServerName) : script.name !== scriptName))
+    setScripts(prev => prev.filter((script) => scriptServerName ? (script.name !== scriptName || script.server_name !== scriptServerName) : script.name !== scriptName))
   }
   
   const handleSubmit = async (data: { [x: string]: FormDataEntryValue; name?: any; description?: any; content?: any }): Promise<string | null> => {
@@ -252,7 +252,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                     </div>
                 </div>
                 {/* 主内容区 - 左右分栏 */}
-                <div className="flex-1 flex overflow-hidden mt-4 gap-4">
+                <div className="flex-1 flex overflow-hidden overscroll-contain mt-4 gap-4">
                     {/* 左侧：Markdown 编辑区 */}
                     <Form.Root 
                         id="skillForm"
@@ -318,9 +318,9 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                     </Form.Root>
 
                     {/* 右侧：脚本管理区 */}
-                    <div className="w-80 flex flex-col bg-gray-50 overflow-auto">
+                    <div className="w-80 flex flex-col bg-gray-50 overflow-hidden">
                         {/* 当前技能的脚本 */}
-                        <div className="p-4 border-b border-gray-200">
+                        <div className="pl-4 pr-2 pb-2 border-b border-gray-200">
                             <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
                                 <FileCode className="w-4 h-4" />
                                 脚本文件
@@ -329,11 +329,14 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                             {scripts.length === 0 ? (
                                 <p className="text-xs text-gray-500">暂无脚本，可从下方拖拽工具添加</p>
                             ) : (
-                            <div className="space-y-2">
+                            <div 
+                              className="space-y-2 max-h-[200px] overflow-auto"
+                              style={{ scrollbarGutter: 'stable' }}
+                            >
                                 {/* 已保存的脚本 */}
-                                {scripts.map((script) => (
+                                {scripts.map((script, index) => (
                                     <div
-                                        key={`${script.server_name}/${script.name}`}
+                                        key={`${script.server_name}-${script.name}-${index}`}
                                         className="flex items-center gap-2 p-2 rounded-lg bg-white border border-gray-200 group"
                                     >
                                         <FileCode className="w-4 h-4 text-green-600 shrink-0" />
@@ -352,7 +355,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                         </div>
 
                         {/* MCP Tools 拖拽区 */}
-                        <div className="flex-1 p-4 overflow-auto">
+                        <div className="pt-4 px-4">
                             <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
                                 <Link className="w-4 h-4" />
                                 可用工具 (MCP)
@@ -373,7 +376,11 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                                     {dragOverScript ? "释放以添加工具" : "拖拽工具到这里"}
                                 </p>
                             </div>
-                            
+                      </div>
+                      <div 
+                        className="pl-4 pr-2 overflow-auto"
+                        style={{ scrollbarGutter: 'stable' }}
+                      >
                             {/* MCP Tools 列表 */}
                             {mcpTools?.length === 0 ? (
                                 <p className="text-xs text-gray-500">暂无可用工具</p>

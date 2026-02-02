@@ -18,7 +18,8 @@ import OutputFilesItem from "./items/outputFilesItem";
 import SystemOperationGroup from "./items/systemOperationGroup";
 import ThinkingItem from "./items/thinkingItem";
 import ToolCallItem from "./items/toolCallItem";
-import ToolResultItem from "./items/toolResultItem";
+import { useApp } from "@/context";
+import LoadingSpinner from "@/components/ui/loadingSpinner";
 
 interface IProps {
     messages?: Message[] | null
@@ -26,6 +27,8 @@ interface IProps {
     shouldScrollToBottom?: boolean
     onFilePreview?: (file: OutputFile) => void
     streamingResponse?: string
+    isLoading?: boolean
+    isCodeBlock?: boolean
 }
 
 // 系统操作类型的消息
@@ -147,20 +150,27 @@ const MessageItem = memo<{
         );
     }
 }, (prevProps, nextProps) => {
-    // 自定义比较：只在关键属性变化时重新渲染
-    if (prevProps.groupIndex !== nextProps.groupIndex) return false;
+    // 优化的比较函数：快速失败策略
+    // 1. 先比较最可能变化的属性
     if (prevProps.isLast !== nextProps.isLast) return false;
-    if (prevProps.group.type !== nextProps.group.type) return false;
-    if (prevProps.group.isComplete !== nextProps.group.isComplete) return false;
+    
+    // 2. 比较消息数量
     if (prevProps.group.messages.length !== nextProps.group.messages.length) return false;
     
-    // 比较消息内容（浅比较）
-    for (let i = 0; i < prevProps.group.messages.length; i++) {
-        const prevMsg = prevProps.group.messages[i];
-        const nextMsg = nextProps.group.messages[i];
-        if (prevMsg.type !== nextMsg.type) return false;
-        if (prevMsg.content !== nextMsg.content) return false;
-        if (prevMsg.timestamp !== nextMsg.timestamp) return false;
+    // 3. 比较类型和完成状态
+    if (prevProps.group.type !== nextProps.group.type) return false;
+    if (prevProps.group.isComplete !== nextProps.group.isComplete) return false;
+    
+    // 4. 只比较第一个和最后一个消息的时间戳（优化性能）
+    const prevMsgs = prevProps.group.messages;
+    const nextMsgs = nextProps.group.messages;
+    
+    if (prevMsgs.length > 0) {
+        if (prevMsgs[0].timestamp !== nextMsgs[0].timestamp) return false;
+        if (prevMsgs.length > 1 && 
+            prevMsgs[prevMsgs.length - 1].timestamp !== nextMsgs[nextMsgs.length - 1].timestamp) {
+            return false;
+        }
     }
     
     return true;
@@ -169,12 +179,15 @@ const MessageItem = memo<{
 MessageItem.displayName = 'MessageItem';
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, onFilePreview, streamingResponse } = props;  
-    console.log('-->', messages)
+    const { messages, currentScript, onFilePreview, streamingResponse, isLoading, isCodeBlock } = props;  
+    
+    const { activeSessionId } = useApp()
+    
     const chatEndRef = useRef<HTMLDivElement>(null);
     const lastMessageCountRef = useRef<number>(0);
     const containerRef = useRef<HTMLDivElement>(null);
-    
+    const lastSessionIdRef = useRef<string | undefined>(activeSessionId);
+    // console.log('messages--->', messages)
     // 分组消息：将连续的系统操作消息放在一起
     const groupedMessages = useMemo(() => {
         if (!messages || messages.length === 0) return [];
@@ -234,72 +247,160 @@ const MessageList: React.FC<IProps> = (props) => {
         return groups;
     }, [messages]);
     
-    // 优化滚动：使用 requestAnimationFrame 和防抖
+    // 跟踪用户是否手动滚动过
+    const userScrolledRef = useRef(false);
+    const scrollTimeoutRef = useRef<NodeJS.Timeout>(null);
+    
+    // 监听用户滚动
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        
+        const handleScroll = () => {
+            // 清除之前的定时器
+            if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current);
+            }
+            
+            // 检查是否在底部
+            const threshold = 50;
+            const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+            const isAtBottom = scrollBottom < threshold;
+            
+            // 如果用户滚动到底部，重置标记
+            if (isAtBottom) {
+                userScrolledRef.current = false;
+            } else {
+                // 用户向上滚动，设置标记
+                userScrolledRef.current = true;
+            }
+        };
+        
+        container.addEventListener('scroll', handleScroll, { passive: true });
+        return () => {
+            container.removeEventListener('scroll', handleScroll);
+            if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current);
+            }
+        };
+    }, []);
+    
+    // 优化滚动：使用 requestAnimationFrame
     const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
         requestAnimationFrame(() => {
             chatEndRef.current?.scrollIntoView({ behavior });
+            userScrolledRef.current = false; // 重置滚动标记
         });
     }, []);
     
-    // 只在收到最终结果时滚动到底部
+    // 智能滚动：只在用户已经在底部时才自动滚动
     useEffect(() => {
         if (!messages || messages.length === 0) return;
         
-        const lastMessage = messages[messages.length - 1];
-        const isEndMessage = lastMessage.type === 'result' || 
-                            lastMessage.type === 'response' || 
-                            lastMessage.type === 'error' ||
-                            lastMessage.type === 'output_files';
+        // 检查是否切换了会话
+        // 检查是否切换了会话
+        const sessionChanged = activeSessionId !== lastSessionIdRef.current;
+        if (sessionChanged) {
+            lastSessionIdRef.current = activeSessionId;
+            userScrolledRef.current = false; // 重置滚动标记
+            // 会话切换时，延迟滚动到底部以确保内容已渲染
+            setTimeout(() => scrollToBottom('auto'), 100);
+            return;
+        }
         
-        // 只有在是最终消息或者是用户消息时才滚动
-        if (isEndMessage || lastMessage.type === 'user') {
-            scrollToBottom('smooth');
+        // 如果用户没有手动向上滚动，就自动滚动到底部
+        if (!userScrolledRef.current) {
+            const lastMessage = messages[messages.length - 1];
+            const isEndMessage = lastMessage.type === 'result' || 
+                                lastMessage.type === 'response' || 
+                                lastMessage.type === 'error' ||
+                                lastMessage.type === 'output_files';
+            
+            // 最终消息或用户消息时使用平滑滚动
+            if (isEndMessage || lastMessage.type === 'user') {
+                scrollToBottom('smooth');
+            } else {
+                // 其他消息使用即时滚动
+                scrollToBottom('auto');
+            }
         }
         
         lastMessageCountRef.current = messages.length;
-    }, [messages, scrollToBottom]);
+    }, [messages, scrollToBottom, activeSessionId]);
     
     return (
-        <div ref={containerRef} className="flex flex-1 flex-col p-4 overflow-y-auto gap-4">
-            {groupedMessages.map((group, groupIndex) => (
-                <MessageItem
-                    key={groupIndex}
-                    group={group}
-                    groupIndex={groupIndex}
-                    isLast={groupIndex === groupedMessages.length - 1}
-                    onFilePreview={onFilePreview}
-                />
-            ))}
-            {/* 流式响应显示 */}
-            {streamingResponse && (
-                streamingResponse.includes('任务执行中') ? (
-                    // 加载状态：小字体，无logo，显示在上方
-                    <div className="flex justify-center w-full py-2">
-                        <div className="text-xs text-gray-400 italic">
-                            {streamingResponse}
-                        </div>
-                    </div>
-                ) : (
-                    // 正常响应：显示机器人logo和内容
-                    <div className="flex flex-col self-start max-w-[85%]">
-                        <ResponseItem content={streamingResponse} isStreaming={true} />
-                    </div>
-                )
-            )}
-            {currentScript && (
-                <div className="self-start w-full max-w-[90%]">
-                    <div className="bg-slate-800 rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span className="ml-2 text-slate-400 text-sm">Current Workflow Script</span>
-                        </div>
-                        <pre className="text-slate-200 text-sm font-mono overflow-x-auto whitespace-pre-wrap">{currentScript}</pre>
+        <div className="relative flex flex-1 min-h-0">
+            {/* Loading overlay when switching sessions */}
+            {isLoading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-gray-50/70 backdrop-blur-sm">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-orange-500"></div>
+                        <div className="text-xs text-gray-500">Loading messages…</div>
                     </div>
                 </div>
             )}
-            <div ref={chatEndRef} />
+
+            <div 
+                ref={containerRef} 
+                className={[
+                    "flex flex-1 flex-col p-4 overflow-y-auto gap-4 overscroll-none transition-opacity duration-200",
+                    isLoading ? "opacity-0 pointer-events-none" : "opacity-100 animate-fade-in"
+                ].join(" ")}
+                style={{ 
+                    willChange: 'scroll-position',
+                    contain: 'layout style paint'
+                }}
+            >
+                {groupedMessages.map((group, groupIndex) => {
+                    // 使用更稳定的 key，基于消息内容而不是索引
+                    const key = group.type === 'system_operations' 
+                        ? `sys-${group.messages[0]?.timestamp || groupIndex}`
+                        : `msg-${group.messages[0]?.timestamp || groupIndex}`;
+                    
+                    return (
+                        <MessageItem
+                            key={key}
+                            group={group}
+                            groupIndex={groupIndex}
+                            isLast={groupIndex === groupedMessages.length - 1}
+                            onFilePreview={onFilePreview}
+                        />
+                    );
+                })}
+                {/* 流式响应显示 */}
+                {streamingResponse && (
+                    streamingResponse.includes('任务执行中') ? (
+                        // 加载状态：小字体，无logo，显示在上方
+                        <div className="flex justify-center w-full py-2">
+                            <div className="text-xs text-gray-400 italic">
+                                {streamingResponse}
+                            </div>
+                        </div>
+                    ) : (
+                        // 正常响应：显示机器人logo和内容
+                        <div className="flex flex-col self-start max-w-[85%]">
+                            <ResponseItem content={streamingResponse} isStreaming={true} />
+                        </div>
+                    )
+                )}
+                {isCodeBlock && <div className="w-full flex justify-center items-center">
+                    <LoadingSpinner type="dots" />
+                </div>}
+                {currentScript && (
+                    <div className="self-start w-full max-w-[90%]">
+                        <div className="bg-slate-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                <span className="ml-2 text-slate-400 text-sm">Current Workflow Script</span>
+                            </div>
+                            <pre className="text-slate-200 text-sm font-mono overflow-x-auto whitespace-pre-wrap">{currentScript}</pre>
+                        </div>
+                    </div>
+                )}
+                <div ref={chatEndRef} />
+            </div>
         </div>
     )
 }

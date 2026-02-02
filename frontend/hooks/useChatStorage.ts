@@ -11,14 +11,15 @@ import { Session } from '@/types/session';
 export function useChatStorage(sessionId?: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   // 加载消息
   const loadMessages = useCallback(async (sessId: string) => {
     if (!sessId) return;
     
-    setLoading(true);
+    setMessagesLoading(true);
     setError(null);
     try {
       const msgs = await chatStorage.getMessages(sessId);
@@ -27,7 +28,7 @@ export function useChatStorage(sessionId?: string) {
       setError(err as Error);
       console.error('Failed to load messages:', err);
     } finally {
-      setLoading(false);
+      setMessagesLoading(false);
     }
   }, []);
 
@@ -79,7 +80,7 @@ export function useChatStorage(sessionId?: string) {
 
   // 加载会话列表
   const loadSessions = useCallback(async () => {
-    setLoading(true);
+    setSessionsLoading(true);
     setError(null);
     try {
       const sess = await chatStorage.getSessions();
@@ -88,7 +89,7 @@ export function useChatStorage(sessionId?: string) {
       setError(err as Error);
       console.error('Failed to load sessions:', err);
     } finally {
-      setLoading(false);
+      setSessionsLoading(false);
     }
   }, []);
 
@@ -116,6 +117,11 @@ export function useChatStorage(sessionId?: string) {
       throw err;
     }
   }, []);
+
+
+  const getSessionById = useCallback((id: string) => {
+    return sessions.find((s) => s.id === id) || null
+  }, [sessions]);
 
   // 更新会话标题
   const updateSessionTitle = useCallback(async (sessId: string, title: string) => {
@@ -171,7 +177,8 @@ export function useChatStorage(sessionId?: string) {
     // 状态
     messages,
     sessions,
-    loading,
+    sessionsLoading,
+    messagesLoading,
     error,
 
     // 消息操作
@@ -184,6 +191,7 @@ export function useChatStorage(sessionId?: string) {
     loadSessions,
     createSession,
     deleteSession,
+    getSessionById,
     updateSessionTitle,
     updateSessionBackendId,
   };

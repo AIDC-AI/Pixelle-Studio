@@ -311,7 +311,7 @@ async def process_with_agent(
             db.close()
 
         agent = SkillAgent(
-            max_tool_calls=20, 
+            max_turns=20, 
             history_messages=history_messages,
             mcp_server_url=mcp_server_url,
             mcp_server_type=mcp_server_type,
