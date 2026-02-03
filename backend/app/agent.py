@@ -1,5 +1,5 @@
 """
-Skill Agent - Native OpenAI API implementation.
+Skill Agent - Native OpenAI API implementation with enhanced stability.
 
 This agent uses direct OpenAI API calls (not Agents SDK) to:
 1. Receive user input (text + optional files)
@@ -7,10 +7,10 @@ This agent uses direct OpenAI API calls (not Agents SDK) to:
 3. Execute tools and continue the conversation loop
 4. Support implicit code execution via <execute> blocks (Synthetic Tool Call)
 
-Key features:
-- Full control over message history format
-- Synthetic Tool Call for implicit code execution
-- Streaming support for real-time output
+Enhanced features:
+- Three-layer failover (Auth, Model, Thinking Level)
+- Automatic context management (Guard + Compaction)
+- Improved error handling and retry logic
 """
 
 import os
@@ -30,31 +30,39 @@ from app.tools import (
     execute_code_internal,
 )
 from app.utils.network import LOCAL_IP, SERVER_PORT
+from app.auth.models import AuthStore
+from app.config import get_config
+from app.context import (
+    evaluate_context_window_guard,
+    should_compact_history,
+    compact_history,
+)
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# LLM Configuration
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
-LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "300"))
-# Max tokens for LLM output - important for Bedrock/Claude which may have low defaults
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "16384"))
+# Load configuration
+config = get_config()
 
-logging.info(f"DEFAULT_MODEL: {DEFAULT_MODEL}")
-logging.info(f"LLM_TIMEOUT: {LLM_TIMEOUT}s")
-logging.info(f"LLM_MAX_TOKENS: {LLM_MAX_TOKENS}")
+# LLM Configuration
+DEFAULT_MODEL = config.default_model
+LLM_TIMEOUT = config.llm_timeout
+LLM_MAX_TOKENS = config.llm_max_tokens
+
+logger.info(f"DEFAULT_MODEL: {DEFAULT_MODEL}")
+logger.info(f"LLM_TIMEOUT: {LLM_TIMEOUT}s")
+logger.info(f"LLM_MAX_TOKENS: {LLM_MAX_TOKENS}")
 
 
 class SkillAgent:
     """
-    Agent that handles user requests using native OpenAI API.
+    Agent that handles user requests using native OpenAI API with enhanced stability.
     
-    Features:
-    - Direct OpenAI API calls (no SDK abstraction)
-    - Full control over message history
-    - Synthetic Tool Call for implicit code execution
-    - Streaming response support
+    Enhanced features:
+    - Three-layer failover (Auth/Model/Thinking)
+    - Automatic context management
+    - Improved error handling
     """
     
     def __init__(
@@ -63,7 +71,8 @@ class SkillAgent:
         history_messages: Optional[List[Dict[str, str]]] = None,
         mcp_server_url: Optional[str] = None,
         mcp_server_type: str = "sse",
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        auth_store: Optional[AuthStore] = None
     ):
         """
         Initialize the agent.
@@ -74,9 +83,20 @@ class SkillAgent:
             mcp_server_url: URL of the MCP server for tool calls
             mcp_server_type: Type of MCP server ("sse" or "http")
             user_id: User ID for isolation and personalization
+            auth_store: Authentication store for failover (optional)
         """
-        self.client = AsyncOpenAI(timeout=LLM_TIMEOUT)
+        # 认证配置
+        self.auth_store = auth_store or AuthStore.from_env()
+        self.current_auth_profile = None
+        
+        # 客户端将延迟初始化
+        self.client = None
+        
+        # 模型配置
         self.model = DEFAULT_MODEL
+        self.model_fallbacks = config.get_model_chain(DEFAULT_MODEL)
+        
+        # Agent 配置
         self.max_turns = max_turns
         self.history_messages = history_messages or []
         self.mcp_server_url = mcp_server_url
@@ -91,6 +111,172 @@ class SkillAgent:
         self.script_dir.mkdir(parents=True, exist_ok=True)
         
         self.backend_root = Path(__file__).parent.parent
+        
+        # 上下文管理状态
+        self.compaction_attempted = False
+    
+    async def _init_client_with_failover(self) -> AsyncOpenAI:
+        """使用故障转移初始化 LLM 客户端"""
+        if not config.enable_auth_failover:
+            # 不启用故障转移,直接使用默认配置
+            logger.info("[Agent] Auth failover disabled, using default config")
+            return AsyncOpenAI(timeout=LLM_TIMEOUT)
+        
+        candidates = self.auth_store.get_candidates("openai")
+        
+        if not candidates:
+            logger.warning("[Agent] No auth profiles available, using default")
+            return AsyncOpenAI(timeout=LLM_TIMEOUT)
+        
+        last_error = None
+        
+        for profile in candidates:
+            try:
+                # 尝试使用当前配置
+                client = AsyncOpenAI(
+                    api_key=profile.api_key,
+                    base_url=profile.base_url,
+                    timeout=LLM_TIMEOUT
+                )
+                
+                # 简单测试 (不实际调用 API,只是初始化)
+                logger.info(f"[Agent] Using auth profile: {profile.id}")
+                self.current_auth_profile = profile
+                self.auth_store.mark_success(profile.id)
+                return client
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                
+                # 分类错误
+                if "401" in error_msg or "unauthorized" in error_msg:
+                    reason = "auth_error"
+                elif "429" in error_msg or "rate_limit" in error_msg:
+                    reason = "rate_limit"
+                elif "402" in error_msg or "quota" in error_msg:
+                    reason = "billing_error"
+                else:
+                    reason = "unknown"
+                
+                # 记录失败
+                self.auth_store.mark_failure(profile.id, reason)
+                logger.warning(f"[Agent] Auth profile {profile.id} failed: {reason}")
+                last_error = e
+                
+                # 继续尝试下一个
+                continue
+        
+        # 所有配置都失败,使用默认配置
+        logger.error(f"[Agent] All auth profiles failed: {last_error}")
+        return AsyncOpenAI(timeout=LLM_TIMEOUT)
+    
+    async def _call_llm_with_failover(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict]] = None,
+        thinking_level: str = "medium"
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        调用 LLM (带模型和 Thinking Level 故障转移)。
+        
+        Yields:
+            Stream chunks from LLM
+        """
+        # 获取模型链
+        if config.enable_model_failover:
+            model_chain = self.model_fallbacks
+        else:
+            model_chain = [self.model]
+        
+        # Thinking Level 链
+        if config.enable_thinking_failover:
+            thinking_idx = config.thinking_levels.index(thinking_level) if thinking_level in config.thinking_levels else 1
+            thinking_chain = config.thinking_levels[thinking_idx:]
+        else:
+            thinking_chain = [thinking_level]
+        
+        last_error = None
+        
+        # 尝试每个模型
+        for model_name in model_chain:
+            logger.info(f"[Agent] Trying model: {model_name}")
+            
+            # 尝试每个 Thinking Level
+            for think_level in thinking_chain:
+                try:
+                    logger.info(f"[Agent] Trying thinking level: {think_level}")
+                    
+                    # 构建请求参数
+                    request_params = {
+                        "model": model_name,
+                        "messages": messages,
+                        "stream": True,
+                    }
+                    
+                    # 添加工具 (如果有)
+                    if tools:
+                        request_params["tools"] = tools
+                    
+                    # Claude 模型需要 max_tokens
+                    if "claude" in model_name.lower():
+                        request_params["max_tokens"] = LLM_MAX_TOKENS
+                    
+                    # 调用 API
+                    response_stream = await self.client.chat.completions.create(**request_params)
+                    
+                    # 成功,标记认证配置成功
+                    if self.current_auth_profile:
+                        self.auth_store.mark_success(self.current_auth_profile.id)
+                    
+                    # 返回流
+                    async for chunk in response_stream:
+                        yield {"type": "chunk", "chunk": chunk}
+                    
+                    # 成功完成
+                    return
+                
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    logger.error(f"[Agent] LLM call failed (model={model_name}, thinking={think_level}): {e}")
+                    
+                    # 标记认证失败
+                    if self.current_auth_profile:
+                        if "401" in error_msg or "unauthorized" in error_msg:
+                            self.auth_store.mark_failure(self.current_auth_profile.id, "auth_error")
+                        elif "429" in error_msg or "rate_limit" in error_msg:
+                            self.auth_store.mark_failure(self.current_auth_profile.id, "rate_limit")
+                    
+                    # 分类错误并决定是否继续
+                    if "context" in error_msg and ("window" in error_msg or "too long" in error_msg):
+                        # 上下文溢出 - 不尝试其他 thinking level,直接尝试下一个模型
+                        logger.warning(f"[Agent] Context overflow, trying next model...")
+                        last_error = e
+                        break  # 跳出 thinking level 循环
+                    
+                    elif "thinking" in error_msg or "extended_thinking" in error_msg or "unsupported" in error_msg:
+                        # Thinking level 不支持 - 尝试下一个 level
+                        logger.warning(f"[Agent] Thinking level {think_level} not supported, trying lower level...")
+                        last_error = e
+                        continue  # 继续 thinking level 循环
+                    
+                    elif "timeout" in error_msg:
+                        # 超时 - 尝试下一个模型
+                        logger.warning(f"[Agent] Timeout, trying next model...")
+                        last_error = e
+                        break  # 跳出 thinking level 循环
+                    
+                    elif "overloaded" in error_msg or "503" in error_msg:
+                        # 服务器过载 - 尝试下一个模型
+                        logger.warning(f"[Agent] Server overloaded, trying next model...")
+                        last_error = e
+                        break  # 跳出 thinking level 循环
+                    
+                    else:
+                        # 其他错误 - 直接抛出
+                        raise e
+        
+        # 所有模型和 thinking level 都失败
+        raise RuntimeError(f"All models and thinking levels failed. Last error: {last_error}")
     
     @staticmethod
     def _extract_execute_blocks(text: str) -> List[str]:
@@ -279,18 +465,23 @@ print(json.dumps({{
         session_id: str = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Run the agent loop for a user request.
+        Run the agent loop for a user request with enhanced stability.
         
         This implements:
         1. Build messages with history + current user message
-        2. Call OpenAI API with streaming
-        3. Process tool calls (both explicit and Synthetic)
-        4. Continue loop until no more tool calls
+        2. Context Window Guard + Auto-Compaction
+        3. Call OpenAI API with streaming (with failover)
+        4. Process tool calls (both explicit and Synthetic)
+        5. Continue loop until no more tool calls
         """
         session_id = session_id or str(uuid.uuid4())[:8]
         
         logger.info(f"[Agent] Starting session {session_id}")
         logger.debug(f"[Agent] file_urls: {file_urls}, file_names: {file_names}")
+        
+        # 初始化客户端 (带故障转移)
+        if self.client is None:
+            self.client = await self._init_client_with_failover()
         
         # Build initial user message with file context
         full_user_message = user_message
@@ -313,17 +504,55 @@ print(json.dumps({{
         context = self._create_context(session_id)
         
         # Build messages
+        system_prompt = self._build_system_prompt()
         messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": self._build_system_prompt()}
+            {"role": "system", "content": system_prompt}
         ]
         
         # Add history
         for msg in self.history_messages:
-            if msg["role"] in ["user", "assistant"]:
-                messages.append({"role": msg["role"], "content": msg["content"]})
+            if msg["role"] in ["user", "assistant", "tool"]:
+                messages.append(msg)
         
         # Add current user message
         messages.append({"role": "user", "content": full_user_message})
+        
+        # === Context Window Guard ===
+        if config.context_compaction_enabled:
+            should_block, warning, stats = evaluate_context_window_guard(
+                model=self.model,
+                messages=messages,
+                system_prompt=system_prompt
+            )
+            
+            if warning:
+                logger.warning(f"[Agent] {warning}")
+                yield {"type": "status", "content": f"⚠️ {warning}"}
+            
+            if should_block and not self.compaction_attempted:
+                logger.info("[Agent] Context window too small, triggering auto-compaction...")
+                yield {"type": "status", "content": "Compacting conversation history..."}
+                
+                # 执行压缩 (跳过 system 和当前 user 消息)
+                history_to_compact = messages[1:-1]  # 排除 system 和最后的 user 消息
+                
+                if len(history_to_compact) > config.context_keep_recent:
+                    compacted_history = await compact_history(
+                        history_to_compact,
+                        keep_recent=config.context_keep_recent,
+                        client=self.client
+                    )
+                    
+                    # 重建消息列表
+                    messages = [
+                        {"role": "system", "content": system_prompt},
+                        *compacted_history,
+                        {"role": "user", "content": full_user_message}
+                    ]
+                    
+                    self.compaction_attempted = True
+                    logger.info(f"[Agent] Compaction complete: {len(history_to_compact)} -> {len(compacted_history)} messages")
+                    yield {"type": "status", "content": "✅ History compacted successfully"}
         
         # Agent loop
         MAX_TURNS = self.max_turns
@@ -338,29 +567,19 @@ print(json.dumps({{
             context.last_response_text = ""
             
             try:
-                # Call OpenAI API with streaming
-                # max_tokens is important to prevent truncation, especially for Bedrock/Claude
-                if "claude" in self.model.lower():
-                    response_stream = await self.client.chat.completions.create(
-                        model=self.model,
-                        messages=messages,
-                        tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None,
-                        stream=True,
-                        max_tokens=LLM_MAX_TOKENS
-                    )
-                else:
-                    response_stream = await self.client.chat.completions.create(
-                        model=self.model,
-                        messages=messages,
-                        tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None,
-                        stream=True,
-                    )
-                
-                # Process stream
+                # === Call LLM with failover ===
                 final_content = ""
                 tool_calls_accumulator: Dict[int, Dict] = {}
                 
-                async for chunk in response_stream:
+                async for event in self._call_llm_with_failover(
+                    messages=messages,
+                    tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None
+                ):
+                    if event["type"] != "chunk":
+                        continue
+                    
+                    chunk = event["chunk"]
+                    
                     if not chunk.choices:
                         continue
                     
