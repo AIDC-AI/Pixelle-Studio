@@ -132,9 +132,15 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
       // 在内容中插入工具占位符
       const placeholderStart = `# ${tool.server_name}/${tool.name}-start #`
       const placeholderEnd = `# ${tool.server_name}/${tool.name}-end #`
+      
+      // 构建工具描述（如果存在）
+      const descriptionComment = tool.description 
+        ? `# ${tool.description}\n` 
+        : ''
+      
       setFormData(prev => ({
         ...prev,
-        content:prev.content + `\n\n${placeholderStart}\ncall_tool('${tool.name}', {${topicStr}})\n${placeholderEnd}`
+        content:prev.content + `\n\n${placeholderStart}\n${descriptionComment}call_tool('${tool.name}', {${topicStr}})\n${placeholderEnd}`
       }))
       setScripts(prev => [...prev, {
         name: tool.name,

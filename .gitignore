@@ -33,3 +33,5 @@ work_dir/
 *.db
 reference/
 dev_docs/
+
+test_*.*
