@@ -47,7 +47,7 @@ const PopoverCheck: React.FC<IProps> = (props) => {
 		<Popover.Portal>
 			<Popover.Content 
                 side="top" 
-                className="p-4 bg-white rounded-lg border border-gray-300" 
+                className="p-4 bg-white rounded-lg border border-gray-300 z-999" 
                 sideOffset={5}
                 // onMouseEnter={() => setIsOpen?.(true)}
                 // onMouseLeave={() => setIsOpen?.(false)}

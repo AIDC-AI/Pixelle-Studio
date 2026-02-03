@@ -664,7 +664,7 @@ const Chat = () => {
 
   return (
     <div
-      className="w-[calc(100vh-${leftPanelWidth}px)] h-screen flex overflow-hidden"
+      className="w-screen h-screen flex overflow-hidden"
       style={{
         paddingLeft: isLeftPanelCollapsed ? 48 : leftPanelWidth
       }}
@@ -700,7 +700,18 @@ const Chat = () => {
             top: 0,
             left: (isLeftPanelCollapsed ? 48 : leftPanelWidth) - 3,
             height: '100vh',
-            zIndex: 50
+            zIndex: 60
+          }}
+        />
+      )}
+
+      {/* Drag overlay to prevent losing mouse events over iframes */}
+      {(isLeftDragging || isPreviewDragging) && (
+        <div
+          className="fixed inset-0"
+          style={{
+            zIndex: 55,
+            cursor: 'col-resize'
           }}
         />
       )}
