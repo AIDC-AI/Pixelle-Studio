@@ -201,26 +201,50 @@ Process user requests using the following logic:
 **CRITICAL**: Every code execution that generates files MUST end by printing a JSON status to stdout.
 This JSON is parsed by the system to display generated files to the user.
 
+**IMPORTANT**: You MUST verify that files actually exist before reporting them as generated!
+Never assume file generation succeeded - always check with `os.path.exists()`.
+
 ```python
 import json
+import os
+
+# Define your output files
+output_files_to_report = []
+generated_files = [
+    ("generated_file1.pptx", user_file("generated_file1.pptx")),
+    ("generated_file2.xlsx", user_file("generated_file2.xlsx")),
+]
+
+# CRITICAL: Verify each file actually exists before reporting
+for file_name, file_path in generated_files:
+    if os.path.exists(file_path):
+        output_files_to_report.append({{"file_name": file_name}})
+    else:
+        print(f"WARNING: File {{file_name}} was not generated!", file=__import__('sys').stderr)
 
 # At the END of your code, after all file operations:
-print(json.dumps({{
-    "status": "success",  # or "error"
-    "result": "Brief description of what was done",
-    "output_files": [
-        {{"file_name": "generated_file1.pptx"}},
-        {{"file_name": "generated_file2.png"}}
-    ]  # List ALL files created using user_file() - use ONLY the filename, not the full path
-}}))
+if output_files_to_report:
+    print(json.dumps({{
+        "status": "success",
+        "result": "Brief description of what was done",
+        "output_files": output_files_to_report
+    }}))
+else:
+    print(json.dumps({{
+        "status": "error",
+        "result": "No files were generated - file operations may have failed",
+        "output_files": []
+    }}))
 ```
 
 **Rules**:
-1. The `output_files` array MUST contain ALL generated files that the user should see
-2. Use `{{"file_name": "xxx"}}` format - only the filename, NOT the full path from user_file()
-3. If NO files are generated, use an empty array: `"output_files": []`
-4. Always print this JSON as the LAST thing in your code
-5. Do NOT wrap in try/except that might suppress this output
+1. **NEVER print "success" messages like "file generated successfully" without verifying the file exists**
+2. **ALWAYS use `os.path.exists(user_file("xxx"))` to verify file creation before reporting**
+3. The `output_files` array MUST only contain files that ACTUALLY exist on disk
+4. Use `{{"file_name": "xxx"}}` format - only the filename, NOT the full path from user_file()
+5. If file verification fails, report `"status": "error"` with an empty `output_files` array
+6. Do NOT wrap in try/except that might suppress this output
+7. Do NOT use generic print statements like `print("file saved")` - only use the JSON format
 </output_format>
 """        
         return system_prompt
