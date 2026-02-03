@@ -224,7 +224,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
     >
         <Dialog.Portal>
             <Dialog.Content 
-                className="flex flex-col bg-white rounded-md shadow-lg fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] h-[90%] p-6 animate-[contentShow_150ms_cubic-bezier(0.16,1,0.3,1)]"
+                className="flex flex-col bg-white rounded-md shadow-lg fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] h-[90%] p-6 animate-[contentShow_150ms_cubic-bezier(0.16,1,0.3,1)] z-999"
                 aria-describedby={undefined}
             >
                 <div className="flex flex-row justify-between items-center">
