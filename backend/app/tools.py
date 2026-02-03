@@ -413,6 +413,49 @@ def user_file(*parts) -> str:
     """Get path to user's working files: scripts/<user_id>/[parts...]"""
     return os.path.join(SCRIPTS_ROOT, *parts)
 
+def report_result(files=None, message="Task completed"):
+    """
+    Report execution result with generated files. Call this at the END of your code.
+    
+    Args:
+        files: List of filenames (strings) that were generated, e.g. ["output.xlsx", "chart.png"]
+               Each file is automatically verified to exist before being reported.
+        message: Brief description of what was done.
+    
+    Example:
+        report_result(files=["report.xlsx"], message="Generated sales report")
+    """
+    import json
+    import os
+    import sys
+    
+    files = files or []
+    output_files = []
+    
+    for f in files:
+        # Get just the filename if a path was provided
+        filename = os.path.basename(f) if os.path.sep in str(f) else f
+        full_path = user_file(filename)
+        if os.path.exists(full_path):
+            output_files.append({{"file_name": filename}})
+        else:
+            print(f"WARNING: File {{filename}} was not generated!", file=sys.stderr)
+    
+    if output_files or not files:
+        # Success if we have files, or if no files were expected
+        print(json.dumps({{
+            "status": "success",
+            "result": message,
+            "output_files": output_files
+        }}))
+    else:
+        # All expected files failed to generate
+        print(json.dumps({{
+            "status": "error",
+            "result": f"File generation failed: {{files}}",
+            "output_files": []
+        }}))
+
 import sys
 sys.path.insert(0, '.')
 from app.mcp_client import call_tool, list_mcp_tools
