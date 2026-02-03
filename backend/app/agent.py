@@ -329,8 +329,10 @@ Your code runs in a backend environment with a fixed file structure.
   - `scripts/`: Destination for all user-related files and outputs. (READ-WRITE)
 
 - **Path Helpers (Pre-injected)**:
-  - `user_file("filename")`: Use this for any file the user uploads or any output you generate. It points to the `scripts/` directory.
-    - [CRITICAL!]Don't define user_file yourself, it's already defined in the system, you should call it directly!
+  - `user_file("filename")`: Returns the full path to a file in the user's `scripts/` directory.
+    - [CRITICAL!]**Writing**: Save any generated file using `user_file("output.xlsx")` as the path.
+    - [CRITICAL!]**Reading**: Read previously generated or uploaded files using the SAME helper: `open(user_file("snake.html"), "r")` or `pd.read_excel(user_file("data.xlsx"))`.
+    - [CRITICAL!] Don't define `user_file` yourself - it's already injected into your execution environment!
   - `skill_path("skill_name", "relative/path")`: Use this to reference internal skill resources (e.g., templates or JS scripts) inside the `skills/` directory.
 
 **CRITICAL**: Strictly forbidden to create or modify any files within the `skills/` directory. All generated artifacts MUST use `user_file()`.
@@ -359,10 +361,26 @@ When a skill domain is involved, you MUST follow this Standard Operating Procedu
 
 <decision_flow>
 Process user requests using the following logic:
-1. **Analyze**: Identify if the task is a simple question, a domain-specific task (Skill), or requires external data (MCP).
-2. **Initialize**: For domain tasks, use `load_skill` first to get guidance.
-3. **Plan & Act**: For any task producing artifacts (PPT, Excel, etc.), write the Python code in `<execute>` tags.
-4. **Recover**: If an error occurs, analyze the traceback, adjust your logic, and provide a corrected `<execute>` block immediately.
+
+1. **Analyze the request first** - Before doing ANYTHING, understand what the user wants:
+   - Simple question? → Answer directly, NO tools needed.
+   - General coding task (games, scripts, data processing)? → Write code directly, NO skill needed.
+   - Domain-specific task matching a skill (PPT creation, Excel analysis with specific templates)? → Load that ONE skill.
+
+2. **Skill decision** - Check <available_skills> descriptions:
+   - If a skill clearly matches → call `load_skill` for that ONE skill only
+   - If no skill matches → proceed WITHOUT loading any skill
+   - **NEVER load multiple skills** - pick the best one or none
+
+3. **Execute** - Write Python code in `<execute>` tags when needed.
+
+4. **Recover** - If an error occurs, analyze and fix immediately.
+
+**Examples of when NOT to load skills:**
+- "写一个贪吃蛇游戏" → No skill needed, just write the game code
+- "帮我分析这个CSV文件" → No skill needed unless you need specific xlsx templates
+- "What is 2+2?" → No skill needed, just answer
+- "Create a simple HTML page" → No skill needed
 </decision_flow>
 
 <output_format>
@@ -460,8 +478,6 @@ print(json.dumps({{
     async def run(
         self,
         user_message: str,
-        file_urls: List[str] = None,
-        file_names: List[str] = None,
         session_id: str = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
@@ -477,7 +493,6 @@ print(json.dumps({{
         session_id = session_id or str(uuid.uuid4())[:8]
         
         logger.info(f"[Agent] Starting session {session_id}")
-        logger.debug(f"[Agent] file_urls: {file_urls}, file_names: {file_names}")
         
         # 初始化客户端 (带故障转移)
         if self.client is None:
@@ -485,18 +500,6 @@ print(json.dumps({{
         
         # Build initial user message with file context
         full_user_message = user_message
-        
-        if file_names:
-            full_user_message += "\n\n## User Uploaded Files:\n"
-            full_user_message += "You must access these files using `user_file('filename')`:\n"
-            for name in file_names:
-                full_user_message += f"- {name}\n"
-        elif file_urls:
-            full_user_message += "\n\n## User Uploaded Files:\n"
-            full_user_message += "You must access these files using `user_file('filename')`:\n"
-            for url in file_urls:
-                filename = url.split("/")[-1]
-                full_user_message += f"- {filename}\n"
         
         yield {"type": "status", "content": "Processing your request..."}
         
@@ -781,7 +784,6 @@ print(json.dumps({{
 
 async def run_agent(
     user_message: str,
-    file_urls: List[str] = None,
     session_id: str = None,
     user_id: int = None
 ) -> AsyncGenerator[Dict[str, Any], None]:
@@ -791,8 +793,6 @@ async def run_agent(
     agent = SkillAgent(user_id=user_id)
     async for event in agent.run(
         user_message=user_message,
-        file_urls=file_urls,
-        file_names=None,
         session_id=session_id
     ):
         yield event
