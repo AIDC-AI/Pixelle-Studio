@@ -189,12 +189,6 @@ Process user requests using the following logic:
 3. **Execute** - Write Python code in `<execute>` tags when needed.
 
 4. **Recover** - If an error occurs, analyze and fix immediately.
-
-**Examples of when NOT to load skills:**
-- "写一个贪吃蛇游戏" → No skill needed, just write the game code
-- "帮我分析这个CSV文件" → No skill needed unless you need specific xlsx templates
-- "What is 2+2?" → No skill needed, just answer
-- "Create a simple HTML page" → No skill needed
 </decision_flow>
 
 <output_format>
