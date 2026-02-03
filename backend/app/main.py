@@ -37,7 +37,7 @@ from app.utils.logger import log
 from app.utils.network import LOCAL_IP
 
 # Import CRUD routes
-from app.routes import mcp_servers, users
+from app.routes import mcp_servers, users, sessions, subagents
 
 # DB models (sqlite persistence)
 from app.database.models import SessionLocal, ChatSession, ChatTurn, ChatStep
@@ -47,6 +47,8 @@ app = FastAPI(title="MCP Workflow API", version="2.0.0")
 # Include routers
 app.include_router(mcp_servers.router)
 app.include_router(users.router)
+app.include_router(sessions.router)
+app.include_router(subagents.router)
 
 # CORS
 app.add_middleware(

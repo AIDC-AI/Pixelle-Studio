@@ -29,6 +29,7 @@ from typing import Optional, Dict, Any, List
 from app.skills.loader import SkillLoader, get_skill_loader
 from app.execution.runner import run_script
 from app.utils.network import LOCAL_IP, SERVER_PORT
+from app.subagent import get_subagent_manager
 
 import logging
 logger = logging.getLogger(__name__)
@@ -150,6 +151,82 @@ async def list_skill_tree(context: AgentContext, skill_name: str) -> str:
         return f"# Directory structure of skill '{skill_name}'\n\n```json\n{tree_json}\n```\n\nYou can use `read_skill_file` to read specific files."
     else:
         return f"Skill '{skill_name}' not found. Please check the skill name."
+
+
+async def spawn_subagent(context: AgentContext, task: str) -> str:
+    """
+    Spawn a background sub-agent to handle a task in parallel.
+    
+    This is useful for:
+    - Long-running tasks that don't block the main conversation
+    - Parallel execution of independent tasks
+    - Background data processing
+    
+    Args:
+        context: AgentContext with session_id, user_id, etc.
+        task: The task description to assign to the sub-agent
+    
+    Returns:
+        JSON string with subagent_id and status.
+    """
+    logger.info(f"[Tool] Spawning sub-agent for task: {task[:50]}...")
+    
+    subagent_manager = get_subagent_manager()
+    
+    try:
+        subagent_id = await subagent_manager.spawn(
+            parent_session_id=context.session_id,
+            task=task,
+            user_id=context.user_id,
+            model="gpt-4o-mini",  # Use a cheaper model for sub-agents
+            max_turns=10
+        )
+        
+        return json.dumps({
+            "__tool__": "spawn_subagent",
+            "subagent_id": subagent_id,
+            "task": task[:100],
+            "status": "spawned",
+            "message": f"Sub-agent {subagent_id} is now running in the background. Use check_subagent_status to monitor progress."
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        logger.error(f"[Tool] Failed to spawn sub-agent: {e}", exc_info=True)
+        return json.dumps({
+            "__tool__": "spawn_subagent",
+            "status": "error",
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+async def check_subagent_status(context: AgentContext, subagent_id: str) -> str:
+    """
+    Check the status of a running or completed sub-agent.
+    
+    Args:
+        context: AgentContext
+        subagent_id: The ID of the sub-agent to check
+    
+    Returns:
+        JSON string with sub-agent status and result (if completed).
+    """
+    logger.info(f"[Tool] Checking sub-agent status: {subagent_id}")
+    
+    subagent_manager = get_subagent_manager()
+    
+    status_info = subagent_manager.get_status(subagent_id)
+    
+    if status_info:
+        return json.dumps({
+            "__tool__": "check_subagent_status",
+            **status_info
+        }, ensure_ascii=False)
+    else:
+        return json.dumps({
+            "__tool__": "check_subagent_status",
+            "status": "not_found",
+            "message": f"Sub-agent {subagent_id} not found"
+        }, ensure_ascii=False)
 
 
 async def list_mcp_tools(context: AgentContext) -> str:
@@ -492,6 +569,40 @@ TOOL_SCHEMAS = [
                 "required": []
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "spawn_subagent",
+            "description": "Spawn a background sub-agent to handle a task in parallel. Useful for long-running or independent tasks that shouldn't block the main conversation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "The task description to assign to the sub-agent. Be specific and clear about what needs to be done."
+                    }
+                },
+                "required": ["task"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_subagent_status",
+            "description": "Check the status of a running or completed sub-agent. Returns the current status, result (if completed), or error (if failed).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "subagent_id": {
+                        "type": "string",
+                        "description": "The ID of the sub-agent to check (returned from spawn_subagent)"
+                    }
+                },
+                "required": ["subagent_id"]
+            }
+        }
     }
 ]
 
@@ -505,5 +616,7 @@ TOOL_HANDLERS: Dict[str, Any] = {
     "read_skill_file": read_skill_file,
     "list_skill_tree": list_skill_tree,
     "list_mcp_tools": list_mcp_tools,
+    "spawn_subagent": spawn_subagent,
+    "check_subagent_status": check_subagent_status,
     # Note: execute_code is NOT here - it's handled separately via Synthetic Tool Call
 }

@@ -37,6 +37,7 @@ from app.context import (
     should_compact_history,
     compact_history,
 )
+from app.utils.session_logger_simple import SessionLogger
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -114,6 +115,9 @@ class SkillAgent:
         
         # 上下文管理状态
         self.compaction_attempted = False
+        
+        # Session logger (延迟初始化)
+        self.session_logger: Optional[SessionLogger] = None
     
     async def _init_client_with_failover(self) -> AsyncOpenAI:
         """使用故障转移初始化 LLM 客户端"""
@@ -237,7 +241,8 @@ class SkillAgent:
                 
                 except Exception as e:
                     error_msg = str(e).lower()
-                    logger.error(f"[Agent] LLM call failed (model={model_name}, thinking={think_level}): {e}")
+                    error_type = type(e).__name__
+                    logger.error(f"[Agent] LLM call failed (model={model_name}, thinking={think_level}, error_type={error_type}): {e}")
                     
                     # 标记认证失败
                     if self.current_auth_profile:
@@ -268,6 +273,18 @@ class SkillAgent:
                     elif "overloaded" in error_msg or "503" in error_msg:
                         # 服务器过载 - 尝试下一个模型
                         logger.warning(f"[Agent] Server overloaded, trying next model...")
+                        last_error = e
+                        break  # 跳出 thinking level 循环
+                    
+                    elif "expecting value" in error_msg or "json" in error_msg.lower():
+                        # JSON 解析错误 - 可能是 API 返回了空响应或 HTML 错误页面
+                        logger.warning(f"[Agent] JSON parse error (possibly empty response or HTML error page), trying next model...")
+                        last_error = e
+                        break  # 跳出 thinking level 循环，尝试下一个模型
+                    
+                    elif error_type == "APIError" and not error_msg:
+                        # 空错误消息的 APIError - 可能是网络问题
+                        logger.warning(f"[Agent] Empty APIError (possibly network issue), trying next model...")
                         last_error = e
                         break  # 跳出 thinking level 循环
                     
@@ -307,109 +324,21 @@ class SkillAgent:
         return cleaned.strip()
     
     def _build_system_prompt(self) -> str:
-        """Build the system prompt with skills in XML format."""
+        """Build the system prompt using the modular Prompt Builder."""
+        from app.prompt_builder import build_full_system_prompt
+        from app.tools import TOOL_HANDLERS
+        
+        # Get skills XML summary
         skills_xml = self.skill_loader.build_skills_xml_prompt(self.user_id)
         
-        system_prompt = f"""You are an intelligent agent designed to help users accomplish complex tasks by leveraging specific skill domains and external tools.
-
-<capabilities>
-You have access to the following tools for task execution:
-1. **load_skill**: Load detailed documentation for a specific skill domain (Excel, PowerPoint, etc.).
-2. **read_skill_file**: Read specific files (templates, logic, etc.) from a skill's directory.
-3. **list_skill_tree**: List all files within a skill directory to understand available resources.
-4. **list_mcp_tools**: Discover available MCP tools for connecting to external services.
-</capabilities>
-
-{skills_xml}
-
-<environment_and_paths>
-Your code runs in a backend environment with a fixed file structure.
-- **Working Directory**: The root of the backend.
-  - `skills/`: Contains internal skill resources and helper scripts. (READ-ONLY)
-  - `scripts/`: Destination for all user-related files and outputs. (READ-WRITE)
-
-- **Path Helpers (Pre-injected)**:
-  - `user_file("filename")`: Returns the full path to a file in the user's `scripts/` directory.
-    - [CRITICAL!]**Writing**: Save any generated file using `user_file("output.xlsx")` as the path.
-    - [CRITICAL!]**Reading**: Read previously generated or uploaded files using the SAME helper: `open(user_file("snake.html"), "r")` or `pd.read_excel(user_file("data.xlsx"))`.
-    - [CRITICAL!] Don't define `user_file` yourself - it's already injected into your execution environment!
-  - `skill_path("skill_name", "relative/path")`: Use this to reference internal skill resources (e.g., templates or JS scripts) inside the `skills/` directory.
-
-**CRITICAL**: Strictly forbidden to create or modify any files within the `skills/` directory. All generated artifacts MUST use `user_file()`.
-</environment_and_paths>
-
-<python_execution_protocol>
-All logic execution must follow these strict technical rules:
-
-1. **Syntax**: Write code inside `<execute lang="python">...</execute>` tags.
-2. **Independent Execution**: Each block runs as a FRESH Python script. 
-   - Variables, DataFrames, and objects **DO NOT persist** between blocks.
-   - Every block must be **FULLY self-contained**: include all imports, re-read files, and define all necessary logic.
-3. **MCP Integration (Async)**:
-   - Call MCP tools using: `await call_tool("tool_name", {{"arg1": value1}})`.
-   - Use `asyncio.run(main())` pattern for all async code execution.
-   - Use `await list_mcp_tools()` to discover available external capabilities.
-</python_execution_protocol>
-
-<skill_usage_sop>
-When a skill domain is involved, you MUST follow this Standard Operating Procedure:
-1. **Discovery**: Read the loaded skill's `SKILL.md` and ALL referenced documentation before writing any code.
-2. **Constraint Extraction**: Identify all "CRITICAL", "NEVER", "ALWAYS", or "MUST" rules. These are non-negotiable.
-3. **Workflow Adherence**: Execute steps in the exact order specified in the documentation. Do not skip or reorder steps.
-4. **No Improvisation**: Do not make assumptions. If the skill documentation provides a specific method, use it exclusively.
-</skill_usage_sop>
-
-<decision_flow>
-Process user requests using the following logic:
-
-1. **Analyze the request first** - Before doing ANYTHING, understand what the user wants:
-   - Simple question? → Answer directly, NO tools needed.
-   - General coding task (games, scripts, data processing)? → Write code directly, NO skill needed.
-   - Domain-specific task matching a skill (PPT creation, Excel analysis with specific templates)? → Load that ONE skill.
-
-2. **Skill decision** - Check <available_skills> descriptions:
-   - If a skill clearly matches → call `load_skill` for that ONE skill only
-   - If no skill matches → proceed WITHOUT loading any skill
-   - **NEVER load multiple skills** - pick the best one or none
-
-3. **Execute** - Write Python code in `<execute>` tags when needed.
-
-4. **Recover** - If an error occurs, analyze and fix immediately.
-
-**Examples of when NOT to load skills:**
-- "写一个贪吃蛇游戏" → No skill needed, just write the game code
-- "帮我分析这个CSV文件" → No skill needed unless you need specific xlsx templates
-- "What is 2+2?" → No skill needed, just answer
-- "Create a simple HTML page" → No skill needed
-</decision_flow>
-
-<output_format>
-**CRITICAL**: Every code execution that generates files MUST end by printing a JSON status to stdout.
-This JSON is parsed by the system to display generated files to the user.
-
-```python
-import json
-
-# At the END of your code, after all file operations:
-print(json.dumps({{
-    "status": "success",  # or "error"
-    "result": "Brief description of what was done",
-    "output_files": [
-        {{"file_name": "generated_file1.pptx"}},
-        {{"file_name": "generated_file2.png"}}
-    ]  # List ALL files created using user_file() - use ONLY the filename, not the full path
-}}))
-```
-
-**Rules**:
-1. The `output_files` array MUST contain ALL generated files that the user should see
-2. Use `{{"file_name": "xxx"}}` format - only the filename, NOT the full path from user_file()
-3. If NO files are generated, use an empty array: `"output_files": []`
-4. Always print this JSON as the LAST thing in your code
-5. Do NOT wrap in try/except that might suppress this output
-</output_format>
-"""        
-        return system_prompt
+        # Build prompt using the new modular builder
+        return build_full_system_prompt(
+            skills_summary=skills_xml,
+            available_tools=set(TOOL_HANDLERS.keys()),
+            model=self.model,
+            mcp_server_url=self.mcp_server_url,
+            workspace_dir=str(self.backend_root)
+        )
     
     def _create_context(self, session_id: str) -> AgentContext:
         """Create the context object passed to all tools."""
@@ -489,253 +418,325 @@ print(json.dumps({{
         3. Call OpenAI API with streaming (with failover)
         4. Process tool calls (both explicit and Synthetic)
         5. Continue loop until no more tool calls
+        6. Session logging for full traceability
         """
         session_id = session_id or str(uuid.uuid4())[:8]
         
         logger.info(f"[Agent] Starting session {session_id}")
         
-        # 初始化客户端 (带故障转移)
-        if self.client is None:
-            self.client = await self._init_client_with_failover()
+        # === 初始化 Session Logger ===
+        self.session_logger = SessionLogger(session_id, self.user_id)
+        self.session_logger.log_session_start(
+            model=self.model,
+            mcp_server_url=self.mcp_server_url
+        )
         
-        # Build initial user message with file context
-        full_user_message = user_message
+        turn_count = 0  # 初始化 turn_count
         
-        yield {"type": "status", "content": "Processing your request..."}
+        try:
+            # 初始化客户端 (带故障转移)
+            if self.client is None:
+                self.client = await self._init_client_with_failover()
         
-        # Create context
-        context = self._create_context(session_id)
-        
-        # Build messages
-        system_prompt = self._build_system_prompt()
-        messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": system_prompt}
-        ]
-        
-        # Add history
-        for msg in self.history_messages:
-            if msg["role"] in ["user", "assistant", "tool"]:
-                messages.append(msg)
-        
-        # Add current user message
-        messages.append({"role": "user", "content": full_user_message})
-        
-        # === Context Window Guard ===
-        if config.context_compaction_enabled:
-            should_block, warning, stats = evaluate_context_window_guard(
-                model=self.model,
-                messages=messages,
-                system_prompt=system_prompt
-            )
+            # Build initial user message with file context
+            full_user_message = user_message
             
-            if warning:
-                logger.warning(f"[Agent] {warning}")
-                yield {"type": "status", "content": f"⚠️ {warning}"}
+            yield {"type": "status", "content": "Processing your request..."}
             
-            if should_block and not self.compaction_attempted:
-                logger.info("[Agent] Context window too small, triggering auto-compaction...")
-                yield {"type": "status", "content": "Compacting conversation history..."}
-                
-                # 执行压缩 (跳过 system 和当前 user 消息)
-                history_to_compact = messages[1:-1]  # 排除 system 和最后的 user 消息
-                
-                if len(history_to_compact) > config.context_keep_recent:
-                    compacted_history = await compact_history(
-                        history_to_compact,
-                        keep_recent=config.context_keep_recent,
-                        client=self.client
-                    )
-                    
-                    # 重建消息列表
-                    messages = [
-                        {"role": "system", "content": system_prompt},
-                        *compacted_history,
-                        {"role": "user", "content": full_user_message}
-                    ]
-                    
-                    self.compaction_attempted = True
-                    logger.info(f"[Agent] Compaction complete: {len(history_to_compact)} -> {len(compacted_history)} messages")
-                    yield {"type": "status", "content": "✅ History compacted successfully"}
+            # Create context
+            context = self._create_context(session_id)
+            
+            # Build messages
+            system_prompt = self._build_system_prompt()
+            messages: List[Dict[str, Any]] = [
+                {"role": "system", "content": system_prompt}
+            ]
+            
+            # Add history
+            for msg in self.history_messages:
+                if msg["role"] in ["user", "assistant", "tool"]:
+                    messages.append(msg)
+            
+            # Add current user message
+            messages.append({"role": "user", "content": full_user_message})
+            
+            # === 记录用户消息 ===
+            self.session_logger.log_message("user", full_user_message, turn=0)
         
-        # Agent loop
-        MAX_TURNS = self.max_turns
-        turn_count = 0
-        
-        while turn_count < MAX_TURNS:
-            turn_count += 1
-            logger.info(f"[Agent] Turn #{turn_count}")
-            
-            # Clear pending code queue for this turn
-            context.pending_code_queue = []
-            context.last_response_text = ""
-            
-            try:
-                # === Call LLM with failover ===
-                final_content = ""
-                tool_calls_accumulator: Dict[int, Dict] = {}
-                
-                async for event in self._call_llm_with_failover(
+            # === Context Window Guard ===
+            if config.context_compaction_enabled:
+                should_block, warning, stats = evaluate_context_window_guard(
+                    model=self.model,
                     messages=messages,
-                    tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None
-                ):
-                    if event["type"] != "chunk":
-                        continue
+                    system_prompt=system_prompt
+                )
+            
+                if warning:
+                    logger.warning(f"[Agent] {warning}")
+                    yield {"type": "status", "content": f"⚠️ {warning}"}
+                
+                if should_block and not self.compaction_attempted:
+                    logger.info("[Agent] Context window too small, triggering auto-compaction...")
+                    yield {"type": "status", "content": "Compacting conversation history..."}
                     
-                    chunk = event["chunk"]
+                    # 执行压缩 (跳过 system 和当前 user 消息)
+                    history_to_compact = messages[1:-1]  # 排除 system 和最后的 user 消息
                     
-                    if not chunk.choices:
-                        continue
-                    
-                    delta = chunk.choices[0].delta
-                    
-                    # Text content
-                    if delta.content:
-                        final_content += delta.content
+                    if len(history_to_compact) > config.context_keep_recent:
+                        compacted_history = await compact_history(
+                            history_to_compact,
+                            keep_recent=config.context_keep_recent,
+                            client=self.client
+                        )
                         
-                        # Check for new <execute> blocks
-                        execute_blocks = self._extract_execute_blocks(final_content)
-                        existing_count = len(context.pending_code_queue)
-                        new_blocks = execute_blocks[existing_count:]
-                        for block in new_blocks:
-                            context.pending_code_queue.append(block)
-                            logger.info(f"[Stream] Found execute block #{len(context.pending_code_queue)}")
+                        # 重建消息列表
+                        messages = [
+                            {"role": "system", "content": system_prompt},
+                            *compacted_history,
+                            {"role": "user", "content": full_user_message}
+                        ]
+                        
+                        # === 记录上下文压缩 ===
+                        self.session_logger.log_context_compaction(
+                            messages_before=len(history_to_compact),
+                            messages_after=len(compacted_history)
+                        )
+                        
+                        self.compaction_attempted = True
+                        logger.info(f"[Agent] Compaction complete: {len(history_to_compact)} -> {len(compacted_history)} messages")
+                        yield {"type": "status", "content": "✅ History compacted successfully"}
+            
+            # Agent loop
+            MAX_TURNS = self.max_turns
+            
+            while turn_count < MAX_TURNS:
+                turn_count += 1
+                logger.info(f"[Agent] Turn #{turn_count}")
+                
+                # === 记录状态 ===
+                self.session_logger.log_status(f"Turn {turn_count} started", turn=turn_count)
+                
+                # Clear pending code queue for this turn
+                context.pending_code_queue = []
+                context.last_response_text = ""
+                
+                try:
+                    # === Call LLM with failover ===
+                    final_content = ""
+                    tool_calls_accumulator: Dict[int, Dict] = {}
+                
+                    async for event in self._call_llm_with_failover(
+                        messages=messages,
+                        tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None
+                    ):
+                        if event["type"] != "chunk":
+                            continue
+                        
+                        chunk = event["chunk"]
+                        
+                        if not chunk.choices:
+                            continue
+                        
+                        delta = chunk.choices[0].delta
+                        
+                        # Text content
+                        if delta.content:
+                            final_content += delta.content
+                            
+                            # Check for new <execute> blocks
+                            execute_blocks = self._extract_execute_blocks(final_content)
+                            existing_count = len(context.pending_code_queue)
+                            new_blocks = execute_blocks[existing_count:]
+                            for block in new_blocks:
+                                context.pending_code_queue.append(block)
+                                logger.info(f"[Stream] Found execute block #{len(context.pending_code_queue)}")
+                            
+                            yield {
+                                "type": "response_delta",
+                                "content": delta.content,
+                                "accumulated": final_content
+                            }
+                        
+                        # Tool calls (chunked)
+                        if delta.tool_calls:
+                            for tc_chunk in delta.tool_calls:
+                                idx = tc_chunk.index
+                                if idx not in tool_calls_accumulator:
+                                    tool_calls_accumulator[idx] = {"id": "", "name": "", "arguments": ""}
+                                
+                                if tc_chunk.id:
+                                    tool_calls_accumulator[idx]["id"] += tc_chunk.id
+                                if tc_chunk.function and tc_chunk.function.name:
+                                    tool_calls_accumulator[idx]["name"] += tc_chunk.function.name
+                                if tc_chunk.function and tc_chunk.function.arguments:
+                                    tool_calls_accumulator[idx]["arguments"] += tc_chunk.function.arguments
+                    
+                    # Convert accumulated tool calls to list
+                    tool_calls_list = []
+                    for idx in sorted(tool_calls_accumulator.keys()):
+                        tc = tool_calls_accumulator[idx]
+                        tool_calls_list.append({
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {"name": tc["name"], "arguments": tc["arguments"]}
+                        })
+                        logger.info(f"[Stream] Tool call: {tc['name']}")
+                    
+                    context.last_response_text = final_content
+                    
+                    # === 记录 assistant 消息 ===
+                    if final_content:
+                        self.session_logger.log_message("assistant", final_content, turn=turn_count)
+                    
+                except Exception as e:
+                    logger.error(f"[Agent] API Error: {e}", exc_info=True)
+                    
+                    # === 记录错误 ===
+                    self.session_logger.log_error(str(e), error_type=type(e).__name__, turn=turn_count)
+                    
+                    yield {"type": "error", "content": str(e)}
+                    yield {"type": "final_result", "status": "error", "result": {"error": str(e)}}
+                    return
+            
+                # Check for incomplete execute blocks and try to continue
+                if self._has_incomplete_execute_block(final_content):
+                    logger.warning(f"[Agent] Incomplete <execute> block detected, asking model to continue...")
+                    yield {"type": "status", "content": "Response was truncated, asking model to continue..."}
+                    
+                    # Add the incomplete response and ask to continue
+                    messages.append({"role": "assistant", "content": final_content})
+                    messages.append({"role": "user", "content": "Your response was truncated. Please continue from where you left off, completing the <execute> block. DO NOT repeat what you already wrote, just continue from the exact point of truncation."})
+                    continue  # Continue the loop to get more output
+            
+                # === Synthetic Tool Call: Check for <execute> blocks ===
+                if context.pending_code_queue and not tool_calls_list:
+                    # LLM wrote code but didn't call execute_code explicitly
+                    # We create a Synthetic Tool Call
+                    code_to_exec = context.pending_code_queue[-1]
+                    synthetic_call_id = f"call_synthetic_{uuid.uuid4().hex[:8]}"
+                    
+                    logger.info(f"[Agent] Creating Synthetic Tool Call for code block (length: {len(code_to_exec)})")
+                    yield {"type": "status", "content": "Executing code..."}
+                    
+                    # === 记录代码执行 ===
+                    self.session_logger.log_code_execution(code_to_exec, turn=turn_count)
+                    
+                    # Yield the original code to frontend
+                    yield {
+                        "type": "code",
+                        "code": code_to_exec
+                    }
+                    
+                    # Add assistant message with synthetic tool_calls
+                    assistant_msg = {
+                        "role": "assistant",
+                        "content": final_content,
+                        "tool_calls": [{
+                            "id": synthetic_call_id,
+                            "type": "function",
+                            "function": {
+                                "name": "execute_code",
+                                "arguments": json.dumps({"code": code_to_exec})
+                            }
+                        }]
+                    }
+                    messages.append(assistant_msg)
+                    
+                    # Execute the code
+                    import time
+                    start_time = time.time()
+                    result = await execute_code_internal(context, code_to_exec)
+                    duration_ms = (time.time() - start_time) * 1000
+                    
+                    # Parse and yield execution result to frontend
+                    tool_data = self._parse_tool_json(result)
+                    
+                    # === 记录代码结果 ===
+                    if tool_data:
+                        self.session_logger.log_code_result(
+                            status=tool_data.get("status", "unknown"),
+                            stdout=tool_data.get("stdout", ""),
+                            stderr=tool_data.get("stderr", ""),
+                            output_files=tool_data.get("output_files", []),
+                            duration_ms=duration_ms
+                        )
                         
                         yield {
-                            "type": "response_delta",
-                            "content": delta.content,
-                            "accumulated": final_content
+                            "type": "execution_result",
+                            "status": tool_data.get("status"),
+                            "stdout": tool_data.get("stdout", ""),
+                            "stderr": tool_data.get("stderr", ""),
+                            "result": tool_data.get("result"),
+                            "output_files": tool_data.get("output_files", [])
                         }
                     
-                    # Tool calls (chunked)
-                    if delta.tool_calls:
-                        for tc_chunk in delta.tool_calls:
-                            idx = tc_chunk.index
-                            if idx not in tool_calls_accumulator:
-                                tool_calls_accumulator[idx] = {"id": "", "name": "", "arguments": ""}
-                            
-                            if tc_chunk.id:
-                                tool_calls_accumulator[idx]["id"] += tc_chunk.id
-                            if tc_chunk.function and tc_chunk.function.name:
-                                tool_calls_accumulator[idx]["name"] += tc_chunk.function.name
-                            if tc_chunk.function and tc_chunk.function.arguments:
-                                tool_calls_accumulator[idx]["arguments"] += tc_chunk.function.arguments
-                
-                # Convert accumulated tool calls to list
-                tool_calls_list = []
-                for idx in sorted(tool_calls_accumulator.keys()):
-                    tc = tool_calls_accumulator[idx]
-                    tool_calls_list.append({
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {"name": tc["name"], "arguments": tc["arguments"]}
-                    })
-                    logger.info(f"[Stream] Tool call: {tc['name']}")
-                
-                context.last_response_text = final_content
-                
-            except Exception as e:
-                logger.error(f"[Agent] API Error: {e}", exc_info=True)
-                yield {"type": "error", "content": str(e)}
-                yield {"type": "final_result", "status": "error", "result": {"error": str(e)}}
-                return
+                    # Add tool result message
+                    tool_msg = {
+                        "role": "tool",
+                        "tool_call_id": synthetic_call_id,
+                        "content": result
+                    }
+                    messages.append(tool_msg)
+                    
+                    # Continue loop
+                    continue
             
-            # Check for incomplete execute blocks and try to continue
-            if self._has_incomplete_execute_block(final_content):
-                logger.warning(f"[Agent] Incomplete <execute> block detected, asking model to continue...")
-                yield {"type": "status", "content": "Response was truncated, asking model to continue..."}
-                
-                # Add the incomplete response and ask to continue
-                messages.append({"role": "assistant", "content": final_content})
-                messages.append({"role": "user", "content": "Your response was truncated. Please continue from where you left off, completing the <execute> block. Do NOT repeat what you already wrote, just continue from the exact point of truncation."})
-                continue  # Continue the loop to get more output
-            
-            # === Synthetic Tool Call: Check for <execute> blocks ===
-            if context.pending_code_queue and not tool_calls_list:
-                # LLM wrote code but didn't call execute_code explicitly
-                # We create a Synthetic Tool Call
-                code_to_exec = context.pending_code_queue[-1]
-                synthetic_call_id = f"call_synthetic_{uuid.uuid4().hex[:8]}"
-                
-                logger.info(f"[Agent] Creating Synthetic Tool Call for code block (length: {len(code_to_exec)})")
-                yield {"type": "status", "content": "Executing code..."}
-                
-                # Yield the original code to frontend
-                yield {
-                    "type": "code",
-                    "code": code_to_exec
-                }
-                
-                # Add assistant message with synthetic tool_calls
-                assistant_msg = {
-                    "role": "assistant",
-                    "content": final_content,
-                    "tool_calls": [{
-                        "id": synthetic_call_id,
-                        "type": "function",
-                        "function": {
-                            "name": "execute_code",
-                            "arguments": json.dumps({"code": code_to_exec})
+                # === Handle explicit tool calls ===
+                if tool_calls_list:
+                    # Add assistant message with tool_calls
+                    assistant_msg = {
+                        "role": "assistant",
+                        "content": final_content or None,  # Can be empty if only tool calls
+                        "tool_calls": tool_calls_list
+                    }
+                    messages.append(assistant_msg)
+                    
+                    # Execute each tool
+                    for tc in tool_calls_list:
+                        tool_name = tc["function"]["name"]
+                        
+                        # === 记录工具调用 ===
+                        try:
+                            args = json.loads(tc["function"]["arguments"])
+                        except:
+                            args = {}
+                        
+                        self.session_logger.log_tool_call(
+                            tool=tool_name,
+                            args=args,
+                            call_id=tc["id"],
+                            turn=turn_count
+                        )
+                        
+                        yield {
+                            "type": "tool_call",
+                            "name": tool_name,
+                            "arguments": tc["function"]["arguments"],
+                            "call_id": tc["id"]
                         }
-                    }]
-                }
-                messages.append(assistant_msg)
-                
-                # Execute the code
-                result = await execute_code_internal(context, code_to_exec)
-                
-                # Yield execution result to frontend
-                tool_data = self._parse_tool_json(result)
-                if tool_data:
-                    yield {
-                        "type": "execution_result",
-                        "status": tool_data.get("status"),
-                        "stdout": tool_data.get("stdout", ""),
-                        "stderr": tool_data.get("stderr", ""),
-                        "result": tool_data.get("result"),
-                        "output_files": tool_data.get("output_files", [])
-                    }
-                
-                # Add tool result message
-                tool_msg = {
-                    "role": "tool",
-                    "tool_call_id": synthetic_call_id,
-                    "content": result
-                }
-                messages.append(tool_msg)
-                
-                # Continue loop
-                continue
-            
-            # === Handle explicit tool calls ===
-            if tool_calls_list:
-                # Add assistant message with tool_calls
-                assistant_msg = {
-                    "role": "assistant",
-                    "content": final_content or None,  # Can be empty if only tool calls
-                    "tool_calls": tool_calls_list
-                }
-                messages.append(assistant_msg)
-                
-                # Execute each tool
-                for tc in tool_calls_list:
-                    tool_name = tc["function"]["name"]
-                    
-                    yield {
-                        "type": "tool_call",
-                        "name": tool_name,
-                        "arguments": tc["function"]["arguments"],
-                        "call_id": tc["id"]
-                    }
-                    
-                    # Execute tool
-                    result = await self._execute_tool(tc, context)
-                    
-                    yield {
-                        "type": "tool_result",
-                        "name": tool_name,
-                        "result": result,
-                        "call_id": tc["id"]
-                    }
+                        
+                        # Execute tool
+                        import time
+                        start_time = time.time()
+                        result = await self._execute_tool(tc, context)
+                        duration_ms = (time.time() - start_time) * 1000
+                        
+                        # === 记录工具结果 ===
+                        tool_data = self._parse_tool_json(result)
+                        self.session_logger.log_tool_result(
+                            tool=tool_name,
+                            call_id=tc["id"],
+                            status=tool_data.get("status", "success") if tool_data else "unknown",
+                            result=result,
+                            duration_ms=duration_ms
+                        )
+                        
+                        yield {
+                            "type": "tool_result",
+                            "name": tool_name,
+                            "result": result,
+                            "call_id": tc["id"]
+                        }
                     
                     # Parse and yield structured result for UI
                     tool_data = self._parse_tool_json(result)
@@ -764,22 +765,43 @@ print(json.dumps({{
                         "content": result
                     }
                     messages.append(tool_msg)
+                    
+                    # Continue loop to let LLM process results
+                    continue
                 
-                # Continue loop to let LLM process results
-                continue
+                # No tool calls, no code blocks - we're done
+                logger.info(f"[Agent] No more actions, finishing turn {turn_count}")
+                break
             
-            # No tool calls, no code blocks - we're done
-            logger.info(f"[Agent] No more actions, finishing turn {turn_count}")
-            break
+            # Final response
+            clean_answer = self._clean_response_text(context.last_response_text)
+            
+            # === 记录 session 结束 ===
+            self.session_logger.log_session_end(
+                status="success",
+                total_turns=turn_count
+            )
+            
+            yield {
+                "type": "final_result",
+                "status": "success",
+                "result": {"answer": clean_answer}
+            }
         
-        # Final response
-        clean_answer = self._clean_response_text(context.last_response_text)
+        except Exception as e:
+            # === 记录错误和结束 ===
+            if hasattr(self, 'session_logger') and self.session_logger:
+                self.session_logger.log_error(str(e), error_type=type(e).__name__)
+                self.session_logger.log_session_end(
+                    status="error",
+                    total_turns=turn_count
+                )
+            raise
         
-        yield {
-            "type": "final_result",
-            "status": "success",
-            "result": {"answer": clean_answer}
-        }
+        finally:
+            # === 关闭 logger ===
+            if hasattr(self, 'session_logger') and self.session_logger:
+                self.session_logger.close()
 
 
 async def run_agent(

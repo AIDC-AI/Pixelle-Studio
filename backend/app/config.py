@@ -4,6 +4,10 @@ import os
 from typing import List, Dict, Any
 import json
 from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载 .env 文件 (必须在读取环境变量之前调用)
+load_dotenv()
 
 
 class AgentConfig:
@@ -35,18 +39,37 @@ class AgentConfig:
         self.enable_thinking_failover = os.getenv("ENABLE_THINKING_FAILOVER", "true").lower() == "true"
     
     def _load_model_fallbacks(self) -> List[str]:
-        """加载模型 fallback 链"""
-        # 尝试从配置文件加载
+        """
+        加载模型 fallback 链
+        
+        优先级:
+        1. 环境变量 MODEL_FALLBACKS (逗号分隔)
+        2. 配置文件 app/config/model_fallbacks.json
+        3. 代码默认值
+        """
+        # 1. 尝试从环境变量加载 (最高优先级)
+        env_fallbacks = os.getenv("MODEL_FALLBACKS")
+        if env_fallbacks:
+            # 支持逗号分隔的模型列表
+            models = [m.strip() for m in env_fallbacks.split(",") if m.strip()]
+            if models:
+                print(f"[Config] Using model fallbacks from environment: {models}")
+                return models
+        
+        # 2. 尝试从配置文件加载
         config_file = Path(__file__).parent / "config" / "model_fallbacks.json"
         if config_file.exists():
             try:
                 with open(config_file, "r") as f:
                     data = json.load(f)
-                    return data.get("fallbacks", [])
+                    fallbacks = data.get("fallbacks", [])
+                    if fallbacks:
+                        print(f"[Config] Using model fallbacks from config file: {fallbacks}")
+                        return fallbacks
             except Exception as e:
-                print(f"[Config] Failed to load model fallbacks: {e}")
+                print(f"[Config] Failed to load model fallbacks from file: {e}")
         
-        # 默认 fallback 链
+        # 3. 使用代码默认值 (兜底)
         default_fallbacks = {
             "gpt-4o": ["gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
             "gpt-4-turbo": ["gpt-4o", "gpt-3.5-turbo"],
@@ -54,7 +77,9 @@ class AgentConfig:
             "claude-3-5-sonnet": ["claude-3-sonnet", "claude-3-opus"],
         }
         
-        return default_fallbacks.get(self.default_model, ["gpt-3.5-turbo"])
+        fallbacks = default_fallbacks.get(self.default_model, ["gpt-3.5-turbo"])
+        print(f"[Config] Using default model fallbacks for {self.default_model}: {fallbacks}")
+        return fallbacks
     
     def get_model_chain(self, primary_model: str = None) -> List[str]:
         """
