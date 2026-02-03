@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any, AsyncGenerator, Tuple
 
 from openai import AsyncOpenAI
+import httpx
 
 from app.skills.loader import get_skill_loader
 from app.tools import (
@@ -121,10 +122,23 @@ class SkillAgent:
     
     async def _init_client_with_failover(self) -> AsyncOpenAI:
         """使用故障转移初始化 LLM 客户端"""
+        # 获取代理配置
+        http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
+        https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+        
+        # 构建 httpx 客户端配置
+        httpx_config = {}
+        if http_proxy or https_proxy:
+            httpx_config["proxies"] = {
+                "http://": http_proxy,
+                "https://": https_proxy or http_proxy,
+            }
+            logger.info(f"[Agent] Using proxy: {https_proxy or http_proxy}")
+        
         if not config.enable_auth_failover:
             # 不启用故障转移,直接使用默认配置
             logger.info("[Agent] Auth failover disabled, using default config")
-            return AsyncOpenAI(timeout=LLM_TIMEOUT)
+            return AsyncOpenAI(timeout=LLM_TIMEOUT, http_client=httpx.AsyncClient(**httpx_config) if httpx_config else None)
         
         candidates = self.auth_store.get_candidates("openai")
         
@@ -140,7 +154,8 @@ class SkillAgent:
                 client = AsyncOpenAI(
                     api_key=profile.api_key,
                     base_url=profile.base_url,
-                    timeout=LLM_TIMEOUT
+                    timeout=LLM_TIMEOUT,
+                    http_client=httpx.AsyncClient(**httpx_config) if httpx_config else None
                 )
                 
                 # 简单测试 (不实际调用 API,只是初始化)
@@ -172,7 +187,7 @@ class SkillAgent:
         
         # 所有配置都失败,使用默认配置
         logger.error(f"[Agent] All auth profiles failed: {last_error}")
-        return AsyncOpenAI(timeout=LLM_TIMEOUT)
+        return AsyncOpenAI(timeout=LLM_TIMEOUT, http_client=httpx.AsyncClient(**httpx_config) if httpx_config else None)
     
     async def _call_llm_with_failover(
         self,

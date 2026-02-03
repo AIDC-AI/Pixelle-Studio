@@ -322,7 +322,8 @@ from pathlib import Path
     status = "success"
     
     try:
-        async for log in run_script(str(script_file), cwd=str(context.backend_root)):
+        # Execute in the user's script directory, not backend root
+        async for log in run_script(str(script_file), cwd=str(context.script_dir)):
             if log.get("stream") == "stdout":
                 content = log.get("content", "")
                 output_lines.append(content)

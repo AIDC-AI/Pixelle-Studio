@@ -4,8 +4,8 @@ import { AppProvider } from "@/context";
 import AuthGuard from "@/components/auth/AuthGuard";
 
 export const metadata: Metadata = {
-    title: "MCP Workflow Demo",
-    description: "MCP Workflow Demo Application",
+    title: "Pixelle Studio",
+    description: "Pixelle Studio Application",
 };
 
 export default function RootLayout({

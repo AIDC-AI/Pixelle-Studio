@@ -5,6 +5,7 @@ import { useEffect, useState, useRef, useCallback, lazy, Suspense, useMemo } fro
 import { api } from "@/lib/api";
 import { useApp } from "@/context";
 import { sessionAPI } from "@/lib/sessionApi";
+import { chatStorage } from "@/lib/chatStorage";
 import Input from "./input";
 import useChatStorage from "@/hooks/useChatStorage";
 import { UploadFile } from "@/components/ui/upload";
@@ -325,7 +326,7 @@ const Chat = () => {
           // Filter code blocks from the content
           const { filtered, state: newParserState } = filterCodeBlocks(deltaContent.trim(), parserState);
           setParserState(newParserState);
-          // Update state
+          // Update state - 显示过滤后的推理文本
           setStreamingResponse(filtered);
           // setStreamingResponse(prev => {
           //   // const newContent = prev + filtered;
@@ -393,6 +394,17 @@ const Chat = () => {
             iteration: data.iteration
           })
         } else if (data.type === 'code') {
+          // === 在显示代码前，先保存累积的推理文本 ===
+          if (streamingResponse && streamingResponse.trim()) {
+            _messages.push({
+              type: 'response',
+              content: streamingResponse.trim(),
+              timestamp: Date.now()
+            });
+          }
+          setStreamingResponse('');
+          hasToolCallsRef.current = true;
+          
           // Handle code generation event
           currentExecCount = data.execution_count || currentExecCount + 1;
           _messages.push({
@@ -441,6 +453,8 @@ const Chat = () => {
 
           // 代码执行完成后，重置工具调用标记，允许后续的流式输出
           hasToolCallsRef.current = false;
+          // 重置parser状态，准备接收新的推理文本
+          setParserState(createParserState());
         } else if (data.type === 'response') {
           // Handle direct response from agent (完整响应，非流式)
           // 如果有流式内容累积，使用累积的内容；否则使用data.content
@@ -460,7 +474,16 @@ const Chat = () => {
         } else if (data.type === 'tool_call') {
           // 标记有工具调用，停止流式输出
           hasToolCallsRef.current = true;
-          // 清除"任务执行中..."提示
+          
+          // === 关键修复: 在清空流式响应前，先保存累积的推理文本 ===
+          if (streamingResponse && streamingResponse.trim()) {
+            _messages.push({
+              type: 'response',
+              content: streamingResponse.trim(),
+              timestamp: Date.now()
+            });
+          }
+          // 清空流式响应
           setStreamingResponse('');
 
           // Handle tool call event
