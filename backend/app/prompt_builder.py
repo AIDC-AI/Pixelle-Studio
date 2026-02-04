@@ -32,7 +32,8 @@ class SystemPromptBuilder:
         """添加身份定义"""
         identity = [
             "You are an intelligent AI agent specialized in task automation and workflow execution.",
-            "You can load domain-specific skills, execute Python code, call external tools, and spawn sub-agents for parallel tasks.",
+            "You have access to file operations, persistent shell sessions, domain-specific skills, and can spawn sub-agents for parallel tasks.",
+            "You can execute commands step-by-step, maintain variables across multiple calls, and handle complex multi-step workflows.",
             ""
         ]
         self.sections.extend(identity)
@@ -40,42 +41,46 @@ class SystemPromptBuilder:
     
     def add_skills_section(
         self,
-        skills_summary: Optional[str] = None,
-        progressive_loading: bool = True
+        skills_summary: Optional[str] = None
     ) -> "SystemPromptBuilder":
         """
         添加 Skills 指导
         
         Args:
-            skills_summary: Skills 摘要（按需加载时显示简短描述）
-            progressive_loading: 是否使用渐进式加载（推荐）
+            skills_summary: Skills 摘要
         """
         if self._is_minimal() or self._is_none():
             return self
         
         section = ["## Skills (Domain-Specific Guidance)"]
         
-        if progressive_loading:
-            section.extend([
-                "",
-                "**Progressive Loading Strategy:**",
-                "1. Scan the <available_skills> list below for skill descriptions",
-                "2. If a skill clearly applies to the user's request:",
-                "   - Call `load_skill(skill_name)` to get detailed guidance",
-                "   - Follow the loaded skill's instructions carefully",
-                "3. If multiple skills could apply: choose the most specific one",
-                "4. If no skill clearly applies: proceed without loading any",
-                "",
-                "**Constraints:**",
-                "- Never load more than 1-2 skills per request (avoid token waste)",
-                "- Only load skills that are directly relevant to the current task",
-                "- Skills contain step-by-step guides, examples, and best practices",
-                ""
-            ])
+        section.extend([
+            "",
+            "⚠️ **重要：Skills 是特定领域任务的权威指南，必须遵循！**",
+            "",
+            "**如何使用 Skills:**",
+            "1. 查看下面的 Skills 列表，找到相关的 Skill",
+            "2. 使用 `read_file('skills/path/to/SKILL.md')` 加载详细文档",
+            "3. **仔细遵循 Skill 中的步骤、示例和最佳实践**",
+            "4. 如果 Skill 需要其他文件，使用 `read_file` 加载",
+            "",
+            "**必须查阅 Skill 的任务类型：**",
+            "- 📄 **PDF 操作**（创建、解析、提取）→ 必读 `skills/default/pdf/SKILL.md`",
+            "  - ⚠️ 创建中文 PDF 时，必须遵循中文字体处理流程，否则会出现乱码",
+            "- 📊 **数据分析**（pandas、可视化）→ 必读相关 skill",
+            "- 🌐 **Web 自动化**（爬虫、表单填写）→ 必读相关 skill",
+            "- 🔐 **加密/安全**（证书、签名）→ 必读相关 skill",
+            "",
+            "**注意事项:**",
+            "- ⚠️ **不要凭记忆编写代码，特定任务必须先读 Skill**",
+            "- Skills 包含经过验证的代码示例和避坑指南",
+            "- 只加载与当前任务直接相关的 Skills（避免浪费 tokens）",
+            "- 同一任务通常只需要 1-2 个 Skills",
+            ""
+        ])
         
         if skills_summary:
             section.extend([
-                "**Available Skills:**",
                 skills_summary,
                 ""
             ])
@@ -97,41 +102,48 @@ class SystemPromptBuilder:
         """
         section = ["## Available Tools"]
         
-        # Core tools
-        core_tools = {
-            "load_skill": "Load domain-specific skill documentation",
-            "read_skill_file": "Read a file from a skill directory",
-            "list_skill_tree": "List skill directory structure",
-            "list_mcp_tools": "Discover external MCP tools",
+        # 新工具集
+        new_tools = {
+            # 持久化会话（最重要）
+            "shell_exec": "⭐ Execute commands in persistent session (variables persist)",
+            # 文件操作
+            "read_file": "Read file contents",
+            "write_file": "Create or overwrite files",
+            "edit_file": "Edit files (string replacement)",
+            # 搜索和查找
+            "grep": "Search file contents (regex supported)",
+            "find": "Find files by name pattern (glob)",
+            "ls": "List directory contents",
+            # 命令执行
+            "exec": "Execute one-time commands (no persistence)",
+            "process": "Manage background tasks",
         }
         
         # SubAgent tools
         if not self._is_minimal():
-            core_tools.update({
+            new_tools.update({
                 "spawn_subagent": "Spawn a background sub-agent for parallel tasks",
                 "check_subagent_status": "Check sub-agent status and results",
             })
         
-        # Code execution (implicit)
         section.extend([
             "",
-            "**Function Call Tools:**"
+            "**核心工具:**"
         ])
-        for tool_name in sorted(available_tools):
-            desc = (tool_descriptions or core_tools).get(tool_name, "")
-            if desc:
+        
+        # 优先显示新工具
+        for tool_name in ["shell_exec", "read_file", "write_file", "edit_file", "grep", "find", "ls", "exec", "process"]:
+            if tool_name in available_tools or tool_name in new_tools:
+                desc = (tool_descriptions or new_tools).get(tool_name, "")
                 section.append(f"- `{tool_name}`: {desc}")
         
-        section.extend([
-            "",
-            "**Code Execution (Implicit):**",
-            "- Write Python code in <execute lang=\"python\">...</execute> blocks",
-            "- Code is automatically executed in a sandboxed environment",
-            "- Results are captured and returned to you",
-            "- You can use libraries like pandas, openpyxl, requests, etc.",
-            ""
-        ])
+        # 显示其他工具
+        for tool_name in sorted(available_tools):
+            if tool_name not in new_tools:
+                desc = (tool_descriptions or {}).get(tool_name, "")
+                section.append(f"- `{tool_name}`: {desc}")
         
+        section.append("")
         self.sections.extend(section)
         return self
     
@@ -143,27 +155,138 @@ class SystemPromptBuilder:
         section = [
             "## Code Execution Guidelines",
             "",
-            "**Writing Executable Code:**",
-            "1. Use <execute lang=\"python\">...</execute> blocks for Python code",
-            "2. Always structure your output as a JSON dict in the final print:",
-            "   ```python",
-            "   import json",
-            "   result = {\"status\": \"success\", \"data\": your_data}",
-            "   print(json.dumps(result, ensure_ascii=False, indent=2))",
-            "   ```",
-            "3. For file operations: use absolute paths or paths relative to backend/scripts/",
-            "4. Output files are automatically detected and returned to the user",
+            "**推荐工作流（多步执行）:**",
+            "1. 使用 `write_file` 创建脚本文件（notify_frontend=false，不显示中间文件）",
+            "2. 使用 `exec` 执行脚本",
+            "3. exec 生成的结果文件会自动通知前端显示",
             "",
-            "**Error Handling:**",
-            "- Wrap risky code in try-except blocks",
-            "- Return clear error messages in the JSON result",
-            "- If code fails, analyze the error and retry with fixes",
+            "⚠️ **重要**: write_file 的 notify_frontend 参数：",
+            "- 中间脚本文件（.py等）：**必须设置 notify_frontend=false**",
+            "- 用户最终要的文件：由 exec 生成，会自动显示",
             "",
-            "**Best Practices:**",
-            "- Keep code blocks focused (one task per block)",
-            "- Add comments for complex logic",
-            "- Use descriptive variable names",
-            "- Test incrementally for complex workflows",
+            "**shell_exec vs exec:**",
+            "- `shell_exec`: 持久化会话，变量保持（推荐用于多步任务）",
+            "  ```",
+            "  shell_exec(\"x=123\", shell_type=\"bash\")",
+            "  shell_exec(\"echo $x\", shell_type=\"bash\")  # 输出: 123",
+            "  ```",
+            "- `exec`: 一次性命令，每次都是新进程",
+            "  ```",
+            "  exec(\"python script.py\")",
+            "  ```",
+            "",
+            "⚠️ **关键：shell_exec 的 shell_type 参数**",
+            "",
+            "shell_type 决定了 command 的格式！",
+            "",
+            "**shell_type=\"bash\"**: command 是 Bash 命令",
+            "```",
+            "✅ 正确:",
+            "  shell_exec(\"ls -la\", shell_type=\"bash\")",
+            "  shell_exec(\"python script.py\", shell_type=\"bash\")",
+            "  shell_exec(\"python -c 'print(123)'\", shell_type=\"bash\")",
+            "",
+            "❌ 错误:",
+            "  shell_exec(\"import pandas\", shell_type=\"bash\")  # bash 不认识 import",
+            "```",
+            "",
+            "**shell_type=\"python\"**: command 是纯 Python 代码",
+            "```",
+            "✅ 正确:",
+            "  shell_exec(\"import pandas as pd\", shell_type=\"python\")",
+            "  shell_exec(\"x = 123\", shell_type=\"python\")",
+            "  shell_exec(\"print(x)\", shell_type=\"python\")",
+            "",
+            "❌ 错误:",
+            "  shell_exec(\"python -c 'print(123)'\", shell_type=\"python\")  # python -c 是 bash 命令！",
+            "  shell_exec(\"ls -la\", shell_type=\"python\")  # ls 是 bash 命令",
+            "```",
+            "",
+            "**Python 多步执行:**",
+            "```",
+            "shell_exec(\"import pandas as pd\", shell_type=\"python\")",
+            "shell_exec(\"df = pd.read_csv('data.csv')\", shell_type=\"python\")",
+            "shell_exec(\"print(df.head())\", shell_type=\"python\")",
+            "```",
+            "",
+            "**Python 环境说明:**",
+            "- Python 版本: 3.12.7",
+            "- 执行环境: `shell_exec` 和 `exec` 都使用 backend/.venv 的 Python",
+            "- ✅ 所有预装包在 `shell_exec` 和 `exec` 中都可用",
+            "- **已预装的包:**",
+            "  - 数据处理: pandas (2.3.3), numpy (2.3.0), openpyxl (3.1.5), pyarrow (14.0.2)",
+            "  - 可视化: matplotlib (3.10.8), pillow (12.0.0)",
+            "  - 网络请求: requests (2.32.5), httpx (0.28.1), aiohttp (3.13.3), beautifulsoup4 (4.14.3)",
+            "  - PDF/文档: reportlab (4.4.9), lxml (5.4.0)",
+            "  - 金融数据: yfinance (0.2.66), openbb (4.6.0)",
+            "  - AI/LLM: openai (2.13.0), anthropic (0.42.0), langchain (1.2.0), langgraph (1.0.5)",
+            "  - Web自动化: playwright (1.55.0), trafilatura (2.0.0)",
+            "  - Web框架: fastapi (0.128.0), uvicorn (0.40.0)",
+            "  - 工具库: pydantic (2.12.5), python-dotenv (1.1.0), loguru (0.7.3)",
+            "- ⚠️ **禁止安装新包**: `pip install` 命令被禁用",
+            "  - 原因: 共享环境，避免版本冲突",
+            "  - 如需其他包，请告知用户联系管理员",
+            "",
+            "**文件创建通知:**",
+            "- `write_file`: 自动触发前端通知（推荐）",
+            "- `shell_exec` 创建文件: 也会自动检测并通知前端",
+            "- 创建文件后无需手动使用 `ls` 确认",
+            "",
+            "**文件组织策略:**",
+            "- 用户创建的脚本会自动按日期分组",
+            "- 目录结构: `scripts/{user_id}/{YYYY-MM-DD}/`",
+            "- 同名文件会自动重命名 (例如: `script.py`, `script_2.py`, `script_3.py`)",
+            "- 每天创建新的日期子目录，方便查找和管理",
+            "- 提示: 使用 `ls` 查看当前日期目录下的所有文件",
+            "",
+            "**用户上传的文件:**",
+            "- 用户上传的文件会自动保存到当前工作目录",
+            "- ✅ **直接使用文件名访问**，例如: `open('file.pdf')` 或 `pd.read_csv('data.csv')`",
+            "- ❌ **不要使用** `user_file()` 函数 - 这个函数不存在！",
+            "- 示例:",
+            "  ```python",
+            "  # ✅ 正确：直接使用文件名",
+            "  with open('uploaded.pdf', 'rb') as f:",
+            "      # 处理文件",
+            "  ",
+            "  # ❌ 错误：不要使用不存在的函数",
+            "  with open(user_file('uploaded.pdf'), 'rb') as f:  # user_file 不存在！",
+            "  ```",
+            "",
+            "**write_file 兜底机制:**",
+            "如果 `write_file` 的 content 参数过长，可以使用代码块格式：",
+            "```python:script.py",
+            "# Your code here",
+            "def main():",
+            "    pass",
+            "```",
+            "系统会自动创建文件。",
+            "",
+            "**最佳实践:**",
+            "- 多步任务优先使用 `shell_exec`（变量持久化）",
+            "- 一次性任务使用 `exec`",
+            "- 短命令可以直接执行，长代码先写文件",
+            "- 使用 `read_file` 查看执行结果",
+            "",
+            "⚠️ **代码长度限制（重要）:**",
+            "- **shell_exec 代码不要超过 50 行或 1500 字符**",
+            "- 如果代码较长，**必须**使用 `write_file` + `exec` 的方式：",
+            "  ```",
+            "  # ✅ 正确：长代码先写文件",
+            "  write_file(\"script.py\", \"...长代码...\")",
+            "  exec(\"python script.py\")",
+            "  ",
+            "  # ❌ 错误：直接在 shell_exec 中执行长代码",
+            "  shell_exec(\"...1000行代码...\", shell_type=\"python\")",
+            "  ```",
+            "- **原因**: pexpect 环境对长代码的处理可能不稳定，容易导致缓冲区问题",
+            "- **示例场景**: PDF生成、数据处理脚本、复杂函数定义等",
+            "",
+            "**代码简洁性原则:**",
+            "- 保持 shell_exec 中的代码简洁明了",
+            "- 复杂逻辑应该封装到文件中",
+            "- 对于有多个函数定义的代码，使用 write_file",
+            "- 对于需要多次调用的函数，先定义到文件中再导入",
             ""
         ]
         
@@ -222,7 +345,8 @@ class SystemPromptBuilder:
             "   - 是否有文件上传或上下文依赖？",
             "",
             "2. **选择工具/技能**",
-            "   - 是否有相关 Skill？→ 加载并遵循",
+            "   - ⚠️ **特定领域任务（PDF、数据分析、Web自动化等）？→ 必须先加载相关 Skill**",
+            "   - 是否有相关 Skill？→ 使用 `read_file` 加载并严格遵循",
             "   - 需要外部工具？→ list_mcp_tools 查询",
             "   - 需要并行处理？→ 考虑 spawn_subagent",
             "",
@@ -255,6 +379,8 @@ class SystemPromptBuilder:
             "- Summarize long outputs",
             "",
             "**Accuracy:**",
+            "- ⚠️ **不要凭记忆编写特定领域代码（PDF、加密、复杂API等）**",
+            "- ⚠️ **必须先查阅相关 Skill，使用经过验证的代码模板**",
             "- Verify file paths before operations",
             "- Test code incrementally for complex tasks",
             "- Ask clarifying questions if requirements are ambiguous",
@@ -325,7 +451,7 @@ def build_full_system_prompt(
     builder = SystemPromptBuilder(mode=PromptMode.FULL)
     
     builder.add_identity()
-    builder.add_skills_section(skills_summary=skills_summary, progressive_loading=True)
+    builder.add_skills_section(skills_summary=skills_summary)
     
     if available_tools:
         builder.add_tools_section(available_tools=available_tools)

@@ -9,6 +9,7 @@ from app.utils.prompt import get_full_message
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 import os
@@ -58,6 +59,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================================
+# Static Files Service - 为前端提供生成文件的 HTTP 访问
+# ============================================================================
+SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
+SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Mount static files directory
+# URL: http://localhost:8001/files/1/2026-02-04/example.pdf
+# Maps to: backend/scripts/1/2026-02-04/example.pdf
+app.mount(
+    "/files",
+    StaticFiles(directory=str(SCRIPTS_DIR)),
+    name="files"
+)
+log.info(f"Static files service mounted at /files -> {SCRIPTS_DIR}")
 
 # Storage directory for uploaded files
 # STORAGE_DIR is now dynamic based on user_id, see upload_file
@@ -321,7 +338,7 @@ async def process_with_agent(
                 # Append generated files info to assistant message
                 if assistant_text:
                     if generated_files:
-                        assistant_text += "\n\n## Generated Files (use `user_file('filename')` to access):\n"
+                        assistant_text += "\n\n## Generated Files:\n"
                         for fname in generated_files:
                             assistant_text += f"- {fname}\n"
                     history_messages.append({"role": "assistant", "content": assistant_text})
@@ -475,10 +492,14 @@ async def process_with_agent(
 async def upload_file(file: UploadFile = File(...), request: Request = None, user_id: Optional[int] = None):
     """Upload a file and return a URL for access."""
     try:
-        # Determine storage directory based on user_id
+        # ✅ 使用日期子目录，与 write_file 和 exec 保持一致
+        from datetime import datetime
         script_root = Path(__file__).parent.parent / "scripts"
         target_subdir = str(user_id) if user_id is not None else "default"
-        storage_dir = script_root / target_subdir
+        
+        # 添加日期子目录
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        storage_dir = script_root / target_subdir / date_str
         storage_dir.mkdir(parents=True, exist_ok=True)
         
         file_id = str(uuid.uuid4())[:4]
@@ -490,11 +511,11 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, use
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        log.info(f"File uploaded: {file.filename} -> {unique_filename} (scope: {target_subdir})")
+        log.info(f"File uploaded: {file.filename} -> {unique_filename} (scope: {target_subdir}/{date_str})")
         
         port = request.url.port if request and request.url.port else 8001
-        # Include user_id in URL path for retrieval
-        url_path = f"{target_subdir}/{unique_filename}"
+        # ✅ URL 路径包含日期子目录
+        url_path = f"{target_subdir}/{date_str}/{unique_filename}"
         lan_url = f"http://{LOCAL_IP}:{port}/f/{url_path}"
 
         return {
@@ -503,7 +524,7 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, use
             "file_name": unique_filename,  # 保存后的文件名
             "original_name": file.filename,  # 原始文件名
             "size": file_path.stat().st_size,
-            "scope": target_subdir
+            "scope": f"{target_subdir}/{date_str}"
         }
 
     except Exception as e:
@@ -511,9 +532,21 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, use
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/f/{user_id}/{date}/{filename}")
+async def get_user_file(user_id: int, date: str, filename: str):
+    """Serve uploaded files for a specific user with date subdirectory."""
+    script_root = Path(__file__).parent.parent / "scripts"
+    file_path = script_root / str(user_id) / date / filename
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(file_path)
+
+
 @app.get("/f/{user_id}/{filename}")
-async def get_user_file(user_id: int, filename: str):
-    """Serve uploaded files for a specific user."""
+async def get_user_file_legacy(user_id: int, filename: str):
+    """Serve uploaded files for a specific user (legacy, no date subdirectory)."""
     script_root = Path(__file__).parent.parent / "scripts"
     file_path = script_root / str(user_id) / filename
 

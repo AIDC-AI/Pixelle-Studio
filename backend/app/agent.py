@@ -28,8 +28,10 @@ from app.tools import (
     AgentContext,
     TOOL_SCHEMAS,
     TOOL_HANDLERS,
-    execute_code_internal,
 )
+from app.code_block_parser import process_code_blocks, has_code_blocks
+from app.skills_manager import get_skills_summary
+from app.prompt_builder import build_full_system_prompt
 from app.utils.network import LOCAL_IP, SERVER_PORT
 from app.auth.models import AuthStore
 from app.config import get_config
@@ -310,45 +312,17 @@ class SkillAgent:
         # 所有模型和 thinking level 都失败
         raise RuntimeError(f"All models and thinking levels failed. Last error: {last_error}")
     
-    @staticmethod
-    def _extract_execute_blocks(text: str) -> List[str]:
-        """Extract code from <execute lang="python">...</execute> blocks."""
-        pattern = r'<execute\s+lang=["\']python["\']\s*>(.*?)</execute>'
-        matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
-        return [match.strip() for match in matches if match.strip()]
-    
-    @staticmethod
-    def _has_incomplete_execute_block(text: str) -> bool:
-        """Check if text contains an incomplete <execute> block."""
-        if not text:
-            return False
-        open_pattern = r'<execute\s+lang=["\']python["\']\s*>'
-        close_pattern = r'</execute>'
-        open_count = len(re.findall(open_pattern, text, re.IGNORECASE))
-        close_count = len(re.findall(close_pattern, text, re.IGNORECASE))
-        return open_count > close_count
-    
-    @staticmethod
-    def _clean_response_text(text: str) -> str:
-        """Clean response text by removing <execute> code blocks."""
-        if not text:
-            return text
-        pattern = r'<execute\s+lang=["\']python["\']\s*>.*?</execute>'
-        cleaned = re.sub(pattern, '', text, flags=re.DOTALL | re.IGNORECASE)
-        cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
-        return cleaned.strip()
+    # 旧的 <execute> 块处理函数已移除
+    # 现在使用代码块解析器（code_block_parser.py）处理 ```language:filename 格式
     
     def _build_system_prompt(self) -> str:
         """Build the system prompt using the modular Prompt Builder."""
-        from app.prompt_builder import build_full_system_prompt
-        from app.tools import TOOL_HANDLERS
-        
-        # Get skills XML summary
-        skills_xml = self.skill_loader.build_skills_xml_prompt(self.user_id)
+        # Get skills summary (new format)
+        skills_summary = get_skills_summary(user_id=self.user_id)
         
         # Build prompt using the new modular builder
         return build_full_system_prompt(
-            skills_summary=skills_xml,
+            skills_summary=skills_summary,
             available_tools=set(TOOL_HANDLERS.keys()),
             model=self.model,
             mcp_server_url=self.mcp_server_url,
@@ -357,16 +331,11 @@ class SkillAgent:
     
     def _create_context(self, session_id: str) -> AgentContext:
         """Create the context object passed to all tools."""
+        # ✅ 不传递 script_dir 和 backend_root，让 AgentContext 自己计算
+        # 这样可以确保使用最新的日期子目录
         return AgentContext(
             user_id=self.user_id,
             session_id=session_id,
-            skill_loader=self.skill_loader,
-            script_dir=self.script_dir,
-            backend_root=self.backend_root,
-            mcp_server_url=self.mcp_server_url,
-            mcp_server_type=self.mcp_server_type,
-            loaded_skills={},
-            tool_call_count=0,
         )
     
     async def _execute_tool(self, tool_call: Dict, context: AgentContext) -> str:
@@ -381,14 +350,6 @@ class SkillAgent:
             return json.dumps({"status": "error", "error": f"Invalid JSON arguments: {e}"})
         
         logger.info(f"[Tool] Executing: {name} with args: {args}")
-        
-        # Handle execute_code specially (Synthetic Tool Call)
-        if name == "execute_code":
-            code = args.get("code", "")
-            if code:
-                return await execute_code_internal(context, code)
-            else:
-                return json.dumps({"status": "error", "error": "No code provided"})
         
         # Handle regular tools
         handler = TOOL_HANDLERS.get(name)
@@ -532,7 +493,7 @@ class SkillAgent:
                 self.session_logger.log_status(f"Turn {turn_count} started", turn=turn_count)
                 
                 # Clear pending code queue for this turn
-                context.pending_code_queue = []
+                # 旧的 pending_code_queue 已移除（不再需要）
                 context.last_response_text = ""
                 
                 try:
@@ -559,12 +520,9 @@ class SkillAgent:
                             final_content += delta.content
                             
                             # Check for new <execute> blocks
-                            execute_blocks = self._extract_execute_blocks(final_content)
-                            existing_count = len(context.pending_code_queue)
-                            new_blocks = execute_blocks[existing_count:]
-                            for block in new_blocks:
-                                context.pending_code_queue.append(block)
-                                logger.info(f"[Stream] Found execute block #{len(context.pending_code_queue)}")
+                            # 旧的 execute block 提取逻辑已移除
+                            # 现在使用代码块解析器处理 ```language:filename 格式
+                            pass
                             
                             yield {
                                 "type": "response_delta",
@@ -613,87 +571,43 @@ class SkillAgent:
                     yield {"type": "final_result", "status": "error", "result": {"error": str(e)}}
                     return
             
-                # Check for incomplete execute blocks and try to continue
-                if self._has_incomplete_execute_block(final_content):
-                    logger.warning(f"[Agent] Incomplete <execute> block detected, asking model to continue...")
-                    yield {"type": "status", "content": "Response was truncated, asking model to continue..."}
+                # === 新机制：检测代码块并自动创建文件 ===
+                if has_code_blocks(final_content) and not tool_calls_list:
+                    logger.info(f"[Agent] Detected code blocks in response, auto-creating files...")
+                    yield {"type": "status", "content": "检测到代码块，正在创建文件..."}
                     
-                    # Add the incomplete response and ask to continue
-                    messages.append({"role": "assistant", "content": final_content})
-                    messages.append({"role": "user", "content": "Your response was truncated. Please continue from where you left off, completing the <execute> block. DO NOT repeat what you already wrote, just continue from the exact point of truncation."})
-                    continue  # Continue the loop to get more output
-            
-                # === Synthetic Tool Call: Check for <execute> blocks ===
-                if context.pending_code_queue and not tool_calls_list:
-                    # LLM wrote code but didn't call execute_code explicitly
-                    # We create a Synthetic Tool Call
-                    code_to_exec = context.pending_code_queue[-1]
-                    synthetic_call_id = f"call_synthetic_{uuid.uuid4().hex[:8]}"
+                    # 自动创建文件
+                    summary = await process_code_blocks(
+                        final_content,
+                        context,
+                        TOOL_HANDLERS["write_file"]
+                    )
                     
-                    logger.info(f"[Agent] Creating Synthetic Tool Call for code block (length: {len(code_to_exec)})")
-                    yield {"type": "status", "content": "Executing code..."}
-                    
-                    # === 记录代码执行 ===
-                    self.session_logger.log_code_execution(code_to_exec, turn=turn_count)
-                    
-                    # Yield the original code to frontend
-                    yield {
-                        "type": "code",
-                        "code": code_to_exec
-                    }
-                    
-                    # Add assistant message with synthetic tool_calls
-                    assistant_msg = {
-                        "role": "assistant",
-                        "content": final_content,
-                        "tool_calls": [{
-                            "id": synthetic_call_id,
-                            "type": "function",
-                            "function": {
-                                "name": "execute_code",
-                                "arguments": json.dumps({"code": code_to_exec})
-                            }
-                        }]
-                    }
-                    messages.append(assistant_msg)
-                    
-                    # Execute the code
-                    import time
-                    start_time = time.time()
-                    result = await execute_code_internal(context, code_to_exec)
-                    duration_ms = (time.time() - start_time) * 1000
-                    
-                    # Parse and yield execution result to frontend
-                    tool_data = self._parse_tool_json(result)
-                    
-                    # === 记录代码结果 ===
-                    if tool_data:
-                        self.session_logger.log_code_result(
-                            status=tool_data.get("status", "unknown"),
-                            stdout=tool_data.get("stdout", ""),
-                            stderr=tool_data.get("stderr", ""),
-                            output_files=tool_data.get("output_files", []),
-                            duration_ms=duration_ms
-                        )
+                    if summary:
+                        # 添加创建摘要到响应
+                        final_content_with_summary = final_content + "\n\n" + summary
                         
+                        # Add assistant message
+                        messages.append({
+                            "role": "assistant",
+                            "content": final_content_with_summary
+                        })
+                        
+                        # Yield the summary
                         yield {
-                            "type": "execution_result",
-                            "status": tool_data.get("status"),
-                            "stdout": tool_data.get("stdout", ""),
-                            "stderr": tool_data.get("stderr", ""),
-                            "result": tool_data.get("result"),
-                            "output_files": tool_data.get("output_files", [])
+                            "type": "status",
+                            "content": summary
                         }
+                        
+                        logger.info(f"[Agent] Files created from code blocks: {summary}")
+                    else:
+                        # No summary, just add the original message
+                        messages.append({
+                            "role": "assistant",
+                            "content": final_content
+                        })
                     
-                    # Add tool result message
-                    tool_msg = {
-                        "role": "tool",
-                        "tool_call_id": synthetic_call_id,
-                        "content": result
-                    }
-                    messages.append(tool_msg)
-                    
-                    # Continue loop
+                    # Continue the loop (let LLM continue the conversation)
                     continue
             
                 # === Handle explicit tool calls ===
@@ -746,32 +660,123 @@ class SkillAgent:
                             duration_ms=duration_ms
                         )
                         
+                        # 先发送通用的 tool_result
                         yield {
                             "type": "tool_result",
                             "name": tool_name,
                             "result": result,
                             "call_id": tc["id"]
                         }
-                    
-                    # Parse and yield structured result for UI
-                    tool_data = self._parse_tool_json(result)
-                    if tool_data:
-                        tool_type = tool_data.get("__tool__")
-                        if tool_type == "execute_code":
-                            yield {
-                                "type": "execution_result",
-                                "status": tool_data.get("status"),
-                                "stdout": tool_data.get("stdout", ""),
-                                "stderr": tool_data.get("stderr", ""),
-                                "result": tool_data.get("result"),
-                                "output_files": tool_data.get("output_files", [])
-                            }
-                        elif tool_type == "load_skill":
-                            if tool_data.get("status") == "success":
+                        
+                        # 解析工具结果，发送结构化的展示事件
+                        tool_data = self._parse_tool_json(result)
+                        if tool_data:
+                            status = tool_data.get("status")
+                            
+                            # write_file: 展示文件创建信息
+                            if tool_name == "write_file" and status == "success":
+                                # ✅ 检查 notify_frontend 字段
+                                notify_frontend = tool_data.get("notify_frontend", True)  # 默认True保持向后兼容
+                                
+                                # ✅ 兜底：过滤中间脚本文件
+                                file_path = tool_data.get("path", "")
+                                actual_filename = tool_data.get("actual_filename", "")
+                                
+                                # 判断是否是中间脚本文件
+                                is_script_file = any(actual_filename.endswith(ext) for ext in ['.py', '.sh', '.js', '.ts'])
+                                
+                                # 只有 notify_frontend=True 且不是脚本文件时才通知前端
+                                if notify_frontend and not is_script_file:
+                                    relative_path = tool_data.get("relative_path", file_path)
+                                    file_size = tool_data.get("size", 0)
+                                    lines = tool_data.get("lines", 0)
+                                    
+                                    # ✅ 处理重命名情况
+                                    was_renamed = tool_data.get("renamed", False)
+                                    
+                                    if was_renamed:
+                                        original_name = tool_data.get("original_name", "")
+                                        message = f"✅ 文件已创建（重命名）: {original_name} -> {actual_filename} ({lines} 行, {file_size} 字节)"
+                                    else:
+                                        message = f"✅ 文件已创建: {relative_path} ({lines} 行, {file_size} 字节)"
+                                    
+                                    yield {
+                                        "type": "file_created",
+                                        "path": file_path,  # 绝对路径
+                                        "relative_path": relative_path,  # 相对路径（更友好）
+                                        "actual_filename": actual_filename,  # 实际文件名
+                                        "renamed": was_renamed,  # 是否被重命名
+                                        "size": file_size,
+                                        "lines": lines,
+                                        "message": message
+                                    }
+                                else:
+                                    # 记录日志但不通知前端
+                                    logger.debug(f"[agent] 跳过文件通知: {actual_filename} (notify_frontend={notify_frontend}, is_script={is_script_file})")
+                            
+                            # exec/shell_exec: 展示执行结果
+                            elif tool_name in ["exec", "shell_exec"] and status == "success":
+                                stdout = tool_data.get("stdout", "") or tool_data.get("output", "")
+                                stderr = tool_data.get("stderr", "")
+                                if stdout or stderr:
+                                    yield {
+                                        "type": "execution_result",
+                                        "tool": tool_name,
+                                        "stdout": stdout,
+                                        "stderr": stderr,
+                                        "status": status
+                                    }
+                                
+                                # ✅ 检测新创建的文件（exec/shell_exec 返回）
+                                created_files = tool_data.get("created_files", [])
+                                for file_info in created_files:
+                                    file_name = file_info.get("name", "")
+                                    
+                                    # ✅ 兜底：过滤中间脚本文件
+                                    is_script_file = any(file_name.endswith(ext) for ext in ['.py', '.sh', '.js', '.ts'])
+                                    
+                                    if not is_script_file:
+                                        yield {
+                                            "type": "file_created",
+                                            "path": file_info.get("path", ""),
+                                            "relative_path": file_name,
+                                            "actual_filename": file_name,
+                                            "renamed": False,
+                                            "size": file_info.get("size", 0),
+                                            "lines": file_info.get("lines", 0),
+                                            "message": f"✅ 文件已创建: {file_name} ({file_info.get('size', 0)} 字节)"
+                                        }
+                                    else:
+                                        logger.debug(f"[agent] 跳过脚本文件通知: {file_name}")
+                            
+                            # read_file: 展示文件内容（如果不太大）
+                            elif tool_name == "read_file" and status == "success":
+                                content = tool_data.get("content", "")
+                                if len(content) < 10000:  # 小于10KB直接展示
+                                    yield {
+                                        "type": "file_content",
+                                        "path": tool_data.get("path", ""),
+                                        "content": content,
+                                        "size": len(content)
+                                    }
+                            
+                            # 旧的兼容逻辑（逐步移除）
+                            tool_type = tool_data.get("__tool__")
+                            if tool_type == "execute_code":
                                 yield {
-                                    "type": "skill_loaded",
-                                    "skill_name": tool_data.get("skill_name")
+                                    "type": "execution_result",
+                                    "status": tool_data.get("status"),
+                                    "stdout": tool_data.get("stdout", ""),
+                                    "stderr": tool_data.get("stderr", ""),
+                                    "result": tool_data.get("result"),
+                                    "output_files": tool_data.get("output_files", [])
                                 }
+                            elif tool_type == "load_skill":
+                                if tool_data.get("status") == "success":
+                                    yield {
+                                        "type": "skill_loaded",
+                                        "skill_name": tool_data.get("skill_name")
+                                    }
                     
                     # Add tool result to messages
                     tool_msg = {
@@ -781,6 +786,13 @@ class SkillAgent:
                     }
                     messages.append(tool_msg)
                     
+                    # 发送轮次完成事件，帮助前端区分对话轮次
+                    yield {
+                        "type": "turn_complete",
+                        "turn": turn_count,
+                        "tool_calls_count": len(tool_calls_list)
+                    }
+                    
                     # Continue loop to let LLM process results
                     continue
                 
@@ -789,7 +801,7 @@ class SkillAgent:
                 break
             
             # Final response
-            clean_answer = self._clean_response_text(context.last_response_text)
+            clean_answer = context.last_response_text  # No need to clean anymore
             
             # === 记录 session 结束 ===
             self.session_logger.log_session_end(

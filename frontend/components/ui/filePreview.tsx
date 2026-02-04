@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { FileSpreadsheet, FileText, Image as ImageIcon, File } from 'lucide-react';
 import ExcelPreview from './excelPreview';
+import PdfPreview from './pdfPreview';
 
 interface FilePreviewProps {
   url: string;
@@ -11,6 +12,7 @@ interface FilePreviewProps {
 
 export default function FilePreview({ url, filename }: FilePreviewProps) {
   const [showPreview, setShowPreview] = useState(false);
+  const [previewType, setPreviewType] = useState<'excel' | 'pdf' | null>(null);
 
   // 获取文件扩展名
   const getFileExtension = (url: string) => {
@@ -47,8 +49,12 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
 
   const handleClick = () => {
     if (isExcel) {
+      setPreviewType('excel');
       setShowPreview(true);
-    } else if (isImage || isPdf) {
+    } else if (isPdf) {
+      setPreviewType('pdf');
+      setShowPreview(true);
+    } else if (isImage) {
       window.open(url, '_blank');
     } else {
       // 下载其他类型文件
@@ -59,6 +65,11 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
       link.click();
       document.body.removeChild(link);
     }
+  };
+
+  const handleClosePreview = () => {
+    setShowPreview(false);
+    setPreviewType(null);
   };
 
   return (
@@ -72,8 +83,12 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
         <span className="text-xs opacity-60 uppercase">{extension}</span>
       </button>
 
-      {showPreview && isExcel && (
-        <ExcelPreview url={url} onClose={() => setShowPreview(false)} />
+      {showPreview && previewType === 'excel' && (
+        <ExcelPreview url={url} onClose={handleClosePreview} />
+      )}
+
+      {showPreview && previewType === 'pdf' && (
+        <PdfPreview url={url} onClose={handleClosePreview} />
       )}
     </>
   );

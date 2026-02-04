@@ -120,7 +120,108 @@ if all_tables:
 
 ### reportlab - Create PDFs
 
-#### Basic PDF Creation
+⚠️ **重要：中文字体支持**
+
+reportlab 默认字体**不支持中文**，会显示为黑色方块 ▓▓▓。**必须注册中文字体并明确指定 fontName！**
+
+#### 中文字体处理（必读）
+
+**✅ 正确方法：注册字体 + 设置 ParagraphStyle**
+
+```python
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.enums import TA_LEFT
+import os
+
+# 🔑 第1步：注册中文字体（必须！）
+font_paths = [
+    '/System/Library/Fonts/PingFang.ttc',  # macOS
+    '/System/Library/Fonts/STHeiti Light.ttc',  # macOS 备选
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',  # Linux
+    'c:/windows/fonts/simsun.ttc',  # Windows
+]
+
+font_registered = False
+for font_path in font_paths:
+    if os.path.exists(font_path):
+        try:
+            pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
+            font_registered = True
+            print(f"✅ 成功注册字体: {font_path}")
+            break
+        except Exception as e:
+            print(f"⚠️ 字体 {font_path} 注册失败: {e}")
+            continue
+
+if not font_registered:
+    raise Exception("❌ 无法注册中文字体，请检查字体路径")
+
+# 🔑 第2步：创建使用中文字体的样式
+styles = getSampleStyleSheet()
+
+# ⚠️ 注意：必须设置 fontName='ChineseFont'，否则还是会乱码！
+chinese_title = ParagraphStyle(
+    'ChineseTitle',
+    parent=styles['Title'],
+    fontName='ChineseFont',  # 🔑 关键：指定字体
+    fontSize=18,
+    leading=22,
+    alignment=TA_LEFT
+)
+
+chinese_normal = ParagraphStyle(
+    'ChineseNormal',
+    parent=styles['Normal'],
+    fontName='ChineseFont',  # 🔑 关键：指定字体
+    fontSize=12,
+    leading=16,
+    alignment=TA_LEFT
+)
+
+# 🔑 第3步：使用自定义样式创建内容
+doc = SimpleDocTemplate("chinese.pdf", pagesize=A4)
+
+story = [
+    Paragraph("中文标题", chinese_title),
+    Spacer(1, 12),
+    Paragraph("这是中文内容，现在可以正常显示了。", chinese_normal),
+    Paragraph("如果不设置 fontName，还是会显示黑色方块。", chinese_normal),
+]
+
+doc.build(story)
+print("✅ 中文PDF创建成功")
+```
+
+**❌ 错误示例：**
+
+```python
+# ❌ 错误：没有注册字体
+styles = getSampleStyleSheet()
+content = [Paragraph("中文", styles['Normal'])]  # 会显示黑色方块！
+
+# ❌ 错误：注册了字体但没有在 ParagraphStyle 中设置 fontName
+pdfmetrics.registerFont(TTFont('ChineseFont', '/path/to/font.ttc'))
+styles = getSampleStyleSheet()
+content = [Paragraph("中文", styles['Normal'])]  # 还是会显示黑色方块！
+
+# ✅ 正确：注册字体 + 设置 fontName
+pdfmetrics.registerFont(TTFont('ChineseFont', '/path/to/font.ttc'))
+my_style = ParagraphStyle('MyStyle', fontName='ChineseFont', fontSize=12)
+content = [Paragraph("中文", my_style)]  # 正常显示
+```
+
+**最佳实践：**
+1. ✅ **必须注册字体** - 使用 `pdfmetrics.registerFont(TTFont(...))`
+2. ✅ **必须设置 fontName** - 在 `ParagraphStyle` 中指定 `fontName='ChineseFont'`
+3. ✅ **提供多个字体路径** - 兼容不同操作系统
+4. ✅ **添加错误处理** - 字体加载可能失败
+5. ⚠️ **注意 .ttc 字体** - 可能包含多个字体，加载较慢但通常能用
+
+#### Basic PDF Creation (English Only)
 ```python
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -128,7 +229,7 @@ from reportlab.pdfgen import canvas
 c = canvas.Canvas("hello.pdf", pagesize=letter)
 width, height = letter
 
-# Add text
+# Add text (English only without font registration)
 c.drawString(100, height - 100, "Hello World!")
 c.drawString(100, height - 120, "This is a PDF created with reportlab")
 
@@ -139,30 +240,39 @@ c.line(100, height - 140, 400, height - 140)
 c.save()
 ```
 
-#### Create PDF with Multiple Pages
+#### Create PDF with Multiple Pages (支持中文)
 ```python
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
 
-doc = SimpleDocTemplate("report.pdf", pagesize=letter)
+# ✅ 使用 A4 而不是 letter（更适合国际化）
+doc = SimpleDocTemplate("report.pdf", pagesize=A4)
 styles = getSampleStyleSheet()
 story = []
 
-# Add content
-title = Paragraph("Report Title", styles['Title'])
+# ⚠️ 注意：必须先注册中文字体并创建使用该字体的样式
+# 参见上面"中文字体处理（必读）"章节
+
+# 假设已经注册了字体并创建了 chinese_title 和 chinese_normal 样式
+title = Paragraph("报告标题", chinese_title)  # 使用中文样式
 story.append(title)
 story.append(Spacer(1, 12))
 
-body = Paragraph("This is the body of the report. " * 20, styles['Normal'])
+# 中文正文
+body = Paragraph("这是报告的正文内容。可以包含中文、英文和数字。" * 10, chinese_normal)
 story.append(body)
 story.append(PageBreak())
 
-# Page 2
-story.append(Paragraph("Page 2", styles['Heading1']))
-story.append(Paragraph("Content for page 2", styles['Normal']))
+# 第二页
+story.append(Paragraph("第二页标题", chinese_title))
+story.append(Paragraph("第二页的内容", chinese_normal))
 
-# Build PDF
+# 混合中英文
+mixed = Paragraph("Mixed content: 中英文混合 123 ABC", chinese_normal)
+story.append(mixed)
+
+# 生成 PDF
 doc.build(story)
 ```
 

@@ -417,6 +417,41 @@ const Chat = () => {
               reasoning: data.reasoning
             }
           })
+        } else if (data.type === 'file_created') {
+          // ✅ 处理文件创建事件（来自 shell_exec 或 write_file）
+          const filePath = data.path || '';
+          const relativePath = data.relative_path || data.actual_filename || '';
+          const fileSize = data.size || 0;
+          const fileName = relativePath || filePath.split('/').pop() || 'file';
+
+          // 将文件路径转换为 HTTP URL
+          // /Users/.../backend/scripts/1/2026-02-04/test.pdf -> /files/1/2026-02-04/test.pdf
+          let fileUrl = '';
+          const scriptsMatch = filePath.match(/scripts\/(.+)$/);
+          if (scriptsMatch) {
+            fileUrl = `http://localhost:8001/files/${scriptsMatch[1]}`;
+          } else {
+            // 如果路径格式不匹配，尝试直接使用 relative_path
+            fileUrl = `http://localhost:8001/files/${relativePath}`;
+          }
+
+          // 创建 OutputFile 对象
+          const outputFile: OutputFile = {
+            file_name: fileName,
+            file_url: fileUrl,
+            file_size: fileSize
+          };
+
+          // 添加到消息列表
+          _messages.push({
+            type: 'output_files',
+            content: `文件已创建: ${fileName}`,
+            timestamp: Date.now(),
+            outputFiles: [outputFile]
+          });
+
+          // 自动预览可预览的文件
+          autoPreviewFile([outputFile]);
         } else if (data.type === 'execution_result') {
           // Handle execution result event
           const outputFiles: OutputFile[] = data.output_files || [];

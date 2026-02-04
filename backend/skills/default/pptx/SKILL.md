@@ -136,7 +136,7 @@ When creating a new PowerPoint presentation from scratch, use the **html2pptx** 
 
 **Background Treatments**:
 - Solid color blocks occupying 40-60% of slide
-- CSS gradient fills using `linear-gradient()` or `radial-gradient()` (auto-rasterized to PNG)
+- Gradient fills (vertical or diagonal only)
 - Split backgrounds (two colors, diagonal or vertical)
 - Edge-to-edge color bands
 - Negative space as a design element
@@ -152,7 +152,7 @@ When creating a new PowerPoint presentation from scratch, use the **html2pptx** 
 2. Create an HTML file for each slide with proper dimensions (e.g., 720pt × 405pt for 16:9)
    - Use `<p>`, `<h1>`-`<h6>`, `<ul>`, `<ol>` for all text content
    - Use `class="placeholder"` for areas where charts/tables will be added (render with gray background for visibility)
-   - **CSS gradients are supported**: You can use `linear-gradient()` and `radial-gradient()` directly in CSS - they will be auto-rasterized to PNG
+   - **CRITICAL**: Rasterize gradients and icons as PNG images FIRST using Sharp, then reference in HTML
    - **LAYOUT**: For slides with charts/tables/images, use either full-slide layout or two-column layout for better readability
 3. Create and run a JavaScript file using the [`html2pptx.js`](scripts/html2pptx.js) library to convert HTML slides to PowerPoint and save the presentation
    - Use the `html2pptx()` function to process each HTML file
