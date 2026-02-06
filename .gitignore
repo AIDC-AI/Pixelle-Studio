@@ -14,6 +14,7 @@ scripts
 backend/logs/
 .backend/app/logs/
 .backend/storage/
+backend/backup/
 
 # Storage
 backend/storage/
@@ -28,6 +29,8 @@ mcp-server-test/.idea/
 
 .env
 work_dir/
-.DS_Store/
+.DS_Store
 .vscode
 *.db
+test_*.py
+

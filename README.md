@@ -250,4 +250,4 @@ mcp-workflow/
 
 ## License
 
-MIT
+Apache-2.0
