@@ -8,12 +8,16 @@ wheels/
 
 # Virtual environments
 .venv
-scripts
+backend/scripts/
+scripts/
+files/
 
 # Logs
 backend/logs/
 .backend/app/logs/
 .backend/storage/
+backend/backup/
+
 
 # Storage
 backend/storage/
