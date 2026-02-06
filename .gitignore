@@ -25,7 +25,8 @@ backend/storage/
 
 backend/node_modules/
 
-mcp-server-test/.idea/
+.idea/
+mcp-server-test/
 
 # next.js
 .next
@@ -37,5 +38,21 @@ work_dir/
 *.db
 reference/
 dev_docs/
-
 test_*.*
+
+# Root-level deprecated files
+/docker-compose.yml
+/main.py
+/package-lock.json
+/pyproject.toml
+/requirements.txt
+/start.sh
+/uv.lock
+/test_runner.py
+
+# Backend utility scripts (one-off)
+backend/clear_shell_sessions.py
+backend/diagnose_file_created_event.py
+
+# Skills iteration data
+backend/skills/*/
