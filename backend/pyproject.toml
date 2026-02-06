@@ -1,5 +1,5 @@
 [project]
-name = "mcp-workflow-backend"
+name = "pixelle-studio-backend"
 version = "0.1.0"
 description = "Backend for MCP Workflow Demo"
 readme = "README.md"

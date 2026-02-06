@@ -169,7 +169,7 @@ npm run dev
 ## 项目结构
 
 ```
-mcp-workflow/
+Pixelle-Studio/
 ├── backend/
 │   ├── app/
 │   │   ├── agent.py           # SkillAgent (OpenAI Agents SDK)
