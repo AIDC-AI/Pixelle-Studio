@@ -29,8 +29,8 @@ const ChatPanel: React.FC<IProps> = (props) => {
         {/* <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 text-gray-400">
                 <Book className="w-4 h-4" />
-                <span className="text-sm">个人知识库</span>
-                <span className="ml-auto text-xs">即将上线</span>
+                <span className="text-sm">Personal Knowledge Base</span>
+                <span className="ml-auto text-xs">Coming soon</span>
             </div>
         </div> */}
 
@@ -42,12 +42,12 @@ const ChatPanel: React.FC<IProps> = (props) => {
             }}
         >
             <Plus className="w-4 h-4" />
-            <span className="font-default">新建对话</span>
+            <span className="font-default">New Chat</span>
         </button>
 
         {/* Chat History */}
         <div>
-            {/* <h3 className="font-title text-gray-600 mb-2">对话历史</h3> */}
+            {/* <h3 className="font-title text-gray-600 mb-2">Chat History</h3> */}
             <div className="space-y-2">
                 {
                     sessions?.map((session) => (
@@ -59,7 +59,7 @@ const ChatPanel: React.FC<IProps> = (props) => {
                                 handleChangeSession?.(session.id)
                             }}
                             onTrash={() => {
-                                // 如果删除当前session，设为空对话
+                                // If deleting the current session, set to empty chat
                                 if (activeSessionId === session.id) {
                                     handleChangeSession?.('')
                                 }

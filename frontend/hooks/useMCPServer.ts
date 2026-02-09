@@ -3,26 +3,26 @@ import { mcpServerAPI, ConnectionStatus, ToolsResponse } from '@/lib/mcpServerAp
 import { MCPTool } from '@/types/server';
 
 interface UseMCPServerOptions {
-  autoCheckStatus?: boolean;  // 是否自动检查状态
-  statusInterval?: number;    // 状态检查间隔（毫秒）
-  autoLoadTools?: boolean;    // 是否自动加载工具
+  autoCheckStatus?: boolean;  // Whether to auto-check status
+  statusInterval?: number;    // Status check interval (milliseconds)
+  autoLoadTools?: boolean;    // Whether to auto-load tools
 }
 
 interface MCPServerState {
-  // 工具相关
+  // Tool related
   tools: MCPTool[];
   toolsLoading: boolean;
   toolsError: string | null;
   
-  // 状态相关
+  // Status related
   status: ConnectionStatus | null;
   statusLoading: boolean;
   statusError: string | null;
   
-  // 服务器信息
+  // Server info
   serverInfo: { id: string; name: string } | null;
   
-  // 便捷状态
+  // Convenience states
   isConnected: boolean;
   isDisconnected: boolean;
   hasError: boolean;
@@ -35,23 +35,23 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
     autoLoadTools = false
   } = options;
 
-  // 工具状态
+  // Tool state
   const [tools, setTools] = useState<MCPTool[]>([]);
   const [toolsLoading, setToolsLoading] = useState(false);
   const [toolsError, setToolsError] = useState<string | null>(null);
 
-  // 连接状态
+  // Connection status
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
 
-  // 服务器信息
+  // Server info
   const [serverInfo, setServerInfo] = useState<{ id: string; name: string } | null>(null);
 
-  // 定时器引用
+  // Timer reference
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 获取工具列表（从 status 接口获取）
+  // Fetch tool list (from status endpoint)
   const fetchTools = useCallback(async (id?: string) => {
     const targetId = id || serverId;
     if (!targetId) {
@@ -63,7 +63,7 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
       setToolsLoading(true);
       setToolsError(null);
 
-      // 调用 status 接口，同时获取状态和工具
+      // Call status endpoint to get both status and tools
       const statusData = await mcpServerAPI.checkServerStatus(targetId);
 
       setTools(statusData.tools);
@@ -84,7 +84,7 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
     }
   }, [serverId]);
 
-  // 检查连接状态（同时获取工具）
+  // Check connection status (also fetches tools)
   const checkStatus = useCallback(async (id?: string) => {
     const targetId = id || serverId;
     if (!targetId) {
@@ -99,10 +99,10 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
       const statusData = await mcpServerAPI.checkServerStatus(targetId);
       setStatus(statusData);
       
-      // 同时更新工具列表
+      // Also update tool list
       setTools(statusData.tools);
 
-      // 如果还没有服务器信息，从状态中获取
+      // If server info not yet available, get it from status
       if (!serverInfo) {
         setServerInfo({
           id: statusData.server_id,
@@ -121,7 +121,7 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
     }
   }, [serverId, serverInfo]);
 
-  // 刷新所有数据（状态 + 工具）
+  // Refresh all data (status + tools)
   const refresh = useCallback(async (id?: string) => {
     const targetId = id || serverId;
     if (!targetId) return;
@@ -137,7 +137,7 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
     };
   }, [serverId, checkStatus, fetchTools]);
 
-  // 清除数据
+  // Clear data
   const clear = useCallback(() => {
     setTools([]);
     setStatus(null);
@@ -146,7 +146,7 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
     setStatusError(null);
   }, []);
 
-  // 停止自动检查
+  // Stop auto-check
   const stopAutoCheck = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -154,7 +154,7 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
     }
   }, []);
 
-  // 开始自动检查
+  // Start auto-check
   const startAutoCheck = useCallback(() => {
     if (serverId && !intervalRef.current) {
       checkStatus();
@@ -164,20 +164,20 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
     }
   }, [serverId, statusInterval, checkStatus]);
 
-  // 自动加载工具
+  // Auto-load tools
   useEffect(() => {
     if (autoLoadTools && serverId) {
       fetchTools();
     }
   }, [autoLoadTools, serverId, fetchTools]);
 
-  // 自动检查状态
+  // Auto-check status
   useEffect(() => {
     if (autoCheckStatus && serverId) {
-      // 立即检查一次
+      // Check immediately
       checkStatus();
 
-      // 设置定时检查
+      // Set up periodic check
       intervalRef.current = setInterval(() => {
         checkStatus();
       }, statusInterval);
@@ -190,46 +190,46 @@ export function useMCPServer(serverId?: string, options: UseMCPServerOptions = {
     }
   }, [autoCheckStatus, serverId, statusInterval, checkStatus]);
 
-  // 组件卸载时清理
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopAutoCheck();
     };
   }, [stopAutoCheck]);
 
-  // 计算便捷状态
+  // Compute convenience states
   const isConnected = status?.status === 'connected';
   const isDisconnected = status?.status === 'disconnected';
   const hasError = status?.status === 'error';
 
   return {
-    // 工具相关
+    // Tool related
     tools,
     toolsLoading,
     toolsError,
     fetchTools,
 
-    // 状态相关
+    // Status related
     status,
     statusLoading,
     statusError,
     checkStatus,
 
-    // 服务器信息
+    // Server info
     serverInfo,
 
-    // 便捷状态
+    // Convenience states
     isConnected,
     isDisconnected,
     hasError,
 
-    // 综合操作
+    // Combined operations
     refresh,
     clear,
     startAutoCheck,
     stopAutoCheck,
 
-    // 加载状态
+    // Loading state
     loading: toolsLoading || statusLoading,
     error: toolsError || statusError
   };

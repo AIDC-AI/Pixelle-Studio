@@ -1,4 +1,4 @@
-"""配置管理 - 支持多模型和故障转移"""
+"""Configuration management - supports multi-model and failover"""
 
 import os
 from typing import List, Dict, Any
@@ -6,57 +6,57 @@ import json
 from pathlib import Path
 from dotenv import load_dotenv
 
-# 加载 .env 文件 (必须在读取环境变量之前调用)
+# Load .env file (must be called before reading environment variables)
 load_dotenv()
 
 
 class AgentConfig:
-    """Agent 配置"""
+    """Agent configuration"""
     
     def __init__(self):
-        # 模型配置
+        # Model configuration
         self.default_model = os.getenv("OPENAI_MODEL", "gpt-4o")
         
-        # 模型 fallback 链
+        # Model fallback chain
         self.model_fallbacks = self._load_model_fallbacks()
         
-        # LLM 配置
+        # LLM configuration
         self.llm_timeout = float(os.getenv("LLM_TIMEOUT", "300"))
         self.llm_max_tokens = int(os.getenv("LLM_MAX_TOKENS", "16384"))
         
-        # 上下文管理配置
+        # Context management configuration
         self.context_compaction_enabled = os.getenv("CONTEXT_COMPACTION_ENABLED", "true").lower() == "true"
         self.context_keep_recent = int(os.getenv("CONTEXT_KEEP_RECENT", "10"))
         self.context_min_messages_before_compact = int(os.getenv("CONTEXT_MIN_MESSAGES_BEFORE_COMPACT", "15"))
         
-        # Thinking Level 配置
+        # Thinking Level configuration
         self.thinking_levels = ['high', 'medium', 'low', 'off']
         self.default_thinking_level = os.getenv("DEFAULT_THINKING_LEVEL", "medium")
         
-        # 故障转移配置
+        # Failover configuration
         self.enable_auth_failover = os.getenv("ENABLE_AUTH_FAILOVER", "true").lower() == "true"
         self.enable_model_failover = os.getenv("ENABLE_MODEL_FAILOVER", "true").lower() == "true"
         self.enable_thinking_failover = os.getenv("ENABLE_THINKING_FAILOVER", "true").lower() == "true"
     
     def _load_model_fallbacks(self) -> List[str]:
         """
-        加载模型 fallback 链
+        Load model fallback chain.
         
-        优先级:
-        1. 环境变量 MODEL_FALLBACKS (逗号分隔)
-        2. 配置文件 app/config/model_fallbacks.json
-        3. 代码默认值
+        Priority:
+        1. Environment variable MODEL_FALLBACKS (comma-separated)
+        2. Config file app/config/model_fallbacks.json
+        3. Code defaults
         """
-        # 1. 尝试从环境变量加载 (最高优先级)
+        # 1. Try loading from environment variable (highest priority)
         env_fallbacks = os.getenv("MODEL_FALLBACKS")
         if env_fallbacks:
-            # 支持逗号分隔的模型列表
+            # Support comma-separated model list
             models = [m.strip() for m in env_fallbacks.split(",") if m.strip()]
             if models:
                 print(f"[Config] Using model fallbacks from environment: {models}")
                 return models
         
-        # 2. 尝试从配置文件加载
+        # 2. Try loading from config file
         config_file = Path(__file__).parent / "config" / "model_fallbacks.json"
         if config_file.exists():
             try:
@@ -69,7 +69,7 @@ class AgentConfig:
             except Exception as e:
                 print(f"[Config] Failed to load model fallbacks from file: {e}")
         
-        # 3. 使用代码默认值 (兜底)
+        # 3. Use code defaults (fallback)
         default_fallbacks = {
             "gpt-4o": ["gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
             "gpt-4-turbo": ["gpt-4o", "gpt-3.5-turbo"],
@@ -83,24 +83,24 @@ class AgentConfig:
     
     def get_model_chain(self, primary_model: str = None) -> List[str]:
         """
-        获取完整的模型链 (主模型 + fallback)。
+        Get the complete model chain (primary model + fallbacks).
         
         Args:
-            primary_model: 主模型名称 (如果不提供,使用默认模型)
+            primary_model: Primary model name (if not provided, uses default model)
         
         Returns:
-            模型列表 [主模型, fallback1, fallback2, ...]
+            Model list [primary_model, fallback1, fallback2, ...]
         """
         model = primary_model or self.default_model
         
-        # 如果不启用故障转移,只返回主模型
+        # If failover is not enabled, return only the primary model
         if not self.enable_model_failover:
             return [model]
         
-        # 返回主模型 + fallback
+        # Return primary model + fallbacks
         fallbacks = self.model_fallbacks
         
-        # 去重并保持顺序
+        # Deduplicate while preserving order
         seen = set()
         chain = []
         for m in [model] + fallbacks:
@@ -111,7 +111,7 @@ class AgentConfig:
         return chain
     
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """Convert to dictionary"""
         return {
             "default_model": self.default_model,
             "model_fallbacks": self.model_fallbacks,
@@ -128,12 +128,12 @@ class AgentConfig:
         }
 
 
-# 全局配置实例
+# Global configuration instance
 _global_config = None
 
 
 def get_config() -> AgentConfig:
-    """获取全局配置实例"""
+    """Get global configuration instance"""
     global _global_config
     if _global_config is None:
         _global_config = AgentConfig()
@@ -141,7 +141,7 @@ def get_config() -> AgentConfig:
 
 
 def reload_config():
-    """重新加载配置"""
+    """Reload configuration"""
     global _global_config
     _global_config = AgentConfig()
     return _global_config

@@ -415,7 +415,7 @@ class ExecutionOrchestrator:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "请简要描述这张图片的内容，包括主要物体、场景、颜色、构图等关键信息。用中文回答，控制在200字以内。"
+                                "text": "Please briefly describe the content of this image, including main objects, scene, colors, composition and other key information. Keep it within 200 words."
                             },
                             {
                                 "type": "image_url",

@@ -12,7 +12,7 @@ import asyncio
 router = APIRouter(prefix="/api/mcp-servers", tags=["MCP Servers"])
 
 class MCPServerWithStatus(BaseModel):
-    # 基本信息
+    # Basic info
     id: str
     name: str
     transport: str
@@ -24,7 +24,7 @@ class MCPServerWithStatus(BaseModel):
     created_at: str
     updated_at: str
     
-    # 状态信息
+    # Status info
     status: str  # 'connected', 'disconnected', 'error', 'checking'
     message: str
     response_time: float
@@ -36,17 +36,17 @@ class ConnectionStatus(BaseModel):
     server_name: str
     status: str  # 'connected', 'disconnected', 'error'
     message: str
-    response_time: float  # 响应时间（毫秒）
-    tools: List[dict] = []  # 添加 tools 字段
+    response_time: float  # Response time (milliseconds)
+    tools: List[dict] = []  # Add tools field
 
 
 async def _check_single_server_status(server: MCPServer) -> dict:
-    """检查单个服务器的状态和工具"""
+    """Check single server status and tools"""
     import time
     start_time = time.time()
     
     try:
-        # 映射 transport 类型
+        # Map transport types
         transport_mapping = {
             'streamable-http': 'http',
             'sse': 'sse',
@@ -55,7 +55,7 @@ async def _check_single_server_status(server: MCPServer) -> dict:
         
         server_type = transport_mapping.get(server.transport, server.transport)
         
-        # 根据不同类型构建不同的 config
+        # Build different configs based on type
         if server_type == 'sse':
             config_data = {"url": server.url}
         elif server_type == 'http':
@@ -73,7 +73,7 @@ async def _check_single_server_status(server: MCPServer) -> dict:
                 "tools": []
             }
         
-        # 构建 MCP 服务器配置
+        # Build MCP server config
         mcp_server = {
             "id": server.id,
             "name": server.name,
@@ -86,7 +86,7 @@ async def _check_single_server_status(server: MCPServer) -> dict:
         config = AggregatorConfig(servers=[mcp_server])
         aggregator = MCPAggregator()
         
-        # 设置 3 秒超时（列表页面需要快速响应）
+        # Set 3 second timeout (list page needs fast response)
         try:
             tools = await asyncio.wait_for(aggregator.fetch_tools(config), timeout=3.0)
             response_time = (time.time() - start_time) * 1000
@@ -119,7 +119,7 @@ async def _check_single_server_status(server: MCPServer) -> dict:
 async def get_all_servers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    check_status: bool = True  # 查询参数：是否检查状态
+    check_status: bool = True  # Query parameter: whether to check status
 ):
     """Get all MCP servers for current user with status and tools"""
     servers = db.query(MCPServer).filter(
@@ -127,7 +127,7 @@ async def get_all_servers(
     ).order_by(MCPServer.created_at.desc()).all()
     
     if not check_status:
-        # 如果不需要检查状态，只返回基本信息
+        # If status check not needed, only return basic info
         return [
             MCPServerWithStatus(
                 id=s.id,
@@ -148,14 +148,14 @@ async def get_all_servers(
             for s in servers
         ]
     print(f"123123123")
-    # 并发检查所有服务器的状态
+    # Concurrently check all server statuses
     status_tasks = [_check_single_server_status(server) for server in servers]
     status_results = await asyncio.gather(*status_tasks, return_exceptions=True)
     
-    # 组合结果
+    # Combine results
     result = []
     for server, status_data in zip(servers, status_results):
-        # 如果检查失败，使用默认值
+        # If check failed, use defaults
         if isinstance(status_data, Exception):
             status_data = {
                 "status": "error",
@@ -221,7 +221,7 @@ async def check_server_status(
     start_time = time.time()
     
     try:
-        # 映射 transport 类型
+        # Map transport types
         transport_mapping = {
             'streamable-http': 'http',
             'sse': 'sse',
@@ -230,7 +230,7 @@ async def check_server_status(
         
         server_type = transport_mapping.get(server.transport, server.transport)
         
-        # 根据不同类型构建不同的 config
+        # Build different configs based on type
         if server_type == 'sse':
             config_data = {"url": server.url}
         elif server_type == 'http':
@@ -243,7 +243,7 @@ async def check_server_status(
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported transport type: {server.transport}")
         
-        # 构建 MCP 服务器配置
+        # Build MCP server config
         mcp_server = {
             "id": server.id,
             "name": server.name,
@@ -255,13 +255,13 @@ async def check_server_status(
         
         config = AggregatorConfig(servers=[mcp_server])
         
-        # 尝试连接并获取工具列表（带超时）
+        # Try to connect and fetch tool list (with timeout)
         aggregator = MCPAggregator()
         
-        # 设置 5 秒超时
+        # Set 5 second timeout
         try:
             tools = await asyncio.wait_for(aggregator.fetch_tools(config), timeout=5.0)
-            response_time = (time.time() - start_time) * 1000  # 转换为毫秒
+            response_time = (time.time() - start_time) * 1000  # Convert to milliseconds
             
             return ConnectionStatus(
                 server_id=server.id,
@@ -269,7 +269,7 @@ async def check_server_status(
                 status="connected",
                 message=f"Successfully connected. Found {len(tools)} tools.",
                 response_time=round(response_time, 2),
-                tools=tools  # 返回工具列表
+                tools=tools  # Return tool list
             )
         except asyncio.TimeoutError:
             response_time = (time.time() - start_time) * 1000

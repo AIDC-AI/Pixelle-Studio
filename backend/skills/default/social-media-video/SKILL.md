@@ -22,7 +22,7 @@ The video generation process follows these steps:
 ### user_topic_prompts_tool
 Generate script segments from a user topic.
 - **Input**: `topic` (string) - The video topic/title
-- **Output**: List of script segments (逐字稿), each representing a scene
+- **Output**: List of script segments (verbatim transcript), each representing a scene
 - **Purpose**: Creates the narrative foundation for the video
 
 ### prompt_word_generationV3
@@ -99,7 +99,7 @@ final_video = call_tool('v_merge', {'video_paths': video_clips})
 ### Example 1: Educational Content
 ```
 User: "Create a video about AI programming tips"
-Topic: "AI编程技巧"
+Topic: "AI Programming Tips"
 ```
 
 ### Example 2: Marketing Content

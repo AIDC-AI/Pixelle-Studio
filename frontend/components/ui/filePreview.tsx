@@ -14,7 +14,7 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [previewType, setPreviewType] = useState<'excel' | 'pdf' | null>(null);
 
-  // 获取文件扩展名
+  // Get file extension
   const getFileExtension = (url: string) => {
     const urlWithoutQuery = url.split('?')[0];
     const parts = urlWithoutQuery.split('.');
@@ -24,13 +24,13 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
   const extension = getFileExtension(url);
   const displayName = filename || url.split('/').pop() || 'file';
 
-  // 判断文件类型
+  // Determine file type
   const isExcel = ['xlsx', 'xls', 'xlsm', 'xlsb'].includes(extension);
   const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension);
   const isPdf = extension === 'pdf';
   const isText = ['txt', 'md', 'json', 'csv'].includes(extension);
 
-  // 获取图标
+  // Get icon
   const getIcon = () => {
     if (isExcel) return <FileSpreadsheet className="w-5 h-5" />;
     if (isImage) return <ImageIcon className="w-5 h-5" />;
@@ -38,7 +38,7 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
     return <File className="w-5 h-5" />;
   };
 
-  // 获取颜色
+  // Get color
   const getColor = () => {
     if (isExcel) return 'text-green-600 bg-green-50 border-green-200';
     if (isImage) return 'text-blue-600 bg-blue-50 border-blue-200';
@@ -57,7 +57,7 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
     } else if (isImage) {
       window.open(url, '_blank');
     } else {
-      // 下载其他类型文件
+      // Download other file types
       const link = document.createElement('a');
       link.href = url;
       link.download = displayName;

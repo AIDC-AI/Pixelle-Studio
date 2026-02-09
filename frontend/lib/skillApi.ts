@@ -21,7 +21,7 @@ export interface SkillOperationResponse {
 }
 
 export const skillAPI = {
-  // 获取所有技能
+  // Get all skills
   async getSkills(userId?: number): Promise<SkillMeta[]> {
     const url = userId 
       ? `${API_BASE}/skills?user_id=${userId}`
@@ -37,7 +37,7 @@ export const skillAPI = {
     return data.skills;
   },
 
-  // 获取单个技能详情
+  // Get a single skill detail
   async getSkill(skillName: string, userId?: number): Promise<Skill> {
     const url = userId
       ? `${API_BASE}/skills/${encodeURIComponent(skillName)}?user_id=${userId}`
@@ -53,7 +53,7 @@ export const skillAPI = {
     return response.json();
   },
 
-  // 创建技能
+  // Create skill
   async createSkill(request: CreateSkillRequest, userId?: number): Promise<SkillOperationResponse> {
     const url = userId
       ? `${API_BASE}/skills?user_id=${userId}`
@@ -71,7 +71,7 @@ export const skillAPI = {
     return response.json();
   },
 
-  // 更新技能
+  // Update skill
   async updateSkill(
     skillName: string, 
     request: UpdateSkillRequest, 
@@ -93,7 +93,7 @@ export const skillAPI = {
     return response.json();
   },
 
-  // 删除技能
+  // Delete skill
   async deleteSkill(skillName: string, userId?: number): Promise<SkillOperationResponse> {
     const url = userId
       ? `${API_BASE}/skills/${encodeURIComponent(skillName)}?user_id=${userId}`

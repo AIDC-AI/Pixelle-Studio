@@ -6,7 +6,7 @@ import os
 
 # JWT settings
 _DEFAULT_JWT_SECRET = "pixelle-jwt-secret-key-for-development-only-2024"
-SECRET_KEY = os.environ.get("JWT_SECRET", _DEFAULT_JWT_SECRET)  # 生产环境应该使用环境变量
+SECRET_KEY = os.environ.get("JWT_SECRET", _DEFAULT_JWT_SECRET)  # Production should use environment variables
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 
 

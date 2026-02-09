@@ -20,29 +20,29 @@ export const capitalize = (str: string | UNKNOW) => {
 export const updateOrAddYamlField = (content: string, fieldName: string, newValue: string) => {
   const regex = new RegExp(`(${fieldName}:\\s*)([^\\n]+)`, 'm');
   
-  // 检查字段是否存在
+  // Check if the field exists
   if (regex.test(content)) {
-    // 存在则替换
+    // Field exists, replace it
     return content.replace(regex, `$1${newValue}`);
   } else {
-    // 不存在则添加到 frontmatter 中
-    // 查找 frontmatter 的结束位置（第二个 ---）
+    // Field doesn't exist, add to frontmatter
+    // Find the end position of frontmatter (second ---)
     const frontmatterEndRegex = /^---\s*\n([\s\S]*?)\n---/m;
     const match = content.match(frontmatterEndRegex);
     
     if (match) {
-      // 在第二个 --- 之前添加新字段
+      // Add new field before the second ---
       const frontmatterContent = match[1];
       const newFrontmatter = `${frontmatterContent}\n${fieldName}: ${newValue}`;
       return content.replace(frontmatterEndRegex, `---\n${newFrontmatter}\n---`);
     } else {
-      // 如果没有 frontmatter，创建一个
+      // If no frontmatter exists, create one
       return `---\n${fieldName}: ${newValue}\n---\n\n${content}`;
     }
   }
 }
 
-// 检查文件是否可预览
+// Check if the file can be previewed
 export const canPreviewFile = (filename: string): boolean => {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     return ['html', 'htm', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'txt', 'md', 'xlsx', 'xls', 'csv'].includes(ext);

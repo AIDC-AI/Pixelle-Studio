@@ -15,12 +15,12 @@ import { createParserState, filterCodeBlocks } from '@/utils/codeBlockFilter';
 import User from "@/components/ui/user";
 import LogoutButton from "@/components/ui/logoutButton";
 
-// 动态导入大型组件
+// Dynamically import large components
 const LeftPanel = lazy(() => import("../leftPanel"));
 const MessageList = lazy(() => import("./messageList"));
 const FilePreview = lazy(() => import("./filePreview"));
 
-// 加载占位组件
+// Loading placeholder component
 const LoadingPlaceholder = () => (
   <div className="flex items-center justify-center h-full">
     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
@@ -54,43 +54,43 @@ const Chat = () => {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [currentScript, setCurrentScript] = useState<string | null>(null);
 
-  // 流式响应状态
+  // Streaming response state
   const [streamingResponse, setStreamingResponse] = useState<string>('');
-  // 标记是否有工具调用（有工具调用时不应该流式输出）
+  // Flag whether there are tool calls (should not stream output when there are tool calls)
   const hasToolCallsRef = useRef<boolean>(false);
 
-  // 文件预览状态
+  // File preview state
   const [previewFile, setPreviewFile] = useState<OutputFile | null>(null);
 
-  // WebSocket 引用，用于停止推理
+  // WebSocket reference, used to stop inference
   const wsRef = useRef<WebSocket | null>(null);
 
-  // 左侧面板宽度
+  // Left panel width
   const [leftPanelWidth, setLeftPanelWidth] = useState<number>(DEFAULT_LEFT_PANEL_WIDTH);
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false);
 
-  // 预览面板宽度百分比
+  // Preview panel width percentage
   const [previewWidthPercent, setPreviewWidthPercent] = useState<number>(DEFAULT_PREVIEW_WIDTH_PERCENT);
 
-  // 过滤之后的流式返回数据
+  // Filtered streaming response data
   const [parserState, setParserState] = useState(createParserState());
 
-  // 拖拽状态使用 ref，避免闭包问题
+  // Drag state uses ref to avoid closure issues
   const dragStateRef = useRef<{
     isDragging: 'left' | 'preview' | null;
     startX: number;
     startValue: number;
   }>({ isDragging: null, startX: 0, startValue: 0 });
 
-  // 容器 ref
+  // Container ref
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 强制更新用于拖拽视觉反馈
+  // Force update for drag visual feedback
   const [, forceUpdate] = useState({});
 
-  // 自动预览可预览的文件
+  // Auto-preview previewable files
   const autoPreviewFile = (files: OutputFile[]) => {
-    // 优先预览 HTML 文件
+    // Prioritize previewing HTML files
     const htmlFile = files.find(f => {
       const ext = f.file_name.split('.').pop()?.toLowerCase() || '';
       return ['html', 'htm'].includes(ext);
@@ -100,7 +100,7 @@ const Chat = () => {
       return;
     }
 
-    // 其次预览图片
+    // Then preview images
     const imageFile = files.find(f => {
       const ext = f.file_name.split('.').pop()?.toLowerCase() || '';
       return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
@@ -110,7 +110,7 @@ const Chat = () => {
       return;
     }
 
-    // 最后预览 PDF 或文本
+    // Finally preview PDF or text
     const otherFile = files.find(f => canPreviewFile(f.file_name));
     if (otherFile) {
       setPreviewFile(otherFile);
@@ -143,7 +143,7 @@ const Chat = () => {
     sessionAPI.setActiveSessionId(id)
   }
 
-  // 停止推理
+  // Stop inference
   const handleStop = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.close();
@@ -154,7 +154,7 @@ const Chat = () => {
     setParserState(createParserState());
   }, []);
 
-  // 统一的拖拽处理
+  // Unified drag handling
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       const state = dragStateRef.current;
@@ -195,7 +195,7 @@ const Chat = () => {
     };
   }, []);
 
-  // 开始左侧面板拖拽
+  // Start left panel drag
   const handleLeftDragStart = (e: React.MouseEvent) => {
     e.preventDefault();
     dragStateRef.current = {
@@ -208,7 +208,7 @@ const Chat = () => {
     forceUpdate({});
   };
 
-  // 开始预览面板拖拽
+  // Start preview panel drag
   const handlePreviewDragStart = (e: React.MouseEvent) => {
     e.preventDefault();
     dragStateRef.current = {
@@ -228,17 +228,17 @@ const Chat = () => {
       return;
     }
 
-    // 检查是否有文件正在上传
+    // Check if any files are still uploading
     const uploadingFiles = fileList.filter(f => f.status === 'uploading');
     if (uploadingFiles.length > 0) {
-      console.log('[DEBUG] 等待文件上传完成...');
-      return; // 阻止提交，等待上传完成
+      console.log('[DEBUG] Waiting for file upload to complete...');
+      return; // Block submission, wait for upload to complete
     }
 
-    // 只选择已上传完成的文件 (status === 'done')
+    // Only select files that have finished uploading (status === 'done')
     const doneFiles = fileList.filter(f => f.status === 'done');
 
-    // 直接从 response 中获取，确保数据正确
+    // Get directly from response to ensure data correctness
     const currentFileUrls = doneFiles
       ?.filter((file) => !!(file?.response?.url || file?.url))
       .map((file) => (file.response?.url || file.url) as string)
@@ -262,13 +262,13 @@ const Chat = () => {
     setParserState(createParserState()); // Reset parser state
     hasToolCallsRef.current = false;
 
-    // 找到当前session
+    // Find current session
     let session = sessions.find(s => s.id === activeSessionId)
-    // 如果没有，新建一个
+    // If not found, create a new one
     if (!session) {
       session = await handleNewSession(input)
 
-      // 异步生成标题（不阻塞主流程）
+      // Async title generation (non-blocking)
       api.generateTitle(input).then(({ title }) => {
         if (title && title.length <= 10) {
           updateSessionTitle(session!.id, title);
@@ -277,7 +277,7 @@ const Chat = () => {
         }
       }).catch((err) => {
         console.error('Failed to generate title:', err);
-        // 使用input的前10个字符作为fallback
+        // Use first 10 characters of input as fallback
         const fallbackTitle = input.substring(0, 10);
         updateSessionTitle(session!.id, fallbackTitle);
       });
@@ -285,7 +285,7 @@ const Chat = () => {
     const currentSessionId = session.id;
     const backendSessionId = session.backendSessionId;
 
-    // 保存当前message
+    // Save current message
     addMessages(currentSessionId, [{
       type: 'user',
       content: input,
@@ -314,8 +314,8 @@ const Chat = () => {
       const ws = new WebSocket(api.getWebSocketUrl(chat_id));
       wsRef.current = ws;
 
-      // 立即显示"任务执行中"的状态提示（使用streamingResponse）
-      setStreamingResponse('任务执行中，等待响应...');
+      // Immediately show "task in progress" status hint (using streamingResponse)
+      setStreamingResponse('Task in progress, waiting for response...');
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -326,7 +326,7 @@ const Chat = () => {
           // Filter code blocks from the content
           const { filtered, state: newParserState } = filterCodeBlocks(deltaContent.trim(), parserState);
           setParserState(newParserState);
-          // Update state - 显示过滤后的推理文本
+          // Update state - show filtered reasoning text
           setStreamingResponse(filtered);
           // setStreamingResponse(prev => {
           //   // const newContent = prev + filtered;
@@ -334,42 +334,42 @@ const Chat = () => {
           //   // console.log('prev--->', prev);
           //   // console.log('filtered2--->', filtered);
           //   // If this is the first real response after "Processing..." message
-          //   const isLoadingText = prev.includes('任务执行中');
+          //   const isLoadingText = prev.includes('Task in progress');
           //   return isLoadingText ? filtered : filtered;
           // });
-          // 只有在没有工具调用的情况下才累积流式输出
-          // 后端已经过滤掉了<execute>标签内的内容，这里做二次检查（快速回撤）
+          // Only accumulate streaming output when there are no tool calls
+          // Backend has already filtered content within <execute> tags, this is a secondary check (quick rollback)
           // if (!hasToolCallsRef.current) {
           //   const deltaContent = data.content || '';
 
-          //   // 使用函数式更新确保总是使用最新的状态值
+          //   // Use functional update to always use the latest state value
           //   setStreamingResponse(prev => {
-          //     // 如果当前是"任务执行中..."的提示，收到第一个真实响应时替换掉它
-          //     const isLoadingText = prev.includes('任务执行中');
+          //     // If current is "task in progress..." hint, replace it when receiving the first real response
+          //     const isLoadingText = prev.includes('Task in progress');
           //     const newContent = isLoadingText ? deltaContent : (prev + deltaContent);
           //     const trimmedContent = newContent.trim();
           //     return newContent;
-          //     // 前端快速回撤：检测到不该显示的内容，立即清空
+          //     // Frontend quick rollback: clear immediately when detecting content that shouldn't be displayed
           //     if (trimmedContent.includes('{"code') ||
           //       trimmedContent.includes('{ "code') ||
           //       trimmedContent.includes('{\'code') ||
           //       trimmedContent.includes('<execute')) {
-          //       // 立即清空并标记
+          //       // Clear immediately and mark
           //       hasToolCallsRef.current = true;
           //       console.log('[Frontend] Detected tool call pattern, rolling back streaming content');
           //       return '';
           //     } else if (trimmedContent === '{' || trimmedContent === '{"') {
-          //       // 单独的 { 或 {" 也可疑，但不立即清空，而是等待下一个字符
+          //       // Standalone { or {" is also suspicious, but don't clear immediately, wait for next character
           //       return newContent;
           //     } else {
-          //       // 安全内容，正常显示
+          //       // Safe content, display normally
           //       return newContent;
           //     }
           //   });
           // }
-          // 不添加到messages中，让MessageList实时显示streamingResponse
+          // Don't add to messages, let MessageList display streamingResponse in real-time
         } else if (data.type === 'iteration_start') {
-          // 清除"任务执行中..."提示
+          // Clear "task in progress..." hint
           setStreamingResponse('');
           _messages.push({
             type: 'iteration',
@@ -394,7 +394,7 @@ const Chat = () => {
             iteration: data.iteration
           })
         } else if (data.type === 'code') {
-          // === 在显示代码前，先保存累积的推理文本 ===
+          // === Before showing code, save accumulated reasoning text ===
           if (streamingResponse && streamingResponse.trim()) {
             _messages.push({
               type: 'response',
@@ -418,39 +418,39 @@ const Chat = () => {
             }
           })
         } else if (data.type === 'file_created') {
-          // ✅ 处理文件创建事件（来自 shell_exec 或 write_file）
+          // ✅ Handle file creation event (from shell_exec or write_file)
           const filePath = data.path || '';
           const relativePath = data.relative_path || data.actual_filename || '';
           const fileSize = data.size || 0;
           const fileName = relativePath || filePath.split('/').pop() || 'file';
 
-          // 将文件路径转换为 HTTP URL
+          // Convert file path to HTTP URL
           // /Users/.../backend/scripts/1/2026-02-04/test.pdf -> /files/1/2026-02-04/test.pdf
           let fileUrl = '';
           const scriptsMatch = filePath.match(/scripts\/(.+)$/);
           if (scriptsMatch) {
             fileUrl = `http://localhost:8001/files/${scriptsMatch[1]}`;
           } else {
-            // 如果路径格式不匹配，尝试直接使用 relative_path
+            // If path format doesn't match, try using relative_path directly
             fileUrl = `http://localhost:8001/files/${relativePath}`;
           }
 
-          // 创建 OutputFile 对象
+          // Create OutputFile object
           const outputFile: OutputFile = {
             file_name: fileName,
             file_url: fileUrl,
             file_size: fileSize
           };
 
-          // 添加到消息列表
+          // Add to message list
           _messages.push({
             type: 'output_files',
-            content: `文件已创建: ${fileName}`,
+            content: `File created: ${fileName}`,
             timestamp: Date.now(),
             outputFiles: [outputFile]
           });
 
-          // 自动预览可预览的文件
+          // Auto-preview previewable files
           autoPreviewFile([outputFile]);
         } else if (data.type === 'execution_result') {
           // Handle execution result event
@@ -477,22 +477,22 @@ const Chat = () => {
           if (outputFiles.length > 0) {
             _messages.push({
               type: 'output_files',
-              content: `${outputFiles.length} 个文件已生成`,
+              content: `${outputFiles.length} file(s) generated`,
               timestamp: Date.now(),
               outputFiles: outputFiles
             })
 
-            // 自动预览可预览的文件
+            // Auto-preview previewable files
             autoPreviewFile(outputFiles);
           }
 
-          // 代码执行完成后，重置工具调用标记，允许后续的流式输出
+          // After code execution completes, reset tool call flag to allow subsequent streaming output
           hasToolCallsRef.current = false;
-          // 重置parser状态，准备接收新的推理文本
+          // Reset parser state, prepare to receive new reasoning text
           setParserState(createParserState());
         } else if (data.type === 'response') {
-          // Handle direct response from agent (完整响应，非流式)
-          // 如果有流式内容累积，使用累积的内容；否则使用data.content
+          // Handle direct response from agent (complete response, non-streaming)
+          // If there is accumulated streaming content, use it; otherwise use data.content
           const finalContent = streamingResponse || data.content;
           if (finalContent) {
             _messages.push({
@@ -501,16 +501,16 @@ const Chat = () => {
               timestamp: Date.now()
             })
           }
-          // 清空流式响应
+          // Clear streaming response
           setStreamingResponse('');
           // Mark that we received a direct response
           // So we don't show duplicate content in final_result
           currentExecCount = -1; // Use -1 as a flag for direct response
         } else if (data.type === 'tool_call') {
-          // 标记有工具调用，停止流式输出
+          // Mark tool call, stop streaming output
           hasToolCallsRef.current = true;
           
-          // === 关键修复: 在清空流式响应前，先保存累积的推理文本 ===
+          // === Critical fix: save accumulated reasoning text before clearing streaming response ===
           if (streamingResponse && streamingResponse.trim()) {
             _messages.push({
               type: 'response',
@@ -518,13 +518,13 @@ const Chat = () => {
               timestamp: Date.now()
             });
           }
-          // 清空流式响应
+          // Clear streaming response
           setStreamingResponse('');
 
           // Handle tool call event
           const toolName = data.name || '';
 
-          // 特殊处理 execute_code: 直接显示代码而不是工具调用
+          // Special handling for execute_code: display code directly instead of tool call
           if (toolName === 'execute_code' && data.arguments && data.arguments.code) {
             currentExecCount = currentExecCount + 1;
             _messages.push({
@@ -538,7 +538,7 @@ const Chat = () => {
               }
             });
           } else {
-            // 其他工具正常显示工具调用
+            // Other tools display tool call normally
             _messages.push({
               type: 'tool_call',
               content: toolName,
@@ -552,9 +552,9 @@ const Chat = () => {
           }
         } else if (data.type === 'tool_result') {
           // Handle tool result event
-          // 跳过以下情况：
-          // 1. execute_code 的结果（会有单独的 execution_result 事件）
-          // 2. 名称为 'unknown' 的结果（通常是内部错误或未正确识别的工具）
+          // Skip the following cases:
+          // 1. Results of execute_code (will have a separate execution_result event)
+          // 2. Results with name 'unknown' (usually internal errors or unrecognized tools)
           if (data.name !== 'execute_code' && data.name !== 'unknown') {
             _messages.push({
               type: 'tool_result',
@@ -576,7 +576,7 @@ const Chat = () => {
             skillName: data.skill_name
           })
         } else if (data.type === 'thinking') {
-          // 清除"任务执行中..."提示
+          // Clear "Task in progress..." message
           setStreamingResponse('');
           // Handle thinking process from LLM
           _messages.push({
@@ -606,11 +606,11 @@ const Chat = () => {
             iteration: data.iteration
           })
         } else if (data.type === 'final_result') {
-          // 最终结果 - 现在才关闭连接
+          // Final result - close connection now
           const hadDirectResponse = currentExecCount === -1;
           const hadCodeExecution = currentExecCount > 0;
 
-          // 如果有未完成的流式响应，先保存它
+          // If there is an unfinished streaming response, save it first
           if (streamingResponse) {
             _messages.push({
               type: 'response',
@@ -634,13 +634,13 @@ const Chat = () => {
             }
           }
 
-          // 清空流式响应
+          // Clear streaming response
           setStreamingResponse('');
           setIsProcessing(false);
           wsRef.current = null;
           ws.close();
         } else if (data.type === 'result') {
-          // 兼容旧的 result 消息（如果有的话）
+          // Compatible with old result messages (if any)
           _messages.push({
             type: 'result',
             content: data.content,

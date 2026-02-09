@@ -31,13 +31,13 @@ interface IProps {
     isCodeBlock?: boolean
 }
 
-// 系统操作类型的消息
+// System action type messages
 const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system', 'thinking', 'tool_call', 'tool_result'];
 
-// 实质性系统操作（这些才应该触发System Process的显示）
+// Substantial system operations (these should trigger System Process display)
 const SUBSTANTIAL_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'tool_call'];
 
-// 用户交互类型的消息（不放在系统容器里）
+// User interaction type messages (not placed in system container)
 const USER_INTERACTION_TYPES = ['user', 'response', 'result', 'output_files', 'error'];
 
 interface MessageGroup {
@@ -46,7 +46,7 @@ interface MessageGroup {
     isComplete?: boolean;
 }
 
-// 优化：使用 memo 包装单个消息项，避免不必要的重渲染
+// Optimization: wrap individual message items with memo to avoid unnecessary re-renders
 const MessageItem = memo<{
     group: MessageGroup;
     groupIndex: number;
@@ -56,7 +56,7 @@ const MessageItem = memo<{
 }>(({ group, groupIndex, isLast, onFilePreview, onHeightMeasured }) => {
     const itemRef = useRef<HTMLDivElement>(null);
     
-    // 测量高度
+    // Measure height
     useEffect(() => {
         if (itemRef.current && onHeightMeasured) {
             const height = itemRef.current.getBoundingClientRect().height;
@@ -150,18 +150,18 @@ const MessageItem = memo<{
         );
     }
 }, (prevProps, nextProps) => {
-    // 优化的比较函数：快速失败策略
-    // 1. 先比较最可能变化的属性
+    // Optimized comparison function: fail-fast strategy
+    // 1. First compare the most likely changing properties
     if (prevProps.isLast !== nextProps.isLast) return false;
     
-    // 2. 比较消息数量
+    // 2. Compare message count
     if (prevProps.group.messages.length !== nextProps.group.messages.length) return false;
     
-    // 3. 比较类型和完成状态
+    // 3. Compare type and completion status
     if (prevProps.group.type !== nextProps.group.type) return false;
     if (prevProps.group.isComplete !== nextProps.group.isComplete) return false;
     
-    // 4. 只比较第一个和最后一个消息的时间戳（优化性能）
+    // 4. Only compare timestamps of the first and last messages (optimize performance)
     const prevMsgs = prevProps.group.messages;
     const nextMsgs = nextProps.group.messages;
     
@@ -188,7 +188,7 @@ const MessageList: React.FC<IProps> = (props) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const lastSessionIdRef = useRef<string | undefined>(activeSessionId);
     // console.log('messages--->', messages)
-    // 分组消息：将连续的系统操作消息放在一起
+    // Group messages: group consecutive system operation messages together
     const groupedMessages = useMemo(() => {
         if (!messages || messages.length === 0) return [];
         
@@ -200,17 +200,17 @@ const MessageList: React.FC<IProps> = (props) => {
             const isUserInteraction = USER_INTERACTION_TYPES.includes(msg.type);
             
             if (isSystemOp) {
-                // 添加到当前系统操作组
+                // Add to current system operation group
                 currentSystemGroup.push(msg);
             } else {
-                // 如果有累积的系统操作，先添加它们
+                // If there are accumulated system operations, add them first
                 if (currentSystemGroup.length > 0) {
-                    // 检查是否包含实质性操作
+                    // Check if it contains substantial operations
                     const hasSubstantialOps = currentSystemGroup.some(m => SUBSTANTIAL_OPERATION_TYPES.includes(m.type));
                     
                     if (hasSubstantialOps) {
-                        // 只有包含实质性操作才创建SystemOperationGroup
-                        // 检查下一个消息是否是用户交互类型来判断是否完成
+                        // Only create SystemOperationGroup if it contains substantial operations
+                        // Check if next message is user interaction type to determine if complete
                         const isComplete = isUserInteraction && (msg.type === 'result' || msg.type === 'response' || msg.type === 'output_files');
                         groups.push({
                             type: 'system_operations',
@@ -218,10 +218,10 @@ const MessageList: React.FC<IProps> = (props) => {
                             isComplete
                         });
                     }
-                    // 如果没有实质性操作，则丢弃这些消息（不显示）
+                    // If no substantial operations, discard these messages (do not display)
                     currentSystemGroup = [];
                 }
-                // 添加单独的消息
+                // Add single message
                 groups.push({
                     type: 'single',
                     messages: [msg]
@@ -229,9 +229,9 @@ const MessageList: React.FC<IProps> = (props) => {
             }
         });
         
-        // 处理剩余的系统操作（正在进行中）
+        // Handle remaining system operations (in progress)
         if (currentSystemGroup.length > 0) {
-            // 检查是否包含实质性操作
+            // Check if it contains substantial operations
             const hasSubstantialOps = currentSystemGroup.some(m => SUBSTANTIAL_OPERATION_TYPES.includes(m.type));
             
             if (hasSubstantialOps) {
@@ -241,37 +241,37 @@ const MessageList: React.FC<IProps> = (props) => {
                     isComplete: false
                 });
             }
-            // 如果没有实质性操作，则丢弃这些消息
+            // If no substantial operations, discard these messages
         }
         
         return groups;
     }, [messages]);
     
-    // 跟踪用户是否手动滚动过
+    // Track if user has manually scrolled
     const userScrolledRef = useRef(false);
     const scrollTimeoutRef = useRef<NodeJS.Timeout>(null);
     
-    // 监听用户滚动
+    // Listen for user scroll
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
         
         const handleScroll = () => {
-            // 清除之前的定时器
+            // Clear previous timer
             if (scrollTimeoutRef.current) {
                 clearTimeout(scrollTimeoutRef.current);
             }
             
-            // 检查是否在底部
+            // Check if at bottom
             const threshold = 50;
             const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
             const isAtBottom = scrollBottom < threshold;
             
-            // 如果用户滚动到底部，重置标记
+            // If user scrolls to bottom, reset flag
             if (isAtBottom) {
                 userScrolledRef.current = false;
             } else {
-                // 用户向上滚动，设置标记
+                // User scrolled up, set flag
                 userScrolledRef.current = true;
             }
         };
@@ -285,30 +285,29 @@ const MessageList: React.FC<IProps> = (props) => {
         };
     }, []);
     
-    // 优化滚动：使用 requestAnimationFrame
+    // Optimize scrolling: use requestAnimationFrame
     const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
         requestAnimationFrame(() => {
             chatEndRef.current?.scrollIntoView({ behavior });
-            userScrolledRef.current = false; // 重置滚动标记
+            userScrolledRef.current = false; // Reset scroll flag
         });
     }, []);
     
-    // 智能滚动：只在用户已经在底部时才自动滚动
+    // Smart scrolling: only auto-scroll if user is already at the bottom
     useEffect(() => {
         if (!messages || messages.length === 0) return;
         
-        // 检查是否切换了会话
-        // 检查是否切换了会话
+        // Check if session has switched
         const sessionChanged = activeSessionId !== lastSessionIdRef.current;
         if (sessionChanged) {
             lastSessionIdRef.current = activeSessionId;
-            userScrolledRef.current = false; // 重置滚动标记
-            // 会话切换时，延迟滚动到底部以确保内容已渲染
+            userScrolledRef.current = false; // Reset scroll flag
+            // When session switches, delay scroll to bottom to ensure content is rendered
             setTimeout(() => scrollToBottom('auto'), 100);
             return;
         }
         
-        // 如果用户没有手动向上滚动，就自动滚动到底部
+        // If user has not manually scrolled up, auto-scroll to bottom
         if (!userScrolledRef.current) {
             const lastMessage = messages[messages.length - 1];
             const isEndMessage = lastMessage.type === 'result' || 
@@ -316,11 +315,11 @@ const MessageList: React.FC<IProps> = (props) => {
                                 lastMessage.type === 'error' ||
                                 lastMessage.type === 'output_files';
             
-            // 最终消息或用户消息时使用平滑滚动
+            // Use smooth scroll for final messages or user messages
             if (isEndMessage || lastMessage.type === 'user') {
                 scrollToBottom('smooth');
             } else {
-                // 其他消息使用即时滚动
+                // Use instant scroll for other messages
                 scrollToBottom('auto');
             }
         }
@@ -352,7 +351,7 @@ const MessageList: React.FC<IProps> = (props) => {
                 }}
             >
                 {groupedMessages.map((group, groupIndex) => {
-                    // 使用更稳定的 key，基于消息内容而不是索引
+                    // Use more stable key, based on message content instead of index
                     const key = group.type === 'system_operations' 
                         ? `sys-${group.messages[0]?.timestamp || groupIndex}`
                         : `msg-${group.messages[0]?.timestamp || groupIndex}`;
@@ -367,17 +366,17 @@ const MessageList: React.FC<IProps> = (props) => {
                         />
                     );
                 })}
-                {/* 流式响应显示 */}
+                {/* Streaming response display */}
                 {streamingResponse && (
-                    streamingResponse.includes('任务执行中') ? (
-                        // 加载状态：小字体，无logo，显示在上方
+                    streamingResponse.includes('Task in progress') ? (
+                        // Loading state: small font, no logo, displayed at the top
                         <div className="flex justify-center w-full py-2">
                             <div className="text-xs text-gray-400 italic">
                                 {streamingResponse}
                             </div>
                         </div>
                     ) : (
-                        // 正常响应：显示机器人logo和内容
+                        // Normal response: display bot logo and content
                         <div className="flex flex-col self-start max-w-[85%]">
                             <ResponseItem content={streamingResponse} isStreaming={true} />
                         </div>

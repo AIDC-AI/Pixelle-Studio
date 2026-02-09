@@ -66,7 +66,7 @@ const PopoverCheck: React.FC<IProps> = (props) => {
                                 setOpen(false)
                             }}
                         >
-                            取消
+                            Cancel
                         </button>
                         <button 
                             className="flex justify-center items-center px-2 py-1 rounded border border-gray-200 bg-[#1677ff] text-white text-xs"
@@ -76,7 +76,7 @@ const PopoverCheck: React.FC<IProps> = (props) => {
                                 setOpen(false)
                             }}
                         >
-                            确定
+                            Confirm
                         </button>   
                     </div>
 				</div>

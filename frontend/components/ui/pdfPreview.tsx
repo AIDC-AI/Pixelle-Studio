@@ -14,17 +14,17 @@ const PdfPreview: React.FC<IProps> = ({ url, onClose }) => {
   const [zoom, setZoom] = useState(100);
 
   useEffect(() => {
-    // 预加载 PDF
+    // Preload PDF
     const checkPdf = async () => {
       try {
         setLoading(true);
         setError(null);
         const response = await fetch(url, { method: 'HEAD' });
-        if (!response.ok) throw new Error('无法访问 PDF 文件');
+        if (!response.ok) throw new Error('Unable to access PDF file');
         setLoading(false);
       } catch (err) {
         console.error('Error loading PDF:', err);
-        setError('无法加载 PDF 文件');
+        setError('Unable to load PDF file');
         setLoading(false);
       }
     };
@@ -69,7 +69,7 @@ const PdfPreview: React.FC<IProps> = ({ url, onClose }) => {
         <div className="bg-white rounded-lg p-8 max-w-md">
           <div className="flex items-center gap-3 mb-4">
             <FileText className="w-6 h-6 text-red-500" />
-            <h3 className="text-lg font-semibold">加载失败</h3>
+            <h3 className="text-lg font-semibold">Loading Failed</h3>
           </div>
           <p className="text-gray-600 mb-4">{error}</p>
           <div className="flex gap-2">
@@ -77,14 +77,14 @@ const PdfPreview: React.FC<IProps> = ({ url, onClose }) => {
               onClick={handleDownload}
               className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
             >
-              下载文件
+              Download File
             </button>
             {onClose && (
               <button
                 onClick={onClose}
                 className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
               >
-                关闭
+                Close
               </button>
             )}
           </div>
@@ -100,7 +100,7 @@ const PdfPreview: React.FC<IProps> = ({ url, onClose }) => {
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-3">
             <FileText className="w-5 h-5 text-gray-700" />
-            <h3 className="font-semibold text-lg">PDF 预览</h3>
+            <h3 className="font-semibold text-lg">PDF Preview</h3>
           </div>
           
           {/* Toolbar */}
@@ -110,21 +110,21 @@ const PdfPreview: React.FC<IProps> = ({ url, onClose }) => {
               <button
                 onClick={handleZoomOut}
                 className="p-1 hover:bg-gray-100 rounded transition-colors"
-                title="缩小"
+                title="Zoom out"
               >
                 <ZoomOut className="w-4 h-4" />
               </button>
               <button
                 onClick={handleResetZoom}
                 className="px-2 py-1 text-sm hover:bg-gray-100 rounded transition-colors min-w-[60px]"
-                title="重置缩放"
+                title="Reset zoom"
               >
                 {zoom}%
               </button>
               <button
                 onClick={handleZoomIn}
                 className="p-1 hover:bg-gray-100 rounded transition-colors"
-                title="放大"
+                title="Zoom in"
               >
                 <ZoomIn className="w-4 h-4" />
               </button>
@@ -134,7 +134,7 @@ const PdfPreview: React.FC<IProps> = ({ url, onClose }) => {
             <button
               onClick={handleDownload}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="下载"
+              title="Download"
             >
               <Download className="w-5 h-5" />
             </button>
@@ -144,7 +144,7 @@ const PdfPreview: React.FC<IProps> = ({ url, onClose }) => {
               <button
                 onClick={onClose}
                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                title="关闭"
+                title="Close"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -177,9 +177,9 @@ const PdfPreview: React.FC<IProps> = ({ url, onClose }) => {
         {/* Footer Info */}
         <div className="px-4 py-2 border-t bg-gray-50 text-sm text-gray-600">
           <div className="flex items-center justify-between">
-            <span>使用浏览器内置 PDF 阅读器</span>
+            <span>Use the browser's built-in PDF reader</span>
             <span className="text-xs text-gray-500">
-              提示: 可以使用浏览器的 PDF 工具栏进行更多操作
+              Tip: Use the browser's PDF toolbar for more operations
             </span>
           </div>
         </div>

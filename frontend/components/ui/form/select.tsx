@@ -13,7 +13,7 @@ interface IProps {
     selectOptions?: SelectItem[]
     required?: boolean
     disabled?: boolean
-    isFlexMax?: boolean // 是否撑满剩余空间
+    isFlexMax?: boolean // Whether to fill remaining space
     setValue?: (value: string) => void
 }
 

@@ -26,7 +26,7 @@ const AuthPage = () => {
     try {
       if (mode === 'login') {
         await login(email, password)
-        // AuthGuard 会自动处理跳转
+        // AuthGuard will handle redirect automatically
       } else {
         const res = await register(username, email, password)
         if (!!res) {
@@ -38,7 +38,7 @@ const AuthPage = () => {
         }
       }
     } catch (err: any) {
-      setError(err.message || '操作失败，请重试')
+      setError(err.message || 'Operation failed, please try again')
     } finally {
       setIsLoading(false)
     }
@@ -67,7 +67,7 @@ const AuthPage = () => {
         {/* Auth Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-6 text-center">
-            {mode === 'login' ? '欢迎回来' : '创建账号'}
+            {mode === 'login' ? 'Welcome Back' : 'Create Account'}
           </h2>
 
           {error && (
@@ -80,7 +80,7 @@ const AuthPage = () => {
             {mode === 'register' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  用户名
+                  Username
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -88,7 +88,7 @@ const AuthPage = () => {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="输入用户名"
+                    placeholder="Enter username"
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-all"
                     required
                     minLength={2}
@@ -99,7 +99,7 @@ const AuthPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                邮箱
+                Email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -107,7 +107,7 @@ const AuthPage = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="输入邮箱"
+                  placeholder="Enter email"
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-all"
                   required
                 />
@@ -116,7 +116,7 @@ const AuthPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                密码
+                Password
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -124,7 +124,7 @@ const AuthPage = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="输入密码"
+                  placeholder="Enter password"
                   className="w-full pl-10 pr-12 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition-all"
                   required
                   minLength={8}
@@ -138,7 +138,7 @@ const AuthPage = () => {
                 </button>
               </div>
               {mode === 'register' && (
-                <p className="text-xs text-gray-500 mt-1">密码至少 8 个字符</p>
+                <p className="text-xs text-gray-500 mt-1">Password must be at least 8 characters</p>
               )}
             </div>
 
@@ -150,22 +150,22 @@ const AuthPage = () => {
               {isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>处理中...</span>
+                  <span>Processing...</span>
                 </>
               ) : (
-                <span>{mode === 'login' ? '登录' : '注册'}</span>
+                <span>{mode === 'login' ? 'Login' : 'Register'}</span>
               )}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              {mode === 'login' ? '还没有账号？' : '已有账号？'}
+              {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
               <button
                 onClick={switchMode}
                 className="ml-1 text-gray-900 font-medium hover:underline"
               >
-                {mode === 'login' ? '立即注册' : '立即登录'}
+                {mode === 'login' ? 'Register now' : 'Login now'}
               </button>
             </p>
           </div>
@@ -173,7 +173,7 @@ const AuthPage = () => {
 
         {/* Footer */}
         <p className="text-center text-sm text-gray-500 mt-6">
-          使用即表示同意我们的服务条款和隐私政策
+          By using this service, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
     </div>

@@ -1,4 +1,4 @@
-"""认证配置模型 - 支持多个认证配置并自动故障转移"""
+"""Authentication configuration models - supports multiple auth configs with automatic failover"""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -8,13 +8,13 @@ import json
 
 @dataclass
 class AuthProfile:
-    """认证配置"""
+    """Authentication profile"""
     id: str
     provider: str  # "openai", "anthropic", "google", etc.
     api_key: str
     base_url: Optional[str] = None
     
-    # 故障跟踪
+    # Failure tracking
     failure_count: int = 0
     last_failed_at: Optional[datetime] = None
     is_enabled: bool = True
@@ -22,33 +22,33 @@ class AuthProfile:
 
 @dataclass
 class AuthStore:
-    """认证配置存储"""
+    """Authentication configuration storage"""
     profiles: List[AuthProfile] = field(default_factory=list)
     
     def get_candidates(self, provider: str) -> List[AuthProfile]:
-        """获取指定 provider 的候选配置 (已启用 + 不在冷却期)"""
+        """Get candidate profiles for specified provider (enabled + not in cooldown)"""
         candidates = [
             p for p in self.profiles
             if p.provider == provider and p.is_enabled
         ]
         
-        # 过滤冷却期
+        # Filter by cooldown period
         candidates = [
             p for p in candidates
             if not self.is_in_cooldown(p)
         ]
         
-        # 按失败次数排序 (失败少的优先)
+        # Sort by failure count (fewer failures first)
         candidates.sort(key=lambda p: p.failure_count)
         
         return candidates
     
     def is_in_cooldown(self, profile: AuthProfile) -> bool:
-        """检查是否在冷却期 (指数退避)"""
+        """Check if in cooldown period (exponential backoff)"""
         if not profile.last_failed_at:
             return False
         
-        # 指数退避: 1s, 2s, 4s, 8s, 16s, 32s, 60s (最多)
+        # Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s, 60s (max)
         cooldown_ms = min(
             1000 * (2 ** profile.failure_count),
             60_000
@@ -58,7 +58,7 @@ class AuthStore:
         return elapsed < cooldown_ms
     
     def mark_failure(self, profile_id: str, reason: str):
-        """记录失败"""
+        """Record failure"""
         for p in self.profiles:
             if p.id == profile_id:
                 p.failure_count += 1
@@ -67,7 +67,7 @@ class AuthStore:
                 break
     
     def mark_success(self, profile_id: str):
-        """记录成功 (重置失败计数)"""
+        """Record success (reset failure count)"""
         for p in self.profiles:
             if p.id == profile_id:
                 p.failure_count = 0
@@ -75,17 +75,17 @@ class AuthStore:
                 break
     
     def add_profile(self, profile: AuthProfile):
-        """添加认证配置"""
-        # 检查是否已存在
+        """Add authentication profile"""
+        # Check if already exists
         existing = [p for p in self.profiles if p.id == profile.id]
         if existing:
-            # 替换
+            # Replace
             self.profiles = [p for p in self.profiles if p.id != profile.id]
         
         self.profiles.append(profile)
     
     def to_dict(self) -> dict:
-        """转换为字典"""
+        """Convert to dictionary"""
         return {
             "profiles": [
                 {
@@ -103,7 +103,7 @@ class AuthStore:
     
     @classmethod
     def from_dict(cls, data: dict) -> "AuthStore":
-        """从字典创建"""
+        """Create from dictionary"""
         store = cls()
         for p_data in data.get("profiles", []):
             profile = AuthProfile(
@@ -120,11 +120,11 @@ class AuthStore:
     
     @classmethod
     def from_env(cls) -> "AuthStore":
-        """从环境变量创建默认配置"""
+        """Create default configuration from environment variables"""
         import os
         store = cls()
         
-        # 主 API Key (从环境变量)
+        # Primary API Key (from environment variables)
         api_key = os.getenv("OPENAI_API_KEY")
         base_url = os.getenv("OPENAI_BASE_URL")
         
@@ -136,7 +136,7 @@ class AuthStore:
                 base_url=base_url
             ))
         
-        # 备用 API Key (如果配置了)
+        # Backup API Key (if configured)
         backup_key = os.getenv("OPENAI_API_KEY_BACKUP")
         if backup_key:
             store.add_profile(AuthProfile(

@@ -8,7 +8,7 @@ interface IProps {
     errorMessages?: FormErrorMessage[]
     required?: boolean
     disabled?: boolean
-    isFlexMax?: boolean // 是否撑满剩余空间
+    isFlexMax?: boolean // Whether to fill remaining space
     children?: React.ReactNode
     className?: string
 }
@@ -26,7 +26,7 @@ const FormBase: React.FC<IProps> = (props) => {
     } = props
 
     const controlProps = useMemo(() => {
-        // 基础样式 + 验证失败时的红色边框
+        // Base styles + red border on validation failure
         const baseClassName = `w-full rounded-lg border px-3 py-2 resize-none focus:outline-none! transition-colors
             border-gray-300 focus:ring-0! focus:ring-blue-500 focus:border-blue-500
             data-[invalid]:border-red-500 data-[invalid]:focus:ring-red-500 data-[invalid]:focus:border-red-500

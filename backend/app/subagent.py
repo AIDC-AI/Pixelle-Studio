@@ -1,6 +1,6 @@
 """
-Sub-Agent 管理器
-用于实现任务并行化和后台执行
+Sub-Agent Manager
+For task parallelization and background execution.
 """
 import uuid
 import asyncio
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SubAgentTask:
-    """Sub-Agent 任务信息"""
+    """Sub-Agent task information"""
     subagent_id: str
     parent_session_id: str
     task: str
@@ -26,7 +26,7 @@ class SubAgentTask:
 
 
 class SubAgentManager:
-    """Sub-Agent 管理器"""
+    """Sub-Agent Manager"""
     
     def __init__(self):
         self.running_subagents: Dict[str, SubAgentTask] = {}
@@ -41,14 +41,14 @@ class SubAgentManager:
         max_turns: int = 10
     ) -> str:
         """
-        生成一个 Sub-Agent 来执行后台任务
+        Spawn a Sub-Agent to execute a background task.
         
         Args:
-            parent_session_id: 父会话 ID
-            task: 要执行的任务描述
-            user_id: 用户 ID
-            model: 使用的模型
-            max_turns: 最大轮次
+            parent_session_id: Parent session ID
+            task: Task description to execute
+            user_id: User ID
+            model: Model to use
+            max_turns: Maximum number of turns
             
         Returns:
             subagent_id: Sub-Agent ID
@@ -57,7 +57,7 @@ class SubAgentManager:
         
         logger.info(f"[SubAgentManager] Spawning sub-agent {subagent_id} for task: {task[:50]}...")
         
-        # 创建任务记录
+        # Create task record
         task_info = SubAgentTask(
             subagent_id=subagent_id,
             parent_session_id=parent_session_id,
@@ -67,7 +67,7 @@ class SubAgentManager:
         )
         self.running_subagents[subagent_id] = task_info
         
-        # 后台运行 Sub-Agent
+        # Run Sub-Agent in background
         asyncio.create_task(
             self._run_subagent(
                 subagent_id=subagent_id,
@@ -89,14 +89,14 @@ class SubAgentManager:
         max_turns: int
     ):
         """
-        运行 Sub-Agent (后台执行)
+        Run Sub-Agent (background execution).
         
         Args:
             subagent_id: Sub-Agent ID
-            task: 任务描述
-            user_id: 用户 ID
-            model: 使用的模型
-            max_turns: 最大轮次
+            task: Task description
+            user_id: User ID
+            model: Model to use
+            max_turns: Maximum number of turns
         """
         task_info = self.running_subagents[subagent_id]
         task_info.status = "running"
@@ -104,33 +104,33 @@ class SubAgentManager:
         try:
             logger.info(f"[SubAgent {subagent_id}] Starting execution...")
             
-            # 创建独立的 Agent 实例
+            # Create independent agent instance
             from app.agent import SkillAgent
             
             subagent = SkillAgent(
                 user_id=user_id,
                 max_turns=max_turns
             )
-            # 设置模型（如果与默认不同）
+            # Set model (if different from default)
             if model and model != subagent.model:
                 subagent.model = model
             
-            # 执行任务
+            # Execute task
             final_result = None
             async for event in subagent.run(
                 user_message=task,
                 session_id=subagent_id
             ):
-                # 只获取最终结果
+                # Only get final result
                 if event["type"] == "final_result":
                     final_result = event.get("result", {})
             
-            # 更新任务状态
+            # Update task status
             task_info.status = "completed"
             task_info.completed_at = datetime.now()
             task_info.result = final_result
             
-            # 移动到已完成列表
+            # Move to completed list
             self.completed_subagents[subagent_id] = task_info
             del self.running_subagents[subagent_id]
             
@@ -139,26 +139,26 @@ class SubAgentManager:
         except Exception as e:
             logger.error(f"[SubAgent {subagent_id}] Failed: {e}", exc_info=True)
             
-            # 更新任务状态
+            # Update task status
             task_info.status = "failed"
             task_info.completed_at = datetime.now()
             task_info.error = str(e)
             
-            # 移动到已完成列表
+            # Move to completed list
             self.completed_subagents[subagent_id] = task_info
             del self.running_subagents[subagent_id]
     
     def get_status(self, subagent_id: str) -> Optional[Dict[str, Any]]:
         """
-        获取 Sub-Agent 的状态
+        Get the status of a Sub-Agent.
         
         Args:
             subagent_id: Sub-Agent ID
             
         Returns:
-            状态信息字典，如果不存在则返回 None
+            Status info dictionary, or None if not found
         """
-        # 先查找运行中的
+        # First search running tasks
         if subagent_id in self.running_subagents:
             task = self.running_subagents[subagent_id]
             return {
@@ -172,7 +172,7 @@ class SubAgentManager:
                 "error": None
             }
         
-        # 再查找已完成的
+        # Then search completed tasks
         if subagent_id in self.completed_subagents:
             task = self.completed_subagents[subagent_id]
             return {
@@ -190,13 +190,13 @@ class SubAgentManager:
     
     def list_running(self, parent_session_id: Optional[str] = None) -> list[Dict[str, Any]]:
         """
-        列出所有运行中的 Sub-Agent
+        List all running Sub-Agents.
         
         Args:
-            parent_session_id: 可选，只返回特定父会话的 Sub-Agents
+            parent_session_id: Optional, only return Sub-Agents for a specific parent session
             
         Returns:
-            Sub-Agent 信息列表
+            List of Sub-Agent info
         """
         tasks = self.running_subagents.values()
         
@@ -207,7 +207,7 @@ class SubAgentManager:
             {
                 "subagent_id": t.subagent_id,
                 "parent_session_id": t.parent_session_id,
-                "task": t.task[:100],  # 只返回前100字符
+                "task": t.task[:100],  # Only return first 100 chars
                 "status": t.status,
                 "started_at": t.started_at.isoformat()
             }
@@ -216,13 +216,13 @@ class SubAgentManager:
     
     def list_completed(self, parent_session_id: Optional[str] = None) -> list[Dict[str, Any]]:
         """
-        列出所有已完成的 Sub-Agent
+        List all completed Sub-Agents.
         
         Args:
-            parent_session_id: 可选，只返回特定父会话的 Sub-Agents
+            parent_session_id: Optional, only return Sub-Agents for a specific parent session
             
         Returns:
-            Sub-Agent 信息列表
+            List of Sub-Agent info
         """
         tasks = self.completed_subagents.values()
         
@@ -243,11 +243,11 @@ class SubAgentManager:
         ]
 
 
-# 全局 SubAgent Manager 实例
+# Global SubAgent Manager instance
 _subagent_manager = SubAgentManager()
 
 
 def get_subagent_manager() -> SubAgentManager:
-    """获取全局 SubAgent Manager 实例"""
+    """Get global SubAgent Manager instance"""
     return _subagent_manager
 

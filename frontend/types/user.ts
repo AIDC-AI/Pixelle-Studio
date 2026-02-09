@@ -8,7 +8,7 @@ export interface User {
 }
 
 export interface UserResponse extends Omit<User, 'password'> {
-  // 返回给前端时不包含密码
+  // Password is excluded when returned to the frontend
 }
 
 export interface Token {

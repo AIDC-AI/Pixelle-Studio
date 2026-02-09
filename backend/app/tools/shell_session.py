@@ -1,6 +1,6 @@
 """
-持久化 Shell 会话管理 - 基于 pexpect
-支持变量持久化和多步执行
+Persistent shell session management - based on pexpect.
+Supports variable persistence and multi-step execution.
 """
 import asyncio
 import pexpect
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ShellSession:
-    """单个 Shell 会话"""
+    """Single shell session"""
     session_id: str
     shell_type: str  # bash | python | ipython
     user_id: str
@@ -31,102 +31,102 @@ class ShellSession:
     
     @property
     def is_alive(self) -> bool:
-        """检查进程是否还活着"""
+        """Check if the process is still alive"""
         return self.process.isalive()
     
     @property
     def age_seconds(self) -> float:
-        """会话年龄（秒）"""
+        """Session age (seconds)"""
         return time.time() - self.created_at
     
     @property
     def idle_seconds(self) -> float:
-        """空闲时间（秒）"""
+        """Idle time (seconds)"""
         return time.time() - self.last_activity
 
 
 class ShellSessionManager:
-    """持久化 Shell 会话管理器（自动管理）"""
+    """Persistent shell session manager (auto-managed)"""
     
-    # 配置
-    MAX_IDLE_TIME = 600  # 10分钟无活动自动关闭（降低到10分钟）
-    MAX_SESSION_AGE = 3600  # 1小时最大生命周期（降低到1小时）
-    MAX_ERROR_COUNT = 3  # 连续3次错误自动关闭（更严格）
-    MAX_SESSIONS_PER_USER = 3  # 每个用户最多3个会话
-    MAX_TOTAL_SESSIONS = 20  # 全局最多20个会话
+    # Configuration
+    MAX_IDLE_TIME = 600  # 10 min inactivity auto-close
+    MAX_SESSION_AGE = 3600  # 1 hour max session lifetime
+    MAX_ERROR_COUNT = 3  # Auto-close after 3 consecutive errors
+    MAX_SESSIONS_PER_USER = 3  # Max 3 sessions per user
+    MAX_TOTAL_SESSIONS = 20  # Max 20 global sessions
     
     def __init__(self):
         self.sessions: Dict[str, ShellSession] = {}
         self._cleanup_task: Optional[asyncio.Task] = None
     
     def start_cleanup_task(self):
-        """启动自动清理任务"""
+        """Start automatic cleanup task"""
         if self._cleanup_task is None or self._cleanup_task.done():
             self._cleanup_task = asyncio.create_task(self._auto_cleanup())
     
     async def _auto_cleanup(self):
-        """自动清理过期会话"""
+        """Auto cleanup expired sessions"""
         while True:
             try:
-                await asyncio.sleep(30)  # 每30秒检查一次（更频繁）
+                await asyncio.sleep(30)  # Check every 30 seconds
                 
-                # 收集需要关闭的会话
+                # Collect sessions that need to be closed
                 to_close = []
                 for sid, session in self.sessions.items():
-                    # 检查是否需要清理
+                    # Check if cleanup is needed
                     if not session.is_alive:
-                        to_close.append((sid, "进程已结束"))
+                        to_close.append((sid, "Process has ended"))
                     elif session.idle_seconds > self.MAX_IDLE_TIME:
-                        to_close.append((sid, f"空闲超时 ({session.idle_seconds:.0f}s)"))
+                        to_close.append((sid, f"Idle timeout ({session.idle_seconds:.0f}s)"))
                     elif session.age_seconds > self.MAX_SESSION_AGE:
-                        to_close.append((sid, f"会话超时 ({session.age_seconds:.0f}s)"))
+                        to_close.append((sid, f"Session timeout ({session.age_seconds:.0f}s)"))
                     elif session.error_count >= self.MAX_ERROR_COUNT:
-                        to_close.append((sid, f"错误过多 ({session.error_count})"))
+                        to_close.append((sid, f"Too many errors ({session.error_count})"))
                 
-                # 关闭会话
+                # Close sessions
                 for sid, reason in to_close:
-                    logger.info(f"[cleanup] 关闭会话 {sid}: {reason}")
+                    logger.info(f"[cleanup] Closing session {sid}: {reason}")
                     await self._close_session(sid)
                 
-                # 检查总会话数
+                # Check total session count
                 if len(self.sessions) > self.MAX_TOTAL_SESSIONS:
-                    logger.warning(f"[cleanup] 总会话数超限 ({len(self.sessions)} > {self.MAX_TOTAL_SESSIONS})")
+                    logger.warning(f"[cleanup] Total session count exceeded ({len(self.sessions)} > {self.MAX_TOTAL_SESSIONS})")
                     await self._emergency_cleanup()
                     
             except Exception as e:
-                logger.error(f"[cleanup] 清理任务错误: {e}")
+                logger.error(f"[cleanup] Cleanup task error: {e}")
     
     async def _emergency_cleanup(self):
-        """紧急清理：关闭最老的空闲会话"""
-        logger.warning("[cleanup] 执行紧急清理")
+        """Emergency cleanup: close oldest idle sessions"""
+        logger.warning("[cleanup] Performing emergency cleanup")
         
-        # 按照空闲时间排序，关闭最老的会话
+        # Sort by idle time, close the oldest sessions
         sessions_by_idle = sorted(
             self.sessions.items(),
             key=lambda x: x[1].last_activity
         )
         
-        # 关闭前10个最老的会话
+        # Close the 10 oldest sessions
         for sid, session in sessions_by_idle[:10]:
-            logger.warning(f"[cleanup] 紧急关闭会话 {sid} (空闲 {session.idle_seconds:.0f}s)")
+            logger.warning(f"[cleanup] Emergency closing session {sid} (idle {session.idle_seconds:.0f}s)")
             await self._close_session(sid)
     
     def _count_user_sessions(self, user_id: str) -> int:
-        """统计用户的会话数量"""
+        """Count user session quantity"""
         return sum(1 for s in self.sessions.values() if s.user_id == user_id)
     
     async def _cleanup_old_user_sessions(self, user_id: str, shell_type: str):
-        """清理用户的旧会话（如果超过限制）"""
+        """Clean up user old sessions (if exceeding limit)"""
         user_sessions = [
             (sid, s) for sid, s in self.sessions.items()
             if s.user_id == user_id and s.shell_type == shell_type
         ]
         
         if len(user_sessions) >= self.MAX_SESSIONS_PER_USER:
-            # 按活动时间排序，关闭最老的
+            # Sort by activity time, close the oldest
             user_sessions.sort(key=lambda x: x[1].last_activity)
-            for sid, session in user_sessions[:-1]:  # 保留最新的一个
-                logger.info(f"[cleanup] 关闭用户 {user_id} 的旧会话 {sid}")
+            for sid, session in user_sessions[:-1]:  # Keep the newest one
+                logger.info(f"[cleanup] Closing user {user_id} old session {sid}")
                 await self._close_session(sid)
     
     async def get_or_create_session(
@@ -136,88 +136,88 @@ class ShellSessionManager:
         workdir: Optional[Path] = None
     ) -> ShellSession:
         """
-        获取或创建会话（自动管理）
+        Get or create session (auto-managed).
         
-        策略：
-        1. 查找该用户的现有会话（相同 shell_type）
-        2. 如果有且活跃，复用
-        3. 否则创建新会话
+        Strategy:
+        1. Find existing session for this user (same shell_type)
+        2. If found and active, reuse
+        3. Otherwise create new session
         
         Args:
-            user_id: 用户ID
-            shell_type: Shell 类型
-            workdir: 可选的工作目录（如果不提供则使用默认）
+            user_id: User ID
+            shell_type: Shell type
+            workdir: Optional working directory (if not provided, use default)
         """
-        # ✅ 先检查并清理超限的会话
+        # ✅ First check and clean up excess sessions
         if len(self.sessions) >= self.MAX_TOTAL_SESSIONS:
-            logger.warning(f"[session] 总会话数达到上限 ({len(self.sessions)}), 执行清理")
+            logger.warning(f"[session] Total session count reached limit ({len(self.sessions)}), performing cleanup")
             await self._emergency_cleanup()
         
-        # ✅ 检查用户会话数
+        # ✅ Check user session count
         if self._count_user_sessions(user_id) >= self.MAX_SESSIONS_PER_USER:
-            logger.info(f"[session] 用户 {user_id} 会话数达到上限，清理旧会话")
+            logger.info(f"[session] User {user_id} Session count reached limit, cleaning up old sessions")
             await self._cleanup_old_user_sessions(user_id, shell_type)
         
-        # 查找现有会话
+        # Find existing session
         for session in list(self.sessions.values()):
             if (session.user_id == user_id and 
                 session.shell_type == shell_type and 
                 session.is_alive):
-                # ✅ 如果指定了 workdir，检查是否匹配
+                # ✅ If workdir specified, check if it matches
                 if workdir is not None:
-                    # 转换为 Path 对象进行比较（确保类型一致）
+                    # Convert to Path objects for comparison (ensure type consistency)
                     session_workdir = Path(session.workdir) if not isinstance(session.workdir, Path) else session.workdir
                     requested_workdir = Path(workdir) if not isinstance(workdir, Path) else workdir
                     
-                    # 解析为绝对路径后比较
+                    # Compare after resolving to absolute paths
                     if session_workdir.resolve() != requested_workdir.resolve():
-                        # 工作目录不匹配，关闭旧会话并创建新的
-                        logger.info(f"[session] 工作目录不匹配，关闭旧会话: {session.session_id}")
-                        logger.info(f"[session]   旧: {session_workdir.resolve()}")
-                        logger.info(f"[session]   新: {requested_workdir.resolve()}")
+                        # Working directory mismatch, close old session and create new one
+                        logger.info(f"[session] Working directory mismatch, closing old session: {session.session_id}")
+                        logger.info(f"[session]   Old: {session_workdir.resolve()}")
+                        logger.info(f"[session]   New: {requested_workdir.resolve()}")
                         await self._close_session(session.session_id)
                         continue
                 
-                # 复用现有会话
+                # Reuse existing session
                 session.last_activity = time.time()
-                logger.info(f"[session] 复用会话: {session.session_id} (workdir: {session.workdir})")
+                logger.info(f"[session] Reusing session: {session.session_id} (workdir: {session.workdir})")
                 return session
         
-        # 创建新会话
+        # Create new session
         session_id = f"{shell_type}_{uuid.uuid4().hex[:8]}"
         
-        # ✅ 使用提供的 workdir 或默认的用户目录
+        # ✅ Use provided workdir or default user directory
         if workdir is None:
             workdir = get_user_workdir(user_id)
         else:
-            # 确保目录存在
+            # Ensure directory exists
             workdir.mkdir(parents=True, exist_ok=True)
         
-        # ✅ 启动进程前，检查PTY资源
+        # ✅ Before starting process, check PTY resources
         try:
             import os as os_module
-            # 尝试检测可用的PTY数量
+            # Try to detect available PTY count
             pty_count = len([f for f in os_module.listdir('/dev') if f.startswith('pty')])
-            logger.debug(f"[session] 当前PTY设备数: {pty_count}")
+            logger.debug(f"[session] Current PTY device count: {pty_count}")
         except Exception as e:
-            logger.debug(f"[session] 无法检测PTY数量: {e}")
+            logger.debug(f"[session] Cannot detect PTY count: {e}")
         
-        # 启动进程
+        # Start process
         if shell_type == "bash":
             try:
                 process = pexpect.spawn(
                     "/bin/bash",
-                    ["--norc", "--noprofile"],  # 不加载配置文件
+                    ["--norc", "--noprofile"],  # Do not load config files
                     cwd=str(workdir),
                     encoding='utf-8',
                     timeout=300,
-                    maxread=10000  # 限制单次读取
+                    maxread=10000  # Limit single read
                 )
             except OSError as e:
                 if 'out of pty devices' in str(e):
-                    logger.error("[session] PTY资源耗尽！执行紧急清理")
+                    logger.error("[session] PTY resources exhausted! Performing emergency cleanup")
                     await self._emergency_cleanup()
-                    # 重试一次
+                    # Retry once
                     process = pexpect.spawn(
                         "/bin/bash",
                         ["--norc", "--noprofile"],
@@ -228,28 +228,28 @@ class ShellSessionManager:
                     )
                 else:
                     raise
-            # Bash prompt 设置
+            # Bash prompt setup
             process.sendline('export PS1="READY> "')
             process.expect("READY> ", timeout=5)
             prompt = r"READY> "
             
         elif shell_type == "python":
-            # ✅ 使用 .venv 中的 Python（包含所有已安装的包）
+            # ✅ Use .venv Python (includes all installed packages)
             backend_root = Path(__file__).parent.parent.parent
             venv_python = backend_root / ".venv" / "bin" / "python"
             
             if venv_python.exists():
                 python_cmd = str(venv_python)
-                logger.info(f"[shell_session] 使用 .venv Python: {python_cmd}")
+                logger.info(f"[shell_session] Using .venv Python: {python_cmd}")
             else:
-                # 降级到系统 Python
+                # Fallback to system Python
                 python_cmd = "python3"
-                logger.warning("[shell_session] .venv/bin/python 不存在，使用系统 Python")
+                logger.warning("[shell_session] .venv/bin/python not found, using system Python")
             
             try:
                 process = pexpect.spawn(
                     python_cmd,
-                    ["-u"],  # 无缓冲输出
+                    ["-u"],  # Unbuffered output
                     cwd=str(workdir),
                     encoding='utf-8',
                     timeout=300,
@@ -257,9 +257,9 @@ class ShellSessionManager:
                 )
             except OSError as e:
                 if 'out of pty devices' in str(e):
-                    logger.error("[session] PTY资源耗尽！执行紧急清理")
+                    logger.error("[session] PTY resources exhausted! Performing emergency cleanup")
                     await self._emergency_cleanup()
-                    # 重试一次
+                    # Retry once
                     process = pexpect.spawn(
                         python_cmd,
                         ["-u"],
@@ -274,17 +274,17 @@ class ShellSessionManager:
             process.expect(prompt, timeout=5)
             
         elif shell_type == "ipython":
-            # ✅ 使用 .venv 中的 IPython（如果存在）
+            # ✅ Use .venv IPython (if exists)
             backend_root = Path(__file__).parent.parent.parent
             venv_ipython = backend_root / ".venv" / "bin" / "ipython"
             
             if venv_ipython.exists():
                 ipython_cmd = str(venv_ipython)
-                logger.info(f"[shell_session] 使用 .venv IPython: {ipython_cmd}")
+                logger.info(f"[shell_session] Using .venv IPython: {ipython_cmd}")
             else:
-                # 降级到系统 IPython
+                # Fallback to system IPython
                 ipython_cmd = "ipython"
-                logger.warning("[shell_session] .venv/bin/ipython 不存在，使用系统 IPython")
+                logger.warning("[shell_session] .venv/bin/ipython not found, using system IPython")
             
             try:
                 process = pexpect.spawn(
@@ -297,9 +297,9 @@ class ShellSessionManager:
                 )
             except OSError as e:
                 if 'out of pty devices' in str(e):
-                    logger.error("[session] PTY资源耗尽！执行紧急清理")
+                    logger.error("[session] PTY resources exhausted! Performing emergency cleanup")
                     await self._emergency_cleanup()
-                    # 重试一次
+                    # Retry once
                     process = pexpect.spawn(
                         ipython_cmd,
                         ["--no-confirm-exit", "--no-banner", "--colors=NoColor"],
@@ -314,7 +314,7 @@ class ShellSessionManager:
             process.expect(prompt, timeout=5)
         
         else:
-            raise ValueError(f"不支持的 shell 类型: {shell_type}")
+            raise ValueError(f"Unsupported shell type: {shell_type}")
         
         session = ShellSession(
             session_id=session_id,
@@ -326,14 +326,14 @@ class ShellSessionManager:
             last_activity=time.time()
         )
         
-        # 保存 prompt 模式
+        # Save prompt pattern
         session._prompt = prompt
         
         self.sessions[session_id] = session
         
-        logger.info(f"[session] 创建新会话: {session_id} ({shell_type}, user: {user_id})")
+        logger.info(f"[session] Created new session: {session_id} ({shell_type}, user: {user_id})")
         
-        # 确保清理任务运行
+        # Ensure cleanup task is running
         self.start_cleanup_task()
         
         return session
@@ -345,7 +345,7 @@ class ShellSessionManager:
         timeout: int = 300
     ) -> Dict[str, Any]:
         """
-        在会话中执行命令
+        Execute command in session.
         
         Returns:
             {"status": "success"|"error", "output": str, ...}
@@ -356,72 +356,72 @@ class ShellSessionManager:
             session.error_count += 1
             return {
                 "status": "error",
-                "error": "会话已结束",
+                "error": "Session has ended",
                 "session_id": session.session_id
             }
         
         try:
-            # 清空缓冲区
+            # Clear buffer
             try:
                 session.process.read_nonblocking(size=10000, timeout=0)
             except:
                 pass
             
-            # ✅ 确保 Python shell 在正确的工作目录下执行
+            # ✅ Ensure Python shell executes in correct working directory
             is_python_shell = session.shell_type in ["python", "ipython"]
             if is_python_shell:
-                # 在执行用户命令前，先切换到正确的工作目录
+                # Before executing user command, switch to correct working directory
                 chdir_command = f"import os; os.chdir({repr(str(session.workdir))})"
                 session.process.sendline(f"exec(compile({repr(chdir_command)}, '<string>', 'exec'))")
                 
-                # 等待 chdir 完成（不捕获输出）
+                # Wait for chdir to complete (don't capture output)
                 try:
                     session.process.expect(session._prompt, timeout=2)
                 except Exception as e:
-                    logger.debug(f"[exec] chdir 等待超时（可能已完成）: {e}")
+                    logger.debug(f"[exec] chdir wait timeout (may have completed): {e}")
             
-            # ✅ 对于 Python/IPython 的多行代码，使用特殊处理
+            # ✅ For Python/IPython multi-line code, use special handling
             is_multiline = '\n' in command.strip()
             actual_command = command
             
             if is_python_shell and is_multiline:
-                # 多行 Python 代码：使用 exec() 包装
-                # 使用 repr() 来安全地转义代码字符串
-                logger.debug(f"[exec] 执行多行代码: {len(command)} 字符")
+                # Multi-line Python code: wrap with exec()
+                # Use repr() to safely escape code string
+                logger.debug(f"[exec] Executing multi-line code: {len(command)} characters")
                 
-                # 安全转义：使用 repr() 自动处理所有特殊字符
+                # Security escape: use repr() to auto-handle all special characters
                 escaped = repr(command)
                 actual_command = f"exec(compile({escaped}, '<string>', 'exec'))"
-                logger.debug(f"[exec] 包装后: {actual_command[:100]}...")
+                logger.debug(f"[exec] After wrapping: {actual_command[:100]}...")
             
-            # 发送命令
-            logger.info(f"[exec] {session.session_id}: 开始执行命令，超时={timeout}秒")
-            logger.debug(f"[exec] 命令内容（前200字符）: {actual_command[:200]}")
+            # Send command
+            logger.info(f"[exec] {session.session_id}: Starting command execution, timeout={timeout} seconds")
+            logger.debug(f"[exec] Command content (first 200 chars): {actual_command[:200]}")
             session.process.sendline(actual_command)
-            logger.debug(f"[exec] 命令已发送，等待响应...")
+            logger.debug(f"[exec] Command sent, waiting for response...")
             
-            # 等待输出和下一个 prompt
+            # Wait for output and next prompt
             start_time = time.time()
             
             try:
-                # 等待 prompt 重新出现
-                logger.debug(f"[exec] 等待 prompt，超时={timeout}秒")
+                # Wait for prompt to reappear
+                logger.debug(f"[exec] Waiting for prompt, timeout={timeout} seconds")
                 session.process.expect(session._prompt, timeout=timeout)
-                logger.debug(f"[exec] 收到 prompt 响应")
+                logger.debug(f"[exec] Received prompt response")
                 
-                # 获取输出
+                # Get output
                 output = session.process.before
                 
-                # 清理输出（移除回显的命令）
+                # Clean output (remove echoed command)
                 lines = output.split('\n')
                 
-                # ✅ 移除回显的命令（可能是原始命令或包装后的命令）
+                # ✅ Remove echoed command (may be original or wrapped command)
                 if lines:
                     first_line = lines[0].strip()
-                    # 检查第一行是否是回显的命令
+                    # Check if first line is echoed command
                     if first_line == command.strip() or first_line == actual_command.strip():
                         lines = lines[1:]
-                    # 如果是 exec(compile(...))，也移除
+                    # If it's exec(compile(...)), also remove
                     elif first_line.startswith('exec(compile('):
                         lines = lines[1:]
                 
@@ -429,10 +429,10 @@ class ShellSessionManager:
                 
                 duration_ms = int((time.time() - start_time) * 1000)
                 
-                # 重置错误计数
+                # Reset error count
                 session.error_count = 0
                 
-                logger.info(f"[exec] {session.session_id}: 命令执行成功 ({duration_ms}ms)")
+                logger.info(f"[exec] {session.session_id}: Command executed successfully ({duration_ms}ms)")
                 
                 return {
                     "status": "success",
@@ -445,7 +445,7 @@ class ShellSessionManager:
                 duration_ms = int((time.time() - start_time) * 1000)
                 duration_sec = duration_ms / 1000
                 
-                # 尝试获取已有输出
+                # Try to get existing output
                 try:
                     partial_output = session.process.before
                 except:
@@ -453,9 +453,9 @@ class ShellSessionManager:
                 
                 session.error_count += 1
                 
-                error_msg = f"⚠️ 命令执行超时 ({timeout} 秒)"
-                logger.error(f"[exec] {session.session_id}: 超时！已等待 {duration_sec:.1f}秒")
-                logger.error(f"[exec] 部分输出（前500字符）: {partial_output[:500]}")
+                error_msg = f"⚠️ Command execution timed out ({timeout}  seconds)"
+                logger.error(f"[exec] {session.session_id}: Timeout! Waited {duration_sec:.1f} seconds")
+                logger.error(f"[exec] Partial output (first 500 chars): {partial_output[:500]}")
                 
                 return {
                     "status": "error",
@@ -464,7 +464,7 @@ class ShellSessionManager:
                     "session_id": session.session_id,
                     "duration_ms": duration_ms,
                     "timeout_seconds": timeout,
-                    "suggestion": "命令可能卡住了。可能的原因：\n1. 代码执行时间过长\n2. 等待用户输入\n3. 死循环或资源不足\n建议：检查代码逻辑，减少数据量，或增加timeout参数"
+                    "suggestion": "Command may be stuck. Possible reasons:\n1. Code execution time too long\n2. Waiting for user input\n3. Infinite loop or insufficient resources\nSuggestion: Check code logic, reduce data volume, or increase timeout parameter"
                 }
             
             except pexpect.EOF:
@@ -472,23 +472,23 @@ class ShellSessionManager:
                 
                 return {
                     "status": "error",
-                    "error": "会话意外结束",
+                    "error": "Session ended unexpectedly",
                     "session_id": session.session_id,
-                    "suggestion": "会话已崩溃，将在下次调用时自动重启"
+                    "suggestion": "Session has crashed, will auto-restart on next call"
                 }
         
         except Exception as e:
             session.error_count += 1
-            logger.error(f"[exec] {session.session_id}: 错误 - {e}", exc_info=True)
+            logger.error(f"[exec] {session.session_id}: Error - {e}", exc_info=True)
             
             return {
                 "status": "error",
-                "error": f"执行命令时发生错误: {e}",
+                "error": f"Error executing command: {e}",
                 "session_id": session.session_id
             }
     
     async def _close_session(self, session_id: str):
-        """关闭会话"""
+        """Closing session"""
         if session_id not in self.sessions:
             return
         
@@ -496,30 +496,30 @@ class ShellSessionManager:
         
         try:
             if session.is_alive:
-                # 尝试优雅退出
+                # Try graceful exit
                 if session.shell_type == "bash":
                     session.process.sendline("exit")
                 elif session.shell_type in ["python", "ipython"]:
                     session.process.sendline("quit()")
                 
-                # 等待进程结束
+                # Wait for process to end
                 try:
                     session.process.wait()
                 except:
                     pass
                 
-                # 强制关闭
+                # Force close
                 if session.is_alive:
                     session.process.kill(9)
         
         except Exception as e:
-            logger.error(f"[session] 关闭会话失败 {session_id}: {e}")
+            logger.error(f"[session] Failed to close session {session_id}: {e}")
         
         finally:
             del self.sessions[session_id]
     
     def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """获取会话信息"""
+        """Get session information"""
         if session_id not in self.sessions:
             return None
         
@@ -538,7 +538,7 @@ class ShellSessionManager:
         }
     
     def list_sessions(self, user_id: str) -> list:
-        """列出用户的所有会话"""
+        """List all user sessions"""
         return [
             self.get_session_info(sid)
             for sid, session in self.sessions.items()
@@ -546,7 +546,7 @@ class ShellSessionManager:
         ]
 
 
-# 全局管理器实例
+# Global manager instance
 _session_manager = ShellSessionManager()
 
 
@@ -558,34 +558,34 @@ async def shell_exec(
     timeout: int = 300
 ) -> str:
     """
-    在持久化会话中执行命令（自动管理）
+    Execute command in a persistent session (auto-managed).
     
     Args:
         context: AgentContext
-        command: 要执行的命令
-        shell_type: Shell 类型 (bash | python | ipython)
-        new_session: 是否强制创建新会话
-        timeout: 超时时间（秒）
+        command: Command to execute
+        shell_type: Shell type (bash | python | ipython)
+        new_session: Whether to force create a new session
+        timeout: Timeout in seconds
     
     Returns:
-        JSON 格式的执行结果
+        JSON formatted execution result
     """
     try:
-        # ✅ 检查命令长度（防止长代码导致pexpect问题）
-        MAX_COMMAND_LENGTH = 1500  # 最大字符数
-        MAX_COMMAND_LINES = 50     # 最大行数
+        # ✅ Check command length (prevent long code causing pexpect issues)
+        MAX_COMMAND_LENGTH = 1500  # Max characters
+        MAX_COMMAND_LINES = 50     # Max lines
         
         command_lines = command.count('\n') + 1
         command_length = len(command)
         
         if command_length > MAX_COMMAND_LENGTH or command_lines > MAX_COMMAND_LINES:
             logger.warning(
-                f"[shell_exec] 命令过长: {command_length} 字符, {command_lines} 行 "
-                f"(限制: {MAX_COMMAND_LENGTH} 字符, {MAX_COMMAND_LINES} 行)"
+                f"[shell_exec] Command too long: {command_length} chars, {command_lines} lines "
+                f"(limit: {MAX_COMMAND_LENGTH} chars, {MAX_COMMAND_LINES} lines)"
             )
             return json.dumps({
                 "status": "error",
-                "error": f"⚠️ 代码过长，不适合在 shell_exec 中执行",
+                "error": f"⚠️ Code too long for shell_exec execution",
                 "details": {
                     "command_length": command_length,
                     "command_lines": command_lines,
@@ -593,54 +593,54 @@ async def shell_exec(
                     "max_lines": MAX_COMMAND_LINES
                 },
                 "suggestion": (
-                    "请使用 write_file + exec 的方式执行长代码：\n"
-                    "1. write_file('script.py', '...你的代码...')\n"
+                    "Please use write_file + exec for long code:\n"
+                    "1. write_file('script.py', '...your code...')\n"
                     "2. exec('python script.py')\n\n"
-                    "这样更稳定可靠，避免 pexpect 缓冲区问题。"
+                    "This is more stable and avoids pexpect buffer issues."
                 )
             }, ensure_ascii=False)
         
-        # 安全检查
+        # Security check
         from .security import validate_command
         
-        # Python/IPython 会话不需要命令验证（它们运行在受限环境中）
+        # Python/IPython sessions do not need command validation (they run in restricted environment)
         if shell_type == "bash":
             is_safe, error_msg = validate_command(command, context.user_id)
             if not is_safe:
-                logger.warning(f"[shell_exec] 命令被拒绝: {command} - {error_msg}")
+                logger.warning(f"[shell_exec] Command rejected: {command} - {error_msg}")
                 return json.dumps({
                     "status": "error",
                     "error": error_msg
                 }, ensure_ascii=False)
         
-        # 获取或创建会话
+        # Get or create session
         if new_session:
-            # 强制创建新会话（关闭旧的）
+            # Force create new session (close old ones)
             for sid, session in list(_session_manager.sessions.items()):
                 if session.user_id == context.user_id and session.shell_type == shell_type:
                     await _session_manager._close_session(sid)
         
-        # ✅ 传递 context.script_dir 作为工作目录（包含日期子目录）
-        logger.info(f"[shell_exec] 请求 shell 会话，workdir={context.script_dir}")
+        # ✅ Pass context.script_dir as working directory (with date subdirectory)
+        logger.info(f"[shell_exec] Requesting shell session, workdir={context.script_dir}")
         session = await _session_manager.get_or_create_session(
             user_id=context.user_id,
             shell_type=shell_type,
             workdir=context.script_dir
         )
-        logger.info(f"[shell_exec] 获得会话: {session.session_id}, workdir={session.workdir}")
+        logger.info(f"[shell_exec] Got session: {session.session_id}, workdir={session.workdir}")
         
-        # ✅ 执行前：记录现有文件
+        # ✅ Before execution: record existing files
         before_files = set()
         try:
             if context.script_dir.exists():
                 before_files = set(f.name for f in context.script_dir.iterdir() if f.is_file())
         except Exception as e:
-            logger.debug(f"[shell_exec] 无法读取工作目录: {e}")
+            logger.debug(f"[shell_exec] Cannot read working directory: {e}")
         
-        # 执行命令（带额外的asyncio超时保护）
-        logger.info(f"[shell_exec] 开始执行，设置 {timeout}秒超时保护")
+        # Execute command (with additional asyncio timeout protection)
+        logger.info(f"[shell_exec] Starting execution, setting {timeout} second timeout protection")
         try:
-            # 添加额外10秒的缓冲时间给asyncio超时
+            # Add additional 10 seconds buffer for asyncio timeout
             async_timeout = timeout + 10
             result = await asyncio.wait_for(
                 _session_manager.execute_in_session(
@@ -651,15 +651,15 @@ async def shell_exec(
                 timeout=async_timeout
             )
         except asyncio.TimeoutError:
-            logger.error(f"[shell_exec] asyncio超时保护触发！命令执行超过 {async_timeout} 秒")
+            logger.error(f"[shell_exec] asyncio timeout protection triggered! Command execution exceeded {async_timeout}  seconds")
             result = {
                 "status": "error",
-                "error": f"⚠️ 命令执行严重超时 (>{async_timeout}秒)",
+                "error": f"⚠️ Command execution severely timed out (>{async_timeout} seconds)",
                 "session_id": session.session_id,
-                "suggestion": "命令可能完全卡住。建议：\n1. 检查代码是否有死循环\n2. 检查是否在等待用户输入\n3. 尝试使用new_session=True强制创建新会话"
+                "suggestion": "Command may be completely stuck. Suggestions:\n1. Check for infinite loops\n2. Check if waiting for user input\n3. Try using new_session=True to force create new session"
             }
         
-        # ✅ 执行后：检测新文件
+        # ✅ After execution: detect new files
         after_files = set()
         created_files = []
         try:
@@ -677,21 +677,21 @@ async def shell_exec(
                                 "size": file_path.stat().st_size,
                                 "lines": len(file_path.read_text(errors='ignore').splitlines()) if file_path.suffix in ['.py', '.txt', '.md', '.sh'] else 0
                             })
-                            logger.info(f"[shell_exec] 检测到新文件: {file_name} ({file_path.stat().st_size} bytes)")
+                            logger.info(f"[shell_exec] Detected new file: {file_name} ({file_path.stat().st_size} bytes)")
         except Exception as e:
-            logger.debug(f"[shell_exec] 文件检测失败: {e}")
+            logger.debug(f"[shell_exec] File detection failed: {e}")
         
-        # ✅ 如果有新文件，添加到结果中
+        # ✅ If there are new files, add to result
         if created_files:
             result["created_files"] = created_files
         
         return json.dumps(result, ensure_ascii=False)
         
     except Exception as e:
-        logger.error(f"[shell_exec] 错误: {e}", exc_info=True)
+        logger.error(f"[shell_exec] Error: {e}", exc_info=True)
         return json.dumps({
             "status": "error",
-            "error": f"执行失败: {e}"
+            "error": f"Execution failed: {e}"
         }, ensure_ascii=False)
 
 
@@ -701,15 +701,15 @@ async def shell_session_manage(
     session_id: Optional[str] = None
 ) -> str:
     """
-    管理 Shell 会话
+    Manage shell sessions.
     
     Args:
         context: AgentContext
-        action: 操作类型 (list | info | close)
-        session_id: 会话 ID（某些操作需要）
+        action: Action type (list | info | close)
+        session_id: Session ID (required for some operations)
     
     Returns:
-        JSON 格式的结果
+        JSON formatted result
     """
     if action == "list":
         sessions = _session_manager.list_sessions(context.user_id)
@@ -723,21 +723,21 @@ async def shell_session_manage(
         if not session_id:
             return json.dumps({
                 "status": "error",
-                "error": "info 操作需要 session_id"
+                "error": "info action requires session_id"
             }, ensure_ascii=False)
         
         info = _session_manager.get_session_info(session_id)
         if info is None:
             return json.dumps({
                 "status": "error",
-                "error": f"会话不存在: {session_id}"
+                "error": f"Session not found: {session_id}"
             }, ensure_ascii=False)
         
-        # 检查权限
+        # Check permissions
         if info["user_id"] != context.user_id:
             return json.dumps({
                 "status": "error",
-                "error": "无权访问该会话"
+                "error": "No permission to access this session"
             }, ensure_ascii=False)
         
         return json.dumps({
@@ -749,28 +749,28 @@ async def shell_session_manage(
         if not session_id:
             return json.dumps({
                 "status": "error",
-                "error": "close 操作需要 session_id"
+                "error": "close action requires session_id"
             }, ensure_ascii=False)
         
-        # 检查权限
+        # Check permissions
         if session_id in _session_manager.sessions:
             session = _session_manager.sessions[session_id]
             if session.user_id != context.user_id:
                 return json.dumps({
                     "status": "error",
-                    "error": "无权访问该会话"
+                    "error": "No permission to access this session"
                 }, ensure_ascii=False)
         
         await _session_manager._close_session(session_id)
         
         return json.dumps({
             "status": "success",
-            "message": f"会话 {session_id} 已关闭"
+            "message": f"Session {session_id} closed"
         }, ensure_ascii=False)
     
     else:
         return json.dumps({
             "status": "error",
-            "error": f"未知操作: {action}"
+            "error": f"Unknown action: {action}"
         }, ensure_ascii=False)
 

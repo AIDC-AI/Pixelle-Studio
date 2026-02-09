@@ -22,7 +22,7 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
     const hasArguments = toolCall.arguments && Object.keys(toolCall.arguments).length > 0;
     const hasResult = toolCall.result !== undefined;
 
-    // 格式化JSON字符串，处理可能的解析错误
+    // Format JSON string, handle possible parsing errors
     const formatJson = (data: any): string => {
         if (typeof data === 'string') {
             try {
@@ -35,7 +35,7 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
         return JSON.stringify(data, null, 2);
     };
 
-    // 渲染代码块
+    // Render code block
     const renderCodeBlock = (code: string, title: string) => (
         <div className="bg-gray-50 rounded p-2">
             <div className="text-xs font-medium text-gray-600 mb-1">{title}:</div>
@@ -75,8 +75,8 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
             {/* Arguments/Result details */}
             {isExpanded && (
                 <div className="mt-1 ml-4 pl-3 border-l-2 border-gray-200">
-                    {!isResult && hasArguments && renderCodeBlock(formatJson(toolCall.arguments), "参数")}
-                    {isResult && hasResult && (renderCodeBlock(formatJson(toolCall.result), "结果"))}
+                    {!isResult && hasArguments && renderCodeBlock(formatJson(toolCall.arguments), "Arguments")}
+                    {isResult && hasResult && (renderCodeBlock(formatJson(toolCall.result), "Result"))}
                 </div>
             )}
         </div>

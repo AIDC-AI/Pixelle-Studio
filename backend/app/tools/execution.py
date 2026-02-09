@@ -1,5 +1,5 @@
 """
-命令执行工具 - exec（非持久化版本）
+Command execution tool - exec (non-persistent version)
 """
 import asyncio
 import subprocess
@@ -16,7 +16,7 @@ from .security import validate_command, get_user_workdir
 logger = logging.getLogger(__name__)
 
 
-# 后台进程注册表
+# Background process registry
 _background_processes: Dict[str, Dict] = {}
 
 
@@ -29,20 +29,20 @@ async def exec_command(
     background: bool = False
 ) -> str:
     """
-    执行一次性命令（非持久化）
+    Execute a one-time command (non-persistent).
     
     Args:
         context: AgentContext
-        command: 要执行的命令
-        workdir: 工作目录（可选）
-        env: 环境变量（可选）
-        timeout: 超时时间（秒）
-        background: 是否后台运行
+        command: Command to execute
+        workdir: Working directory (optional)
+        env: Environment variables (optional)
+        timeout: Timeout in seconds
+        background: Whether to run in background
     
     Returns:
-        JSON 格式的执行结果
+        JSON formatted execution result
     """
-    # 1. 命令安全检查
+    # 1. Command security check
     is_safe, error_msg = validate_command(command, context.user_id)
     if not is_safe:
         logger.warning(f"[exec] Command blocked: {command} - {error_msg}")
@@ -51,50 +51,50 @@ async def exec_command(
             "error": error_msg
         }, ensure_ascii=False)
     
-    # 2. 确定工作目录
+    # 2. Determine working directory
     if workdir:
         try:
             from .security import validate_path
-            # ✅ 传入 script_dir 以支持日期子目录
+            # ✅ Pass script_dir to support date subdirectory
             resolved_workdir = validate_path(workdir, context.user_id, operation="read", script_dir=context.script_dir)
         except Exception as e:
             return json.dumps({
                 "status": "error",
-                "error": f"工作目录无效: {e}"
+                "error": f"Invalid working directory: {e}"
             }, ensure_ascii=False)
     else:
-        # ✅ 使用 context.script_dir（包含日期子目录）与 shell_exec 保持一致
+        # ✅ Use context.script_dir (with date subdirectory) consistent with shell_exec
         resolved_workdir = context.script_dir
     
-    # 3. 准备环境变量
+    # 3. Prepare environment variables
     exec_env = dict(os.environ) if env is None else {**os.environ, **env}
     
-    # ✅ 如果命令使用 python，替换为 .venv 中的 Python
+    # ✅ If command uses python, replace with .venv Python
     original_command = command
     backend_root = Path(__file__).parent.parent.parent
     venv_python = backend_root / ".venv" / "bin" / "python"
     
     if venv_python.exists():
-        # 检查命令是否以 python 开头
+        # Check if command starts with python
         if command.strip().startswith("python ") or command.strip() == "python":
-            # 替换为虚拟环境的 Python
+            # Replace with virtual env Python
             command = command.replace("python ", f"{venv_python} ", 1)
-            logger.info(f"[exec] 使用 .venv Python: {venv_python}")
+            logger.info(f"[exec] Using .venv Python: {venv_python}")
         elif command.strip().startswith("python3 ") or command.strip() == "python3":
-            # 替换为虚拟环境的 Python
+            # Replace with virtual env Python
             command = command.replace("python3 ", f"{venv_python} ", 1)
-            logger.info(f"[exec] 使用 .venv Python: {venv_python}")
+            logger.info(f"[exec] Using .venv Python: {venv_python}")
     else:
-        logger.warning(f"[exec] .venv/bin/python 不存在，使用系统 Python")
+        logger.warning(f"[exec] .venv/bin/python not found, using system Python")
     
-    # 4. 生成会话ID
+    # 4. Generate session ID
     session_id = f"exec_{uuid.uuid4().hex[:8]}"
     
     logger.info(f"[exec] {session_id}: {command} (workdir: {resolved_workdir}, background: {background})")
     
     try:
         if background:
-            # 后台执行
+            # Background execution
             process = await asyncio.create_subprocess_shell(
                 command,
                 cwd=str(resolved_workdir),
@@ -103,7 +103,7 @@ async def exec_command(
                 stderr=asyncio.subprocess.PIPE
             )
             
-            # 注册后台进程
+            # Register background process
             _background_processes[session_id] = {
                 "process": process,
                 "command": command,
@@ -114,26 +114,26 @@ async def exec_command(
                 "stderr": []
             }
             
-            # 启动输出收集任务
+            # Start output collection task
             asyncio.create_task(_collect_background_output(session_id))
             
             return json.dumps({
                 "status": "running",
                 "session_id": session_id,
                 "pid": process.pid,
-                "message": f"命令已在后台启动 (session_id: {session_id})。使用 process(action='status', session_id='{session_id}') 查看进度。"
+                "message": f"Command started in background (session_id: {session_id})。Use process(action='status', session_id='{session_id}') to check progress."
             }, ensure_ascii=False)
         
         else:
-            # ✅ 执行前：记录现有文件
+            # ✅ Before execution: record existing files
             before_files = set()
             try:
                 if resolved_workdir.exists():
                     before_files = set(f.name for f in resolved_workdir.iterdir() if f.is_file())
             except Exception as e:
-                logger.debug(f"[exec] 无法读取工作目录: {e}")
+                logger.debug(f"[exec] Cannot read working directory: {e}")
             
-            # 同步执行
+            # Synchronous execution
             start_time = time.time()
             
             process = await asyncio.create_subprocess_shell(
@@ -158,8 +158,8 @@ async def exec_command(
                 logger.info(f"[exec] {session_id}: completed (exit_code: {exit_code}, duration: {duration:.2f}s)")
                 
                 if exit_code != 0:
-                    # 执行失败
-                    error_msg = f"命令执行失败 (退出码 {exit_code})"
+                    # Execution failed
+                    error_msg = f"Command execution failed (exit code {exit_code})"
                     if stderr:
                         error_msg += f"\n\nSTDERR:\n{stderr}"
                     if stdout:
@@ -174,7 +174,7 @@ async def exec_command(
                         "error": error_msg
                     }, ensure_ascii=False)
                 
-                # ✅ 执行成功后：检测新创建的文件
+                # ✅ After success: detect newly created files
                 created_files = []
                 try:
                     if resolved_workdir.exists():
@@ -191,11 +191,11 @@ async def exec_command(
                                         "size": file_path.stat().st_size,
                                         "lines": len(file_path.read_text(errors='ignore').splitlines()) if file_path.suffix in ['.py', '.txt', '.md', '.sh'] else 0
                                     })
-                                    logger.info(f"[exec] 检测到新文件: {file_name} ({file_path.stat().st_size} bytes)")
+                                    logger.info(f"[exec] Detected new file: {file_name} ({file_path.stat().st_size} bytes)")
                 except Exception as e:
-                    logger.debug(f"[exec] 文件检测失败: {e}")
+                    logger.debug(f"[exec] File detection failed: {e}")
                 
-                # 执行成功
+                # Execution successful
                 result = {
                     "status": "success",
                     "exit_code": exit_code,
@@ -204,14 +204,14 @@ async def exec_command(
                     "duration_ms": int(duration * 1000)
                 }
                 
-                # ✅ 如果有新文件，添加到结果中
+                # ✅ If there are new files, add to result
                 if created_files:
                     result["created_files"] = created_files
                 
                 return json.dumps(result, ensure_ascii=False)
                 
             except asyncio.TimeoutError:
-                # 超时，终止进程
+                # Timeout, kill process
                 try:
                     process.kill()
                     await process.wait()
@@ -223,7 +223,7 @@ async def exec_command(
                 
                 return json.dumps({
                     "status": "error",
-                    "error": f"命令执行超时 ({timeout} 秒)",
+                    "error": f"Command execution timed out ({timeout}  seconds)",
                     "duration_ms": int(duration * 1000)
                 }, ensure_ascii=False)
     
@@ -231,12 +231,12 @@ async def exec_command(
         logger.error(f"[exec] {session_id}: error - {e}", exc_info=True)
         return json.dumps({
             "status": "error",
-            "error": f"执行命令时发生错误: {e}"
+            "error": f"Error executing command: {e}"
         }, ensure_ascii=False)
 
 
 async def _collect_background_output(session_id: str):
-    """收集后台进程的输出"""
+    """Collect background process output"""
     if session_id not in _background_processes:
         return
     
@@ -266,18 +266,18 @@ async def process_manage(
     session_id: Optional[str] = None
 ) -> str:
     """
-    管理后台进程
+    Manage background processes.
     
     Args:
         context: AgentContext
-        action: 操作类型 (list | status | logs | kill)
-        session_id: 进程会话ID
+        action: Action type (list | status | logs | kill)
+        session_id: Process session ID
     
     Returns:
-        JSON 格式的结果
+        JSON formatted result
     """
     if action == "list":
-        # 列出当前用户的所有后台进程
+        # List all background processes for current user
         user_processes = [
             {
                 "session_id": sid,
@@ -300,22 +300,22 @@ async def process_manage(
         if not session_id:
             return json.dumps({
                 "status": "error",
-                "error": "status 操作需要 session_id"
+                "error": "status action requires session_id"
             }, ensure_ascii=False)
         
         if session_id not in _background_processes:
             return json.dumps({
                 "status": "error",
-                "error": f"会话不存在: {session_id}"
+                "error": f"Session not found: {session_id}"
             }, ensure_ascii=False)
         
         proc_info = _background_processes[session_id]
         
-        # 检查用户权限
+        # Check user permissions
         if proc_info["user_id"] != context.user_id:
             return json.dumps({
                 "status": "error",
-                "error": "无权访问该会话"
+                "error": "No permission to access this session"
             }, ensure_ascii=False)
         
         process = proc_info["process"]
@@ -339,22 +339,22 @@ async def process_manage(
         if not session_id:
             return json.dumps({
                 "status": "error",
-                "error": "logs 操作需要 session_id"
+                "error": "logs action requires session_id"
             }, ensure_ascii=False)
         
         if session_id not in _background_processes:
             return json.dumps({
                 "status": "error",
-                "error": f"会话不存在: {session_id}"
+                "error": f"Session not found: {session_id}"
             }, ensure_ascii=False)
         
         proc_info = _background_processes[session_id]
         
-        # 检查用户权限
+        # Check user permissions
         if proc_info["user_id"] != context.user_id:
             return json.dumps({
                 "status": "error",
-                "error": "无权访问该会话"
+                "error": "No permission to access this session"
             }, ensure_ascii=False)
         
         stdout_lines = proc_info.get("stdout", [])
@@ -373,22 +373,22 @@ async def process_manage(
         if not session_id:
             return json.dumps({
                 "status": "error",
-                "error": "kill 操作需要 session_id"
+                "error": "kill action requires session_id"
             }, ensure_ascii=False)
         
         if session_id not in _background_processes:
             return json.dumps({
                 "status": "error",
-                "error": f"会话不存在: {session_id}"
+                "error": f"Session not found: {session_id}"
             }, ensure_ascii=False)
         
         proc_info = _background_processes[session_id]
         
-        # 检查用户权限
+        # Check user permissions
         if proc_info["user_id"] != context.user_id:
             return json.dumps({
                 "status": "error",
-                "error": "无权访问该会话"
+                "error": "No permission to access this session"
             }, ensure_ascii=False)
         
         process = proc_info["process"]
@@ -396,7 +396,7 @@ async def process_manage(
         if process.returncode is not None:
             return json.dumps({
                 "status": "success",
-                "message": "进程已结束",
+                "message": "Process has ended",
                 "exit_code": process.returncode
             }, ensure_ascii=False)
         
@@ -411,7 +411,7 @@ async def process_manage(
             
             return json.dumps({
                 "status": "success",
-                "message": "进程已终止",
+                "message": "Process terminated",
                 "session_id": session_id
             }, ensure_ascii=False)
             
@@ -419,16 +419,16 @@ async def process_manage(
             logger.error(f"[process] Failed to kill {session_id}: {e}")
             return json.dumps({
                 "status": "error",
-                "error": f"终止进程失败: {e}"
+                "error": f"Failed to terminate process: {e}"
             }, ensure_ascii=False)
     
     else:
         return json.dumps({
             "status": "error",
-            "error": f"未知操作: {action}"
+            "error": f"Unknown action: {action}"
         }, ensure_ascii=False)
 
 
-# 导入 os 模块
+# Import os module
 import os
 

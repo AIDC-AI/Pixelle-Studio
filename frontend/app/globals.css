@@ -16,10 +16,10 @@
 }
 
 /*
-  默认背景：gray-50 文本 gray-600
-  有选中和选择状态时默认背景纯白
-  选中和hover：gray-100 
-  disabled：gray-200 文本 gray-400
+  Default background: gray-50, text: gray-600
+  When selected/active, default background is pure white
+  Selected and hover: gray-100 
+  Disabled: gray-200, text: gray-400
 */
 @theme {
   /* Gray scale - Tailwind default colors */
@@ -255,7 +255,7 @@
   animation: slideUpAndFade 400ms cubic-bezier(0.16, 1, 0.3, 1)
 }
 
-/* React Data Grid 自定义样式 */
+/* React Data Grid custom styles */
 .rdg {
   --rdg-header-background-color: #f8fafc;
   --rdg-row-hover-background-color: #f1f5f9;

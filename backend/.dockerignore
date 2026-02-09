@@ -20,14 +20,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# 日志和数据库
+# Logs and databases
 *.log
 logs/
 *.db
 *.sqlite
 app.db
 
-# 环境文件（注意：.env 可能需要，但通常通过 env_file 传递）
+# Environment files (note: .env may be needed, but usually passed via env_file)
 .env.local
 .env.*.local
 
@@ -43,22 +43,21 @@ app.db
 *.swo
 *~
 
-# 系统文件
+# System files
 .DS_Store
 Thumbs.db
 
-# 文档
+# Documentation
 README.md
 *.md
 !SKILL.md
 
-# 测试和脚本
+# Tests and scripts
 tests/
 test_*.py
 *_test.py
 
-# 存储目录（运行时挂载）
+# Storage directories (mounted at runtime)
 storage/
 scripts/
 !scripts/default/
-

@@ -9,8 +9,8 @@ interface IProps {
     required?: boolean
     disabled?: boolean
     placeholder?: string
-    isTextarea?: boolean // 是否是textarea
-    isFlexMax?: boolean // 是否撑满剩余空间
+    isTextarea?: boolean // Whether to render as textarea
+    isFlexMax?: boolean // Whether to fill remaining space
     value?: string
     setValue?: (value: string) => void
 }
@@ -22,7 +22,7 @@ const FormInput: React.FC<IProps> = (props) => {
         errorMessages,
         required = true,
         disabled,
-        placeholder = '请输入',
+        placeholder = 'Please enter',
         isTextarea = false,
         isFlexMax = false,
         value,

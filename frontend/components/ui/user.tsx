@@ -33,7 +33,7 @@ const User = () => {
                         className="border border-gray-400 hover:border-gray-800 hover:bg-gray-100 text-xs text-gray-900 w-full rounded-sm px-2"
                         onClick={logout}
                     >
-                        登出
+                        Logout
                     </button> */}
 				</HoverCard.Content>
 			</HoverCard.Portal>

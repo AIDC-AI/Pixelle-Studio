@@ -31,7 +31,7 @@ const SystemOperationGroup: React.FC<IProps> = ({ children, isComplete = false }
                     </span>
                     {isComplete && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">
-                            已完成
+                            Done
                         </span>
                     )}
                 </div>

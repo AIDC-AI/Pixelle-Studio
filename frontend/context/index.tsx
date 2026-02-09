@@ -77,7 +77,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setUser(res.user)
             }
         } catch (error) {
-            showToast(ToastType.ERROR, (error as Error)?.message || "登录失败！")
+            showToast(ToastType.ERROR, (error as Error)?.message || "Login failed!")
         }
     }
 
@@ -89,11 +89,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 password
             })
             if (!!res) {
-                showToast(ToastType.SUCCESS, "注册成功！")
+                showToast(ToastType.SUCCESS, "Registration successful!")
                 return true
             }
         } catch (error) {
-            showToast(ToastType.ERROR, (error as Error)?.message || "注册失败！")
+            showToast(ToastType.ERROR, (error as Error)?.message || "Registration failed!")
         }
         return false
     } 
@@ -103,9 +103,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             setUser(null)
             setToken(null)
             userAPI.logout()
-            showToast(ToastType.SUCCESS, "登出成功！")
+            showToast(ToastType.SUCCESS, "Logged out successfully!")
         } catch (error) {
-            showToast(ToastType.ERROR, (error as Error)?.message || "登出失败！")
+            showToast(ToastType.ERROR, (error as Error)?.message || "Logout failed!")
         }
     }
 
@@ -171,7 +171,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         setActiveSessionId(sessionAPI.getActiveSessionId())
         
-        // 初始化：如果有token，获取用户信息
+        // Initialize: if token exists, fetch user info
         const initAuth = async () => {
             if (userAPI.isAuthenticated() && !user) {
                 await getCurrentUser()
@@ -184,17 +184,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const isAuthRoute = PUBLIC_ROUTES.includes(pathname);
         
         if (userAPI.isAuthenticated() && user) {
-            // 已登录且有用户信息：如果在登录页，跳转到主页
+            // Logged in with user info: if on auth page, redirect to home
             if (isAuthRoute) {
                 router.push('/')
             }
         } else if (!userAPI.isAuthenticated()) {
-            // 未登录：如果不在登录页，跳转到登录页
+            // Not logged in: if not on auth page, redirect to auth page
             if (!isAuthRoute) {
                 router.push('/auth')
             }
         }
-        // 如果isAuthenticated但user为null（正在加载中），不做任何跳转
+        // If isAuthenticated but user is null (still loading), don't redirect
     }, [pathname, user])
 
     return <AppContext.Provider

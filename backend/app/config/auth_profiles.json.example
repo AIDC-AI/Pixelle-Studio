@@ -1,5 +1,5 @@
 {
-  "description": "认证配置示例 - 支持多个 API Key 的故障转移",
+  "description": "Example of Auth profiles- Support multiple API keys for error transfer.",
   "auth_profiles": [
     {
       "id": "openai-primary",
@@ -21,10 +21,10 @@
     }
   ],
   "notes": [
-    "复制此文件为 auth_profiles.json 并填入真实的 API Key",
-    "系统会按顺序尝试每个配置",
-    "失败的配置会进入冷却期 (指数退避)",
-    "如果没有配置文件,系统会从环境变量读取 OPENAI_API_KEY"
+    "Copy this file as auth_profiles.json and fill in real API Keys",
+    "The system will try each configuration in order",
+    "Failed configurations enter a cooldown period (exponential backoff)",
+    "If no config file exists, the system reads OPENAI_API_KEY from environment variables"
   ]
 }
 

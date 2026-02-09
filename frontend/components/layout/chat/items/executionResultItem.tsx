@@ -27,7 +27,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                 ? 'bg-white border-teal-200' 
                 : 'bg-white border-red-200'
         }`}>
-            {/* Header - 深绿色调 */}
+            {/* Header - dark green tone */}
             <div 
                 className={`flex items-center justify-between px-3 py-2 cursor-pointer transition-colors ${
                     isSuccess 
@@ -51,12 +51,12 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                                 ? 'bg-teal-100 text-teal-700' 
                                 : 'bg-red-100 text-red-700'
                         }`}>
-                            {isSuccess ? '成功' : '失败'}
+                            {isSuccess ? 'Success' : 'Failed'}
                         </span>
                         {hasStderr && isSuccess && (
                             <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 flex items-center gap-0.5">
                                 <AlertTriangle className="w-2.5 h-2.5" />
-                                警告
+                                Warning
                             </span>
                         )}
                     </div>
@@ -74,7 +74,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                         <div>
                             <div className="flex items-center gap-1.5 mb-1.5">
                                 <AlertTriangle className="w-3 h-3 text-amber-600" />
-                                <span className="text-xs font-medium text-amber-700">错误/警告</span>
+                                <span className="text-xs font-medium text-amber-700">Error/Warning</span>
                             </div>
                             <pre className="bg-amber-50 rounded p-2 text-xs text-amber-800 font-mono overflow-x-auto whitespace-pre-wrap border border-amber-200">
                                 {result.stderr}
@@ -87,7 +87,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                         <div>
                             <div className="flex items-center gap-1.5 mb-1.5">
                                 <CheckCircle className="w-3 h-3 text-teal-600" />
-                                <span className="text-xs font-medium text-teal-700">解析结果</span>
+                                <span className="text-xs font-medium text-teal-700">Parsed Result</span>
                             </div>
                             <CodeHighlighter 
                                 language={"json"}
@@ -105,7 +105,7 @@ const ExecutionResultItem: React.FC<IProps> = (props) => {
                         <div>
                             <div className="flex items-center gap-1.5 mb-1.5">
                                 <Terminal className="w-3 h-3 text-gray-500" />
-                                <span className="text-xs font-medium text-gray-600">输出</span>
+                                <span className="text-xs font-medium text-gray-600">Output</span>
                             </div>
                             <pre className="bg-gray-50 rounded p-2 text-xs text-gray-700 font-mono overflow-x-auto whitespace-pre-wrap border border-gray-200">
                                 {result.stdout}

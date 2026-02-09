@@ -14,7 +14,7 @@ def get_local_ip() -> str:
     2. Auto-detected local IP
     3. Fallback to 127.0.0.1
     """
-    # 优先使用环境变量配置的外部 IP（用于 Docker 环境）
+    # Prefer external IP from env var (for Docker environments)
     external_ip = os.environ.get("EXTERNAL_IP")
     if external_ip:
         return external_ip

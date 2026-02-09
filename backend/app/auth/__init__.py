@@ -1,4 +1,4 @@
-"""认证模块 - 支持多配置故障转移"""
+"""Authentication module - supports multi-profile failover"""
 
 from .models import AuthProfile, AuthStore
 

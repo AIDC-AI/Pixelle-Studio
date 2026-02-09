@@ -1,6 +1,6 @@
 /**
- * 聊天存储 Hook
- * 提供便捷的聊天记录管理功能
+ * Chat Storage Hook
+ * Provides convenient chat history management functionality
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -15,7 +15,7 @@ export function useChatStorage(sessionId?: string) {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // 加载消息
+  // Load messages
   const loadMessages = useCallback(async (sessId: string) => {
     if (!sessId) return;
     
@@ -32,13 +32,13 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 保存消息（使用乐观更新实现流式效果）
+  // Save message (using optimistic update for streaming effect)
   const saveMessage = useCallback(async (sessId: string, msg: Message, messageId?: string) => {
     try {
-      // 乐观更新：立即更新 UI
+      // Optimistic update: immediately update UI
       setMessages(prev => [...prev, msg]);
       
-      // 后台保存到 IndexedDB（不阻塞 UI）
+      // Save to IndexedDB in background (non-blocking for UI)
       chatStorage.saveMessage(sessId, msg, messageId).catch(err => {
         console.error('Failed to persist message to storage:', err);
       });
@@ -49,13 +49,13 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 批量保存消息（使用乐观更新实现流式效果）
+  // Batch save messages (using optimistic update for streaming effect)
   const saveMessages = useCallback(async (sessId: string, msgs: Message[]) => {
     try {
-      // 乐观更新：立即更新 UI
+      // Optimistic update: immediately update UI
       setMessages(prev => [...prev, ...msgs]);
       
-      // 后台保存到 IndexedDB（不阻塞 UI）
+      // Save to IndexedDB in background (non-blocking for UI)
       chatStorage.saveMessages(sessId, msgs).catch(err => {
         console.error('Failed to persist messages to storage:', err);
       });
@@ -66,7 +66,7 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 清空当前会话消息
+  // Clear current session messages
   const clearMessages = useCallback(async (sessId: string) => {
     try {
       await chatStorage.deleteMessages(sessId);
@@ -78,7 +78,7 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 加载会话列表
+  // Load session list
   const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
     setError(null);
@@ -93,7 +93,7 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 创建新会话
+  // Create new session
   const createSession = useCallback(async (title?: string, backendSessionId?: string) => {
     try {
       const session = await chatStorage.createSession(title, backendSessionId);
@@ -106,7 +106,7 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 删除会话
+  // Delete session
   const deleteSession = useCallback(async (sessId: string) => {
     try {
       await chatStorage.deleteSession(sessId);
@@ -123,7 +123,7 @@ export function useChatStorage(sessionId?: string) {
     return sessions.find((s) => s.id === id) || null
   }, [sessions]);
 
-  // 更新会话标题
+  // Update session title
   const updateSessionTitle = useCallback(async (sessId: string, title: string) => {
     try {
       await chatStorage.updateSessionTitle(sessId, title);
@@ -137,7 +137,7 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 更新会话的后端 ID
+  // Update session backend ID
   const updateSessionBackendId = useCallback(async (sessId: string, backendSessionId: string) => {
     try {
       await chatStorage.updateSessionBackendId(sessId, backendSessionId);
@@ -151,17 +151,17 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // 初始加载（使用 ref 避免重新加载导致流式输出中断）
+  // Initial load (using ref to avoid reload interrupting streaming output)
   const sessionIdRef = useRef<string | undefined>(sessionId);
   const isInitialLoadRef = useRef(true);
   
   useEffect(() => {
-    // 如果是同一个session，不重新加载（保持流式输出）
+    // If same session, don't reload (preserve streaming output)
     if (sessionIdRef.current === sessionId && !isInitialLoadRef.current) {
       return;
     }
     
-    // Session切换或初始加载时才重新加载消息
+    // Only reload messages on session switch or initial load
     sessionIdRef.current = sessionId;
     isInitialLoadRef.current = false;
     
@@ -174,20 +174,20 @@ export function useChatStorage(sessionId?: string) {
   }, [sessionId]);
 
   return {
-    // 状态
+    // State
     messages,
     sessions,
     sessionsLoading,
     messagesLoading,
     error,
 
-    // 消息操作
+    // Message operations
     loadMessages,
     saveMessage,
     saveMessages,
     clearMessages,
 
-    // 会话操作
+    // Session operations
     loadSessions,
     createSession,
     deleteSession,

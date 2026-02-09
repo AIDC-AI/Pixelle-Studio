@@ -28,7 +28,7 @@ const AdviceItem: React.FC<IProps> = (props) => {
                     <div className="flex items-center justify-center w-6 h-6 rounded bg-gray-300 text-gray-600">
                         <Lightbulb className="w-3 h-3" />
                     </div>
-                    <span className="text-xs font-medium text-gray-600">修改建议</span>
+                    <span className="text-xs font-medium text-gray-600">Revision Advice</span>
                 </div>
                 <div className="text-gray-500">
                     {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}

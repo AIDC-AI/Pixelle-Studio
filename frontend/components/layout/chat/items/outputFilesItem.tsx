@@ -61,7 +61,7 @@ const getFileTypeLabel = (fileName: string): string => {
         case 'jpeg':
         case 'gif':
         case 'webp':
-            return '图片';
+            return 'Image';
         case 'svg':
             return 'SVG';
         case 'html':
@@ -73,11 +73,11 @@ const getFileTypeLabel = (fileName: string): string => {
         case 'docx':
             return 'Word';
         case 'txt':
-            return '文本';
+            return 'Text';
         case 'md':
             return 'MD';
         default:
-            return '文件';
+            return 'File';
     }
 };
 
@@ -117,9 +117,9 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
                     <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
                         <div className="flex items-center gap-2">
                             <FolderDown className="w-4 h-4 text-gray-600" />
-                            <span className="text-sm font-medium text-gray-700">生成的文件</span>
+                            <span className="text-sm font-medium text-gray-700">Generated Files</span>
                             <span className="text-xs text-gray-500">
-                                共 {files.length} 个
+                                Total {files.length}
                             </span>
                         </div>
                     </div>
@@ -150,7 +150,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
                                             {canPreviewFile(file.file_name) && (
                                                 <>
                                                     <span>•</span>
-                                                    <span className="text-orange-500">可预览</span>
+                                                    <span className="text-orange-500">Previewable</span>
                                                 </>
                                             )}
                                         </div>
@@ -168,7 +168,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
                                             }}
                                         >
                                             <Eye className="w-3 h-3" />
-                                            预览
+                                            Preview
                                         </button>
                                     )}
                                     <button
@@ -179,7 +179,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
                                         }}
                                     >
                                         <Download className="w-3 h-3" />
-                                        下载
+                                        Download
                                     </button>
                                 </div>
                             </div>
@@ -194,7 +194,7 @@ const OutputFilesItem: React.FC<IProps> = ({ files, onFilePreview }) => {
                                 onClick={() => files.forEach(file => handleDownload(file))}
                             >
                                 <FolderDown className="w-4 h-4" />
-                                下载全部
+                                Download All
                             </button>
                         </div>
                     )}

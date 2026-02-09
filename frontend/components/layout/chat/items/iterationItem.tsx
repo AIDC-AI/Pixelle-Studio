@@ -39,7 +39,7 @@ const IterationItem: React.FC<IProps> = (props) => {
         >
             {getIcon()}
             <span>
-                {isStart ? '开始' : isSuccess ? '完成' : isFailed ? '失败' : '迭代'} 
+                {isStart ? 'Start' : isSuccess ? 'Done' : isFailed ? 'Failed' : 'Iteration'} 
                 {iterNum && ` #${iterNum}`}
             </span>
         </div>

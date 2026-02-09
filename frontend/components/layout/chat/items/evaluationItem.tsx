@@ -38,18 +38,18 @@ const EvalutaionItem: React.FC<IProps> = (props) => {
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-gray-600">
-                            评估结果
+                            Evaluation Result
                         </span>
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
                             isPassing 
                                 ? 'bg-green-100 text-green-700' 
                                 : 'bg-amber-100 text-amber-700'
                         }`}>
-                            {isPassing ? '通过' : '需改进'}
+                            {isPassing ? 'Pass' : 'Needs Improvement'}
                         </span>
                         {confidence !== null && (
                             <span className="text-xs text-gray-500">
-                                置信度 {confidence}%
+                                Confidence {confidence}%
                             </span>
                         )}
                     </div>
@@ -68,7 +68,7 @@ const EvalutaionItem: React.FC<IProps> = (props) => {
                                 isPassing ? 'text-green-500' : 'text-amber-500'
                             }`} />
                             <span className="text-xs font-medium text-gray-600">
-                                评估原因
+                                Evaluation Reason
                             </span>
                         </div>
                         <p className="text-xs leading-relaxed text-gray-700">

@@ -1,153 +1,153 @@
 # MCP Workflow Demo
 
-这是一个使用 **Next.js 16 + React 19 + TypeScript** 构建的 MCP（Model Context Protocol）工作流演示应用。
+This is an MCP (Model Context Protocol) workflow demo application built with **Next.js 16 + React 19 + TypeScript**.
 
-## 技术栈
+## Tech Stack
 
-- **Next.js 16** - 使用 App Router 和 Turbopack
-- **React 19** - 最新的 React 版本
-- **TypeScript** - 类型安全的 JavaScript
-- **WebSocket** - 实时通信
-- **localStorage** - 本地配置存储
-- **Tailwind CSS** - 现代化的 CSS 框架
+- **Next.js 16** - Using App Router and Turbopack
+- **React 19** - Latest React version
+- **TypeScript** - Type-safe JavaScript
+- **WebSocket** - Real-time communication
+- **localStorage** - Local configuration storage
+- **Tailwind CSS** - Modern CSS framework
 
-## 功能特性
+## Features
 
-- 📡 **实时聊天界面** - 通过 WebSocket 与 MCP 服务器交互
-- ⚙️ **MCP 服务器配置** - 支持多种连接类型（HTTP、SSE、stdio）
-- 🔧 **工具管理** - 自动检测和显示 MCP 服务器提供的工具
-- 💾 **配置持久化** - 使用 localStorage 保存服务器配置
-- 🎨 **渐变主题** - 美观的紫色渐变界面设计
+- 📡 **Real-time Chat Interface** - Interact with MCP server via WebSocket
+- ⚙️ **MCP Server Configuration** - Support multiple connection types (HTTP, SSE, stdio)
+- 🔧 **Tool Management** - Auto-detect and display tools provided by MCP servers
+- 💾 **Configuration Persistence** - Save server configurations using localStorage
+- 🎨 **Gradient Theme** - Beautiful purple gradient UI design
 
-## 项目结构
+## Project Structure
 
 ```
 frontend/
-├── app/                    # Next.js App Router 目录
-│   ├── layout.tsx         # 根布局
-│   ├── page.tsx           # 主页面（聊天界面）
-│   └── globals.css        # 全局样式
-├── components/            # React 组件
-│   ├── MCPConfigModal.tsx # MCP 配置模态框
-│   └── MCPConfigModal.css # 模态框样式
-├── lib/                   # 工具库
-│   ├── api.ts            # API 客户端
-│   └── mcpConfig.ts      # MCP 配置管理
-├── public/               # 静态资源
-├── .env.local           # 环境变量配置
-├── next.config.mjs      # Next.js 配置
-├── tsconfig.json        # TypeScript 配置
-└── package.json         # 项目依赖
+├── app/                    # Next.js App Router directory
+│   ├── layout.tsx         # Root layout
+│   ├── page.tsx           # Main page (chat interface)
+│   └── globals.css        # Global styles
+├── components/            # React components
+│   ├── MCPConfigModal.tsx # MCP config modal
+│   └── MCPConfigModal.css # Modal styles
+├── lib/                   # Utility library
+│   ├── api.ts            # API client
+│   └── mcpConfig.ts      # MCP configuration management
+├── public/               # Static assets
+├── .env.local           # Environment variable config
+├── next.config.mjs      # Next.js configuration
+├── tsconfig.json        # TypeScript configuration
+└── package.json         # Project dependencies
 
 ```
 
-## 环境变量
+## Environment Variables
 
-在 `.env.local` 文件中配置以下环境变量：
+Configure the following environment variables in the `.env.local` file:
 
 ```env
 NEXT_PUBLIC_API_BASE=http://localhost:8001/api
 NEXT_PUBLIC_WS_BASE=ws://localhost:8001/ws
 ```
 
-> **注意**: 这些环境变量指向后端 MCP 服务器。请确保后端服务运行在 `localhost:8001`。
+> **Note**: These environment variables point to the backend MCP server. Ensure the backend service is running on `localhost:8001`.
 
-## 快速开始
+## Quick Start
 
-### 安装依赖
+### Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 启动开发服务器
+### Start Development Server
 
 ```bash
 npm run dev
 ```
 
-应用将在 [http://localhost:3000](http://localhost:3000) 启动。
+The app will start at [http://localhost:3000](http://localhost:3000).
 
-### 构建生产版本
+### Build Production Version
 
 ```bash
 npm run build
 ```
 
-### 运行生产服务器
+### Run Production Server
 
 ```bash
 npm run start
 ```
 
-### 代码检查
+### Code Linting
 
 ```bash
 npm run lint
 ```
 
-## 使用说明
+## Usage Guide
 
-### 1. 配置 MCP 服务器
+### 1. Configure MCP Servers
 
-1. 点击右上角的 "⚙️ Configure MCP Servers" 按钮
-2. 点击 "+ Add MCP Server" 添加新服务器
-3. 填写服务器信息：
-   - **Server Name**: 服务器名称
-   - **Connection Type**: 选择 HTTP、SSE 或 stdio
-   - **Endpoint URL/SSE URL**: 服务器地址
-   - **Headers**: （可选）JSON 格式的请求头，如 API key
-4. 保存配置
+1. Click the "⚙️ Configure MCP Servers" button in the top-right corner
+2. Click "+ Add MCP Server" to add a new server
+3. Fill in server details:
+   - **Server Name**: Server name
+   - **Connection Type**: Choose HTTP, SSE, or stdio
+   - **Endpoint URL/SSE URL**: Server address
+   - **Headers**: (Optional) JSON format request headers, e.g. API key
+4. Save configuration
 
-### 2. 使用工作流
+### 2. Use Workflow
 
-1. 在输入框中描述您的任务
-2. 点击 "Send" 发送消息
-3. 系统将通过 WebSocket 与后端通信
-4. 实时查看工作流执行日志和结果
+1. Describe your task in the input box
+2. Click "Send" to send the message
+3. The system will communicate with the backend via WebSocket
+4. View workflow execution logs and results in real-time
 
-## MCP 服务器类型
+## MCP Server Types
 
-应用支持三种 MCP 服务器连接类型：
+The application supports three MCP server connection types:
 
-- **HTTP (Streamable)**: 基于 HTTP 的可流式传输连接
-- **SSE (Server-Sent Events)**: 服务器推送事件
-- **stdio**: 标准输入输出连接
+- **HTTP (Streamable)**: HTTP-based streamable transport connection
+- **SSE (Server-Sent Events)**: Server-pushed events
+- **stdio**: Standard input/output connection
 
-## 开发指南
+## Development Guide
 
-### 目录说明
+### Directory Overview
 
-- **`app/`**: Next.js App Router 页面和布局
-- **`components/`**: 可复用的 React 组件
-- **`lib/`**: 工具函数和 API 客户端
+- **`app/`**: Next.js App Router pages and layouts
+- **`components/`**: Reusable React components
+- **`lib/`**: Utility functions and API clients
 
-## 故障排查
+## Troubleshooting
 
-### 连接错误
+### Connection Errors
 
-如果遇到 WebSocket 连接错误：
+If you encounter WebSocket connection errors:
 
-1. 确保后端服务运行在 `http://localhost:8001`
-2. 检查 `.env.local` 文件中的环境变量配置
-3. 确认 MCP 服务器配置正确
+1. Ensure the backend service is running on `http://localhost:8001`
+2. Check the environment variable configuration in `.env.local`
+3. Confirm MCP server configuration is correct
 
-### 工具未显示
+### Tools Not Showing
 
-如果 MCP 服务器的工具未显示：
+If MCP server tools are not displayed:
 
-1. 确保服务器已启用（勾选复选框）
-2. 检查服务器端点 URL 是否正确
-3. 查看浏览器控制台的错误信息
+1. Ensure the server is enabled (checkbox checked)
+2. Check if the server endpoint URL is correct
+3. View error messages in the browser console
 
 ## Learn More
 
-要了解更多关于 Next.js 的信息：
+To learn more about Next.js:
 
-- [Next.js Documentation](https://nextjs.org/docs) - Next.js 功能和 API
-- [Learn Next.js](https://nextjs.org/learn) - Next.js 交互式教程
-- [Next.js GitHub](https://github.com/vercel/next.js) - 欢迎反馈和贡献！
+- [Next.js Documentation](https://nextjs.org/docs) - Next.js features and API
+- [Learn Next.js](https://nextjs.org/learn) - Next.js interactive tutorial
+- [Next.js GitHub](https://github.com/vercel/next.js) - Feedback and contributions welcome!
 
-## 许可证
+## License
 
-本项目使用 MIT 许可证。
+This project uses the MIT License.

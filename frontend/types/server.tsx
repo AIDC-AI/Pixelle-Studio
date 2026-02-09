@@ -32,7 +32,7 @@ export interface MCPServer {
   created_at: string
   updated_at: string
   
-  // 状态信息（从后端返回）
+  // Status info (returned from backend)
   status: 'connected' | 'disconnected' | 'error' | 'unknown' | 'checking'
   message: string
   response_time: number

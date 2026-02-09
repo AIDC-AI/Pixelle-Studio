@@ -33,7 +33,7 @@ export const userAPI = {
         return response.json();
     },
 
-    // 获取所有用户
+    // Get all users
     async getUsers(): Promise<UserResponse[]> {
         const response = await fetch(`${API_BASE}/users`, {
             headers: getAuthHeaders()
@@ -44,7 +44,7 @@ export const userAPI = {
         return response.json();
     },
 
-    // 获取单个用户
+    // Get a single user
     async getUser(uid: number): Promise<UserResponse> {
         const response = await fetch(`${API_BASE}/users/${uid}`, {
             headers: getAuthHeaders()
@@ -55,7 +55,7 @@ export const userAPI = {
         return response.json();
     },
 
-    // 创建用户
+    // Create user
     async createUser(user: CreateUserRequest): Promise<UserResponse> {
         const response = await fetch(`${API_BASE}/users`, {
             method: 'POST',
@@ -69,7 +69,7 @@ export const userAPI = {
         return response.json();
     },
 
-    // 更新用户
+    // Update user
     async updateUser(uid: number, user: UpdateUserRequest): Promise<UserResponse> {
         const response = await fetch(`${API_BASE}/users/${uid}`, {
             method: 'PUT',
@@ -83,7 +83,7 @@ export const userAPI = {
         return response.json();
     },
 
-    // 删除用户
+    // Delete user
     async deleteUser(uid: number): Promise<void> {
         const response = await fetch(`${API_BASE}/users/${uid}`, {
             method: 'DELETE',
@@ -95,7 +95,7 @@ export const userAPI = {
         }
     },
 
-    // 登录
+    // Login
     async login(email: string, password: string): Promise<{ message: string; user: UserResponse, token: Token }> {
         const response = await fetch(`${API_BASE}/users/login`, {
             method: 'POST',
@@ -112,7 +112,7 @@ export const userAPI = {
         return data;
     },
 
-    // 登出
+    // Logout
     logout() {
         this.clearToken();
     }

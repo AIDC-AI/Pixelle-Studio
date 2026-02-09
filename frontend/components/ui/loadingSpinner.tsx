@@ -22,7 +22,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
 
   const sizes = sizeMap[size];
 
-  // 点点点动画
+  // Dots animation
   if (type === 'dots') {
     return (
       <div className={`flex items-center gap-1 ${className}`}>
@@ -42,7 +42,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
     );
   }
 
-  // 旋转圆圈
+  // Spinning circle
   if (type === 'spinner') {
     return (
       <div className={className}>
@@ -53,7 +53,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
     );
   }
 
-  // 脉冲动画
+  // Pulse animation
   if (type === 'pulse') {
     return (
       <div className={`flex items-center gap-1 ${className}`}>
@@ -73,7 +73,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
     );
   }
 
-  // 条形波浪
+  // Bar wave animation
   if (type === 'bars') {
     return (
       <div className={`flex items-end gap-1 ${className}`}>

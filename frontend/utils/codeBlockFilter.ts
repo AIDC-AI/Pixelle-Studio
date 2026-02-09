@@ -1,5 +1,5 @@
 // frontend/utils/codeBlockFilter.ts
-// 流式输出的时候过滤掉代码块
+// Filter out code blocks during streaming output
 
 type ParserState = {
     buffer: string;

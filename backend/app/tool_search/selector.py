@@ -4,7 +4,7 @@ Date: 2025-12-22 11:11:34
 LastEditors: ai-business-hql ai.bussiness.hql@gmail.com
 LastEditTime: 2025-12-22 14:57:28
 FilePath: /mcp-workflow/backend/app/tool_search/selector.py
-Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+Description: Default configuration
 '''
 from typing import List, Dict, Any
 #from app.tool_search.search_agent import SearchAgent

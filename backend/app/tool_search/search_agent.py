@@ -32,23 +32,23 @@ class SearchAgent:
     # single index can be returned if only one tool is needed to be called,format as below: [1].
     # """
     system_prompt = """
-# 角色
-你是一个意图理解和拆解专家。
-## 功能
-你的任务是根据用户的输入文本，理解用户的意图，并拆解成数个步骤，每个步骤是对需要调用一个工具的描述，将用户输入拆解成多个步骤对应的工具的描述的列表。如果用户输入中没有提到需要调用工具，则返回空列表。
-## 回复格式
-返回一个列表，列表格式为一个json list 字符串，格式为:["根据日期查询天气", "使用计算器计算数值", "飞书工具-据部门名称搜索部门ID，支持部门名称或拼音搜索"]，如无需工具调用则返回空列表，格式如：[]。
-## 示例
-用户输入：查询今天天气
-回复：["根据日期查询天气"]
-用户输入：使用计算器计算10+20
-回复：["使用计算器计算数值"]
-用户输入："给张三发送一条短信，短信内容是:'你好'"
-回复：["根据姓名查询通讯录中的手机号码","通过短信平台发送短信"]
-用户输入：中国的首都在哪里
-回复：[]
-## 限制
-格式必须为json list 字符串，返回内容不包含无关内容。
+# Role
+You are an intent understanding and decomposition expert.
+## Functionality
+Your task is to understand the user's intent based on their input text, and decompose it into several steps. Each step is a description of a tool that needs to be called. Decompose the user input into a list of tool descriptions corresponding to multiple steps. If the user input does not mention the need to call any tools, return an empty list.
+## Response Format
+Return a list as a JSON list string, format: ["query weather by date", "use calculator to compute value", "Feishu tool - search department ID by department name, supports name or pinyin search"]. If no tool calls needed, return empty list: [].
+## Examples
+User input: query today's weather
+Response: ["query weather by date"]
+User input: use calculator to compute 10+20
+Response: ["use calculator to compute value"]
+User input: "send a text message to Zhang San, content: 'hello'"
+Response: ["look up phone number in contacts by name", "send SMS via messaging platform"]
+User input: where is the capital of China
+Response: []
+## Constraints
+Format must be a JSON list string, response must not contain irrelevant content.
 """
 
     def __init__(self):
@@ -108,7 +108,7 @@ class SearchAgent:
         )
         res_content = response.choices[0].message.content
         print(f"SearchAgent response: {res_content}")
-        # 将字符串形式的list转换为Python list对象
+        # Convert string list to Python list object
         try:
             res_list = json.loads(res_content)
             for i, estimated_desc in enumerate(res_list):
@@ -235,34 +235,34 @@ class SearchAgent:
 
 async def main():
     mcp_servers = [
-        MCPServer(id="0", name="钉钉MCP", enabled=True, type="sse", config={"url": "http://localhost:8000/api/tools"}),
-        MCPServer(id="1", name="飞书MCP", enabled=True, type="sse", config={"url": "http://localhost:8001/api/tools"}),
-        MCPServer(id="2", name="微信MCP", enabled=True, type="sse", config={"url": "http://localhost:8002/api/tools"})
+        MCPServer(id="0", name="DingTalk-MCP", enabled=True, type="sse", config={"url": "http://localhost:8000/api/tools"}),
+        MCPServer(id="1", name="Feishu-MCP", enabled=True, type="sse", config={"url": "http://localhost:8001/api/tools"}),
+        MCPServer(id="2", name="WeChat-MCP", enabled=True, type="sse", config={"url": "http://localhost:8002/api/tools"})
     ]
     mcp_server_config = MCPServerConfig(servers=mcp_servers)
     mcp_tools_jstr = """
     [
     [{
         "name": "searchUser",
-        "description": "根据姓名搜索钉钉通讯录用户的userId。",
+        "description": "Search DingTalk contacts userId by name.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "queryWord": {
                     "type": "string",
-                    "description": "搜索关键词，可以是用户姓名、姓名拼音或英文名称。"
+                    "description": "Search keyword, can be user name, pinyin or English name."
                 },
                 "offset": {
                     "type": "number",
-                    "description": "分页偏移量，从0开始"
+                    "description": "Pagination offset, starting from 0"
                 },
                 "size": {
                     "type": "number",
-                    "description": "分页大小，最大50"
+                    "description": "Page size, max 50"
                 },
                 "fullMatchField": {
                     "type": "number",
-                    "description": "是否精确匹配，1：精确匹配用户名称。"
+                    "description": "Exact match flag, 1: exact match user name."
                 }
             },
             "required": [
@@ -275,17 +275,17 @@ async def main():
     },
     {
         "name": "getUserDetailByUserId",
-        "description": "查询用户详情 - 根据userId获取用户的详细信息，包含用户的unionId。",
+        "description": "Query user details - get detailed user info by userId, including unionId.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "userid": {
                     "type": "string",
-                    "description": "用户的userId。"
+                    "description": "User's userId."
                 },
                 "language": {
                     "type": "string",
-                    "description": "语言。 * **zh_CN** ：中文（默认值） * **en_US** ：英文"
+                    "description": "Language. * **zh_CN**: Chinese (default) * **en_US**: English"
                 }
             },
             "required": [
@@ -298,13 +298,13 @@ async def main():
     },
     {
         "name": "getUserIdByMobile",
-        "description": "根据手机号获取用户的userId。",
+        "description": "Get userId by mobile phone number.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "mobile": {
                     "type": "string",
-                    "description": "手机号"
+                    "description": "Mobile phone number"
                 }
             },
             "required": [
@@ -318,21 +318,21 @@ async def main():
     ],
     [{
         "name": "searchDepartment",
-        "description": "根据部门名称搜索部门ID，支持部门名称或拼音搜索",
+        "description": "Search department ID by name, supports name or pinyin search",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "queryWord": {
                     "type": "string",
-                    "description": "部门名称或者部门名称拼音"
+                    "description": "Department name or department name pinyin"
                 },
                 "offset": {
                     "type": "number",
-                    "description": "分页页码，默认0"
+                    "description": "Page number, default 0"
                 },
                 "size": {
                     "type": "number",
-                    "description": "分页大小，默认10，最大100"
+                    "description": "Page size, default 10, max 100"
                 }
             },
             "required": [
@@ -347,17 +347,17 @@ async def main():
     },
     {
         "name": "listSubDepartments",
-        "description": "获取指定部门的下一级子部门基础信息列表",
+        "description": "Get basic info list of sub-departments under specified department",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "dept_id": {
                     "type": "number",
-                    "description": "父部门ID，不传则获取根部门的子部门，根部门ID为1"
+                    "description": "Parent department ID, omit to get root department sub-departments, root ID is 1"
                 },
                 "language": {
                     "type": "string",
-                    "description": "通讯录语言，zh_CN(中文)或en_US(英文)，默认zh_CN"
+                    "description": "Contact language, zh_CN(Chinese) or en_US(English), default zh_CN"
                 }
             },
             "required": []
@@ -368,29 +368,29 @@ async def main():
     }],
     [{
         "name": "sendNotice",
-        "description": "发送工作通知消息，支持 markdown 消息类型",
+        "description": "Send work notification message, supports markdown message type",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "userid_list": {
                     "type": "string",
-                    "description": "接收人用户ID列表，用逗号分隔，最多5000人"
+                    "description": "Recipient UserID list, comma-separated, max 5000"
                 },
                 "dept_id_list": {
                     "type": "string",
-                    "description": "接收部门ID列表，用逗号分隔（可选）"
+                    "description": "Recipient department ID list, comma-separated (optional)"
                 },
                 "to_all_user": {
                     "type": "boolean",
-                    "description": "是否发送给全员（可选，默认false）"
+                    "description": "Send to all users (optional, default false)"
                 },
                 "msg.markdown.title": {
                     "type": "string",
-                    "description": "markdown消息标题"
+                    "description": "Markdown message title"
                 },
                 "msg.markdown.text": {
                     "type": "string",
-                    "description": "markdown消息内容"
+                    "description": "Markdown message content"
                 }
             },
             "required": [
@@ -406,25 +406,25 @@ async def main():
     },
     {
         "name": "sendServiceWindowMessage",
-        "description": "发送服务窗单人消息",
+        "description": "Send service window individual message",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "userId": {
                     "type": "string",
-                    "description": "用户userId"
+                    "description": "UseruserId"
                 },
                 "accountId": {
                     "type": "string",
-                    "description": "服务窗帐号ID"
+                    "description": "Service window account ID"
                 },
                 "messageTitle": {
                     "type": "string",
-                    "description": "消息标题"
+                    "description": "Message title"
                 },
                 "messageContent": {
                     "type": "string",
-                    "description": "markdown格式的消息内容"
+                    "description": "Message content in markdown format"
                 }
             },
             "required": [
@@ -440,24 +440,24 @@ async def main():
     },    
     {
         "name": "sendDINGMessageByRobot",
-        "description": "机器人发送DING消息",
+        "description": "Robot sends DING message",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "remindType": {
                     "type": "string",
-                    "description": "DING消息类型。1：应用内DING，2：短信DING，3：电话DING；默认值为1。"
+                    "description": "DING message type. 1: in-app DING, 2: SMS DING, 3: phone DING; default 1."
                 },
                 "receiverUserIdList": {
                     "type": "array",
-                    "description": "接收人userId列表。应用内DING消息，每次接收人不能超过200个。短信DING和电话DING，每次接收人不能超过20个。",
+                    "description": "Recipient userId list. In-app DING max 200 recipients per call. SMS/phone DING max 20 recipients.",
                     "items": {
                         "type": "string"
                     }
                 },
                 "content": {
                     "type": "string",
-                    "description": "DING消息内容。"
+                    "description": "DING message content."
                 }
             },
             "required": [
@@ -477,13 +477,13 @@ async def main():
     all_mcp_tools = json.loads(mcp_tools_jstr)
     flattened_all_mcp_tools = [tool for server_tools in all_mcp_tools for tool in server_tools]
     await search_agent.embedding_tools(mcp_server_config=mcp_server_config, all_mcp_tools=all_mcp_tools)
-    estimated_tool_descs = ["根据姓名查询用户ID。", "发送通知消息给某人"]
+    estimated_tool_descs = ["Search userId by name.", "Send notification message to someone"]
     retrieve_results = await search_agent._retrieve_tools(query_tool_descs=estimated_tool_descs, topk=3)
     for i, estimated_tool_desc in enumerate(estimated_tool_descs):
         print(
             f"estimated_tool_desc: {estimated_tool_desc},retrival info:server name: {retrieve_results[i][0][0]},tool name: {retrieve_results[i][0][1]},retrival score: {retrieve_results[i][0][2]}"
         )
-    # user_message = "使用钉钉机器人给用户会锦发送一条通知消息，消息内容是:'明天下午4点有会'"
+    # user_message = "Use DingTalk robot to send a notification to user Huijin, content: 'meeting at 4pm tomorrow'"
     # select_tools = await search_agent.search_tools(user_message=user_message, all_mcp_tools=flattened_all_mcp_tools)
     # print(f"select tools size: {len(select_tools)}")
     # for tool in select_tools:

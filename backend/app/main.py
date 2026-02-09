@@ -61,7 +61,7 @@ app.add_middleware(
 )
 
 # ============================================================================
-# Static Files Service - 为前端提供生成文件的 HTTP 访问
+# Static Files Service - Provide HTTP access to generated files for frontend
 # ============================================================================
 SCRIPTS_DIR = Path(__file__).parent.parent / "scripts"
 SCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -99,9 +99,9 @@ log.info(f"Loaded {len(skills_list)} skills: {[s.name for s in skills_list]}")
 class ChatRequest(BaseModel):
     message: str
     file_urls: Optional[List[str]] = None
-    file_names: Optional[List[str]] = None  # 上传后的文件名（如 9120.xlsx）
-    session_id: Optional[str] = None  # 可选：复用同一会话（Cursor-like）
-    user_id: Optional[int] = None  # 用户ID，用于多租户隔离
+    file_names: Optional[List[str]] = None  # Uploaded file names (e.g. 9120.xlsx)
+    session_id: Optional[str] = None  # Optional: reuse same session (Cursor-like)
+    user_id: Optional[int] = None  # User ID for multi-tenant isolation
 
 
 class ChatResponse(BaseModel):
@@ -110,7 +110,7 @@ class ChatResponse(BaseModel):
 
 
 class GenerateTitleRequest(BaseModel):
-    message: str  # 用户第一条消息
+    message: str  # User's first message
     
 
 class GenerateTitleResponse(BaseModel):
@@ -131,21 +131,21 @@ async def generate_title(request: GenerateTitleRequest):
             messages=[
                 {
                     "role": "system", 
-                    "content": """你是一个对话标题生成助手。根据用户的消息，生成一个简洁的对话标题。
+                    "content": """You are a conversation title generation assistant. Based on the user's message, generate a concise conversation title.
                     
-                    规则：
-                    1. 标题必须在2-10个字之间，绝对不能超过10个字
-                    2. 标题应该概括用户请求的核心内容
-                    3. 使用中文
-                    4. 不要使用标点符号
-                    5. 只返回标题文本，不要回复任何其他内容
+                    Rules:
+                    1. Title must be between 2-8 words, never exceed 8 words
+                    2. Title should summarize the core content of the user's request
+                    3. Use English
+                    4. Do not use punctuation
+                    5. Only return the title text, do not reply with anything else
 
-                    例如：
-                    - "帮我分析这个Excel表格的销售数据" -> "销售数据分析"
-                    - "生成一个关于人工智能的PPT" -> "AI主题PPT"
-                    - "帮我写一段Python代码实现排序" -> "Python排序"
-                    - "今天天气怎么样" -> "天气查询"
-                    - "帮我处理一下这个文件" -> "文件处理"
+                    Examples:
+                    - "Help me analyze this Excel spreadsheet's sales data" -> "Sales Data Analysis"
+                    - "Generate a PPT about artificial intelligence" -> "AI Presentation"
+                    - "Help me write Python code for sorting" -> "Python Sorting"
+                    - "What's the weather today" -> "Weather Query"
+                    - "Help me process this file" -> "File Processing"
                     """
                 },
                 {"role": "user", "content": request.message}
@@ -155,19 +155,19 @@ async def generate_title(request: GenerateTitleRequest):
         
         title = response.choices[0].message.content.strip()
         log.info(f"Generated title: {title}")
-        # 移除可能的引号
+        # Remove possible quotes
         title = title.strip('"\'')
         
-        # 如果标题过长，截断到10个字
-        if len(title) > 10:
-            title = title[:10]
+        # If title is too long, truncate to 50 chars
+        if len(title) > 50:
+            title = title[:50]
             
         log.info(f"Generated title: {title} for message: {request.message[:50]}...")
         return {"title": title}
         
     except Exception as e:
         log.error(f"Failed to generate title: {e}")
-        # 失败时使用简单的截断逻辑
+        # Fallback to simple truncation logic on failure
         fallback_title = request.message[:15] + "..." if len(request.message) > 15 else request.message
         return {"title": fallback_title}
 
@@ -492,12 +492,12 @@ async def process_with_agent(
 async def upload_file(file: UploadFile = File(...), request: Request = None, user_id: Optional[int] = None):
     """Upload a file and return a URL for access."""
     try:
-        # ✅ 使用日期子目录，与 write_file 和 exec 保持一致
+        # ✅ Use date subdirectory, consistent with write_file and exec
         from datetime import datetime
         script_root = Path(__file__).parent.parent / "scripts"
         target_subdir = str(user_id) if user_id is not None else "default"
         
-        # 添加日期子目录
+        # Add date subdirectory
         date_str = datetime.now().strftime("%Y-%m-%d")
         storage_dir = script_root / target_subdir / date_str
         storage_dir.mkdir(parents=True, exist_ok=True)
@@ -514,15 +514,15 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, use
         log.info(f"File uploaded: {file.filename} -> {unique_filename} (scope: {target_subdir}/{date_str})")
         
         port = request.url.port if request and request.url.port else 8001
-        # ✅ URL 路径包含日期子目录
+        # ✅ URL path includes date subdirectory
         url_path = f"{target_subdir}/{date_str}/{unique_filename}"
         lan_url = f"http://{LOCAL_IP}:{port}/f/{url_path}"
 
         return {
             "success": True,
             "url": lan_url,
-            "file_name": unique_filename,  # 保存后的文件名
-            "original_name": file.filename,  # 原始文件名
+            "file_name": unique_filename,  # Saved filename
+            "original_name": file.filename,  # Original filename
             "size": file_path.stat().st_size,
             "scope": f"{target_subdir}/{date_str}"
         }

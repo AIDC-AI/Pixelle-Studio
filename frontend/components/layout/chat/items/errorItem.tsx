@@ -19,7 +19,7 @@ const ErrorItem: React.FC<IProps> = (props) => {
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-xs font-medium text-red-700">错误</span>
+                    <span className="text-xs font-medium text-red-700">Error</span>
                     <AlertTriangle className="w-3 h-3 text-red-500" />
                 </div>
                 <p className="text-red-600 text-xs whitespace-pre-wrap break-words">

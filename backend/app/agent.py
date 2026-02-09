@@ -89,18 +89,18 @@ class SkillAgent:
             user_id: User ID for isolation and personalization
             auth_store: Authentication store for failover (optional)
         """
-        # 认证配置
+        # Authentication config
         self.auth_store = auth_store or AuthStore.from_env()
         self.current_auth_profile = None
         
-        # 客户端将延迟初始化
+        # Client will be lazily initialized
         self.client = None
         
-        # 模型配置
+        # Model config
         self.model = DEFAULT_MODEL
         self.model_fallbacks = config.get_model_chain(DEFAULT_MODEL)
         
-        # Agent 配置
+        # Agent config
         self.max_turns = max_turns
         self.history_messages = history_messages or []
         self.mcp_server_url = mcp_server_url
@@ -116,19 +116,19 @@ class SkillAgent:
         
         self.backend_root = Path(__file__).parent.parent
         
-        # 上下文管理状态
+        # Context management state
         self.compaction_attempted = False
         
-        # Session logger (延迟初始化)
+        # Session logger (lazy initialization)
         self.session_logger: Optional[SessionLogger] = None
     
     async def _init_client_with_failover(self) -> AsyncOpenAI:
-        """使用故障转移初始化 LLM 客户端"""
-        # 获取代理配置
+        """Initialize LLM client with failover"""
+        # Get proxy config
         http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
         https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
         
-        # 构建 httpx 客户端配置
+        # Build httpx client config
         httpx_config = {}
         if http_proxy or https_proxy:
             httpx_config["proxies"] = {
@@ -138,7 +138,7 @@ class SkillAgent:
             logger.info(f"[Agent] Using proxy: {https_proxy or http_proxy}")
         
         if not config.enable_auth_failover:
-            # 不启用故障转移,直接使用默认配置
+            # Failover disabled, use default config
             logger.info("[Agent] Auth failover disabled, using default config")
             return AsyncOpenAI(timeout=LLM_TIMEOUT, http_client=httpx.AsyncClient(**httpx_config) if httpx_config else None)
         
@@ -152,7 +152,7 @@ class SkillAgent:
         
         for profile in candidates:
             try:
-                # 尝试使用当前配置
+                # Try using current config
                 client = AsyncOpenAI(
                     api_key=profile.api_key,
                     base_url=profile.base_url,
@@ -160,7 +160,7 @@ class SkillAgent:
                     http_client=httpx.AsyncClient(**httpx_config) if httpx_config else None
                 )
                 
-                # 简单测试 (不实际调用 API,只是初始化)
+                # Simple test (no actual API call, just initialization)
                 logger.info(f"[Agent] Using auth profile: {profile.id}")
                 self.current_auth_profile = profile
                 self.auth_store.mark_success(profile.id)
@@ -169,7 +169,7 @@ class SkillAgent:
             except Exception as e:
                 error_msg = str(e).lower()
                 
-                # 分类错误
+                # Classify error
                 if "401" in error_msg or "unauthorized" in error_msg:
                     reason = "auth_error"
                 elif "429" in error_msg or "rate_limit" in error_msg:
@@ -179,15 +179,15 @@ class SkillAgent:
                 else:
                     reason = "unknown"
                 
-                # 记录失败
+                # Record failure
                 self.auth_store.mark_failure(profile.id, reason)
                 logger.warning(f"[Agent] Auth profile {profile.id} failed: {reason}")
                 last_error = e
                 
-                # 继续尝试下一个
+                # Continue to next
                 continue
         
-        # 所有配置都失败,使用默认配置
+        # All configs failed, use default
         logger.error(f"[Agent] All auth profiles failed: {last_error}")
         return AsyncOpenAI(timeout=LLM_TIMEOUT, http_client=httpx.AsyncClient(**httpx_config) if httpx_config else None)
     
@@ -198,18 +198,18 @@ class SkillAgent:
         thinking_level: str = "medium"
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        调用 LLM (带模型和 Thinking Level 故障转移)。
+        Call LLM with model and thinking level failover.
         
         Yields:
             Stream chunks from LLM
         """
-        # 获取模型链
+        # Get model chain
         if config.enable_model_failover:
             model_chain = self.model_fallbacks
         else:
             model_chain = [self.model]
         
-        # Thinking Level 链
+        # Thinking Level chain
         if config.enable_thinking_failover:
             thinking_idx = config.thinking_levels.index(thinking_level) if thinking_level in config.thinking_levels else 1
             thinking_chain = config.thinking_levels[thinking_idx:]
@@ -218,42 +218,42 @@ class SkillAgent:
         
         last_error = None
         
-        # 尝试每个模型
+        # Try each model
         for model_name in model_chain:
             logger.info(f"[Agent] Trying model: {model_name}")
             
-            # 尝试每个 Thinking Level
+            # Try each thinking level
             for think_level in thinking_chain:
                 try:
                     logger.info(f"[Agent] Trying thinking level: {think_level}")
                     
-                    # 构建请求参数
+                    # Build request params
                     request_params = {
                         "model": model_name,
                         "messages": messages,
                         "stream": True,
                     }
                     
-                    # 添加工具 (如果有)
+                    # Add tools (if any)
                     if tools:
                         request_params["tools"] = tools
                     
-                    # Claude 模型需要 max_tokens
+                    # Claude models require max_tokens
                     if "claude" in model_name.lower():
                         request_params["max_tokens"] = LLM_MAX_TOKENS
                     
-                    # 调用 API
+                    # Call API
                     response_stream = await self.client.chat.completions.create(**request_params)
                     
-                    # 成功,标记认证配置成功
+                    # Success, mark auth profile as successful
                     if self.current_auth_profile:
                         self.auth_store.mark_success(self.current_auth_profile.id)
                     
-                    # 返回流
+                    # Return stream
                     async for chunk in response_stream:
                         yield {"type": "chunk", "chunk": chunk}
                     
-                    # 成功完成
+                    # Successfully completed
                     return
                 
                 except Exception as e:
@@ -261,59 +261,59 @@ class SkillAgent:
                     error_type = type(e).__name__
                     logger.error(f"[Agent] LLM call failed (model={model_name}, thinking={think_level}, error_type={error_type}): {e}")
                     
-                    # 标记认证失败
+                    # Mark auth failure
                     if self.current_auth_profile:
                         if "401" in error_msg or "unauthorized" in error_msg:
                             self.auth_store.mark_failure(self.current_auth_profile.id, "auth_error")
                         elif "429" in error_msg or "rate_limit" in error_msg:
                             self.auth_store.mark_failure(self.current_auth_profile.id, "rate_limit")
                     
-                    # 分类错误并决定是否继续
+                    # Classify error and decide whether to continue
                     if "context" in error_msg and ("window" in error_msg or "too long" in error_msg):
-                        # 上下文溢出 - 不尝试其他 thinking level,直接尝试下一个模型
+                        # Context overflow - skip thinking levels, try next model
                         logger.warning(f"[Agent] Context overflow, trying next model...")
                         last_error = e
-                        break  # 跳出 thinking level 循环
+                        break  # Break out of thinking level loop
                     
                     elif "thinking" in error_msg or "extended_thinking" in error_msg or "unsupported" in error_msg:
-                        # Thinking level 不支持 - 尝试下一个 level
+                        # Thinking level not supported - try next level
                         logger.warning(f"[Agent] Thinking level {think_level} not supported, trying lower level...")
                         last_error = e
-                        continue  # 继续 thinking level 循环
+                        continue  # Continue thinking level loop
                     
                     elif "timeout" in error_msg:
-                        # 超时 - 尝试下一个模型
+                        # Timeout - try next model
                         logger.warning(f"[Agent] Timeout, trying next model...")
                         last_error = e
-                        break  # 跳出 thinking level 循环
+                        break  # Break out of thinking level loop
                     
                     elif "overloaded" in error_msg or "503" in error_msg:
-                        # 服务器过载 - 尝试下一个模型
+                        # Server overloaded - try next model
                         logger.warning(f"[Agent] Server overloaded, trying next model...")
                         last_error = e
-                        break  # 跳出 thinking level 循环
+                        break  # Break out of thinking level loop
                     
                     elif "expecting value" in error_msg or "json" in error_msg.lower():
-                        # JSON 解析错误 - 可能是 API 返回了空响应或 HTML 错误页面
+                        # JSON parse error - possibly empty response or HTML error page from API
                         logger.warning(f"[Agent] JSON parse error (possibly empty response or HTML error page), trying next model...")
                         last_error = e
-                        break  # 跳出 thinking level 循环，尝试下一个模型
+                        break  # Break out of thinking level loop, try next model
                     
                     elif error_type == "APIError" and not error_msg:
-                        # 空错误消息的 APIError - 可能是网络问题
+                        # Empty error message APIError - possibly network issue
                         logger.warning(f"[Agent] Empty APIError (possibly network issue), trying next model...")
                         last_error = e
-                        break  # 跳出 thinking level 循环
+                        break  # Break out of thinking level loop
                     
                     else:
-                        # 其他错误 - 直接抛出
+                        # Other errors - raise directly
                         raise e
         
-        # 所有模型和 thinking level 都失败
+        # All models and thinking levels failed
         raise RuntimeError(f"All models and thinking levels failed. Last error: {last_error}")
     
-    # 旧的 <execute> 块处理函数已移除
-    # 现在使用代码块解析器（code_block_parser.py）处理 ```language:filename 格式
+    # Old <execute> block handler has been removed
+    # Now using code block parser (code_block_parser.py) to handle ```language:filename format
     
     def _build_system_prompt(self) -> str:
         """Build the system prompt using the modular Prompt Builder."""
@@ -331,8 +331,8 @@ class SkillAgent:
     
     def _create_context(self, session_id: str) -> AgentContext:
         """Create the context object passed to all tools."""
-        # ✅ 不传递 script_dir 和 backend_root，让 AgentContext 自己计算
-        # 这样可以确保使用最新的日期子目录
+        # ✅ Don't pass script_dir and backend_root, let AgentContext calculate them
+        # This ensures the latest date subdirectory is used
         return AgentContext(
             user_id=self.user_id,
             session_id=session_id,
@@ -400,17 +400,17 @@ class SkillAgent:
         
         logger.info(f"[Agent] Starting session {session_id}")
         
-        # === 初始化 Session Logger ===
+        # === Initialize Session Logger ===
         self.session_logger = SessionLogger(session_id, self.user_id)
         self.session_logger.log_session_start(
             model=self.model,
             mcp_server_url=self.mcp_server_url
         )
         
-        turn_count = 0  # 初始化 turn_count
+        turn_count = 0  # Initialize turn_count
         
         try:
-            # 初始化客户端 (带故障转移)
+            # Initialize client (with failover)
             if self.client is None:
                 self.client = await self._init_client_with_failover()
         
@@ -436,7 +436,7 @@ class SkillAgent:
             # Add current user message
             messages.append({"role": "user", "content": full_user_message})
             
-            # === 记录用户消息 ===
+            # === Log user message ===
             self.session_logger.log_message("user", full_user_message, turn=0)
         
             # === Context Window Guard ===
@@ -455,8 +455,8 @@ class SkillAgent:
                     logger.info("[Agent] Context window too small, triggering auto-compaction...")
                     yield {"type": "status", "content": "Compacting conversation history..."}
                     
-                    # 执行压缩 (跳过 system 和当前 user 消息)
-                    history_to_compact = messages[1:-1]  # 排除 system 和最后的 user 消息
+                    # Execute compaction (skip system and current user messages)
+                    history_to_compact = messages[1:-1]  # Exclude system and last user message
                     
                     if len(history_to_compact) > config.context_keep_recent:
                         compacted_history = await compact_history(
@@ -465,14 +465,14 @@ class SkillAgent:
                             client=self.client
                         )
                         
-                        # 重建消息列表
+                        # Rebuild message list
                         messages = [
                             {"role": "system", "content": system_prompt},
                             *compacted_history,
                             {"role": "user", "content": full_user_message}
                         ]
                         
-                        # === 记录上下文压缩 ===
+                        # === Log context compaction ===
                         self.session_logger.log_context_compaction(
                             messages_before=len(history_to_compact),
                             messages_after=len(compacted_history)
@@ -489,11 +489,11 @@ class SkillAgent:
                 turn_count += 1
                 logger.info(f"[Agent] Turn #{turn_count}")
                 
-                # === 记录状态 ===
+                # === Log status ===
                 self.session_logger.log_status(f"Turn {turn_count} started", turn=turn_count)
                 
                 # Clear pending code queue for this turn
-                # 旧的 pending_code_queue 已移除（不再需要）
+                # Old pending_code_queue removed (no longer needed)
                 context.last_response_text = ""
                 
                 try:
@@ -520,8 +520,8 @@ class SkillAgent:
                             final_content += delta.content
                             
                             # Check for new <execute> blocks
-                            # 旧的 execute block 提取逻辑已移除
-                            # 现在使用代码块解析器处理 ```language:filename 格式
+                            # Old execute block extraction logic removed
+                            # Now using code block parser for ```language:filename format
                             pass
                             
                             yield {
@@ -557,26 +557,26 @@ class SkillAgent:
                     
                     context.last_response_text = final_content
                     
-                    # === 记录 assistant 消息 ===
+                    # === Log assistant message ===
                     if final_content:
                         self.session_logger.log_message("assistant", final_content, turn=turn_count)
                     
                 except Exception as e:
                     logger.error(f"[Agent] API Error: {e}", exc_info=True)
                     
-                    # === 记录错误 ===
+                    # === Log error ===
                     self.session_logger.log_error(str(e), error_type=type(e).__name__, turn=turn_count)
                     
                     yield {"type": "error", "content": str(e)}
                     yield {"type": "final_result", "status": "error", "result": {"error": str(e)}}
                     return
             
-                # === 新机制：检测代码块并自动创建文件 ===
+                # === New mechanism: detect code blocks and auto-create files ===
                 if has_code_blocks(final_content) and not tool_calls_list:
                     logger.info(f"[Agent] Detected code blocks in response, auto-creating files...")
-                    yield {"type": "status", "content": "检测到代码块，正在创建文件..."}
+                    yield {"type": "status", "content": "Detected code blocks, creating files..."}
                     
-                    # 自动创建文件
+                    # Auto-create files
                     summary = await process_code_blocks(
                         final_content,
                         context,
@@ -584,7 +584,7 @@ class SkillAgent:
                     )
                     
                     if summary:
-                        # 添加创建摘要到响应
+                        # Add creation summary to response
                         final_content_with_summary = final_content + "\n\n" + summary
                         
                         # Add assistant message
@@ -624,7 +624,7 @@ class SkillAgent:
                     for tc in tool_calls_list:
                         tool_name = tc["function"]["name"]
                         
-                        # === 记录工具调用 ===
+                        # === Log tool call ===
                         try:
                             args = json.loads(tc["function"]["arguments"])
                         except:
@@ -650,7 +650,7 @@ class SkillAgent:
                         result = await self._execute_tool(tc, context)
                         duration_ms = (time.time() - start_time) * 1000
                         
-                        # === 记录工具结果 ===
+                        # === Log tool result ===
                         tool_data = self._parse_tool_json(result)
                         self.session_logger.log_tool_result(
                             tool=tool_name,
@@ -660,7 +660,7 @@ class SkillAgent:
                             duration_ms=duration_ms
                         )
                         
-                        # 先发送通用的 tool_result
+                        # First send generic tool_result
                         yield {
                             "type": "tool_result",
                             "name": tool_name,
@@ -668,53 +668,53 @@ class SkillAgent:
                             "call_id": tc["id"]
                         }
                         
-                        # 解析工具结果，发送结构化的展示事件
+                        # Parse tool result, send structured display event
                         tool_data = self._parse_tool_json(result)
                         if tool_data:
                             status = tool_data.get("status")
                             
-                            # write_file: 展示文件创建信息
+                            # write_file: display file creation info
                             if tool_name == "write_file" and status == "success":
-                                # ✅ 检查 notify_frontend 字段
-                                notify_frontend = tool_data.get("notify_frontend", True)  # 默认True保持向后兼容
+                                # ✅ Check notify_frontend field
+                                notify_frontend = tool_data.get("notify_frontend", True)  # Default True for backward compatibility
                                 
-                                # ✅ 兜底：过滤中间脚本文件
+                                # ✅ Fallback: filter intermediate script files
                                 file_path = tool_data.get("path", "")
                                 actual_filename = tool_data.get("actual_filename", "")
                                 
-                                # 判断是否是中间脚本文件
+                                # Check if it's an intermediate script file
                                 is_script_file = any(actual_filename.endswith(ext) for ext in ['.py', '.sh', '.js', '.ts'])
                                 
-                                # 只有 notify_frontend=True 且不是脚本文件时才通知前端
+                                # Only notify frontend when notify_frontend=True and not a script file
                                 if notify_frontend and not is_script_file:
                                     relative_path = tool_data.get("relative_path", file_path)
                                     file_size = tool_data.get("size", 0)
                                     lines = tool_data.get("lines", 0)
                                     
-                                    # ✅ 处理重命名情况
+                                    # ✅ Handle rename case
                                     was_renamed = tool_data.get("renamed", False)
                                     
                                     if was_renamed:
                                         original_name = tool_data.get("original_name", "")
-                                        message = f"✅ 文件已创建（重命名）: {original_name} -> {actual_filename} ({lines} 行, {file_size} 字节)"
+                                        message = f"✅ File created (renamed): {original_name} -> {actual_filename} ({lines} lines, {file_size} bytes)"
                                     else:
-                                        message = f"✅ 文件已创建: {relative_path} ({lines} 行, {file_size} 字节)"
+                                        message = f"✅ File created: {relative_path} ({lines} lines, {file_size} bytes)"
                                     
                                     yield {
                                         "type": "file_created",
-                                        "path": file_path,  # 绝对路径
-                                        "relative_path": relative_path,  # 相对路径（更友好）
-                                        "actual_filename": actual_filename,  # 实际文件名
-                                        "renamed": was_renamed,  # 是否被重命名
+                                        "path": file_path,  # Absolute path
+                                        "relative_path": relative_path,  # Relative path (more friendly)
+                                        "actual_filename": actual_filename,  # Actual filename
+                                        "renamed": was_renamed,  # Whether it was renamed
                                         "size": file_size,
                                         "lines": lines,
                                         "message": message
                                     }
                                 else:
-                                    # 记录日志但不通知前端
-                                    logger.debug(f"[agent] 跳过文件通知: {actual_filename} (notify_frontend={notify_frontend}, is_script={is_script_file})")
+                                    # Log but don't notify frontend
+                                    logger.debug(f"[agent] Skipping file notification: {actual_filename} (notify_frontend={notify_frontend}, is_script={is_script_file})")
                             
-                            # exec/shell_exec: 展示执行结果
+                            # exec/shell_exec: display execution result
                             elif tool_name in ["exec", "shell_exec"] and status == "success":
                                 stdout = tool_data.get("stdout", "") or tool_data.get("output", "")
                                 stderr = tool_data.get("stderr", "")
@@ -727,12 +727,12 @@ class SkillAgent:
                                         "status": status
                                     }
                                 
-                                # ✅ 检测新创建的文件（exec/shell_exec 返回）
+                                # ✅ Detect newly created files (from exec/shell_exec return)
                                 created_files = tool_data.get("created_files", [])
                                 for file_info in created_files:
                                     file_name = file_info.get("name", "")
                                     
-                                    # ✅ 兜底：过滤中间脚本文件
+                                    # ✅ Fallback: filter intermediate script files
                                     is_script_file = any(file_name.endswith(ext) for ext in ['.py', '.sh', '.js', '.ts'])
                                     
                                     if not is_script_file:
@@ -744,15 +744,15 @@ class SkillAgent:
                                             "renamed": False,
                                             "size": file_info.get("size", 0),
                                             "lines": file_info.get("lines", 0),
-                                            "message": f"✅ 文件已创建: {file_name} ({file_info.get('size', 0)} 字节)"
+                                            "message": f"✅ File created: {file_name} ({file_info.get('size', 0)} bytes)"
                                         }
                                     else:
-                                        logger.debug(f"[agent] 跳过脚本文件通知: {file_name}")
+                                        logger.debug(f"[agent] Skipping script file notification: {file_name}")
                             
-                            # read_file: 展示文件内容（如果不太大）
+                            # read_file: display file content (if not too large)
                             elif tool_name == "read_file" and status == "success":
                                 content = tool_data.get("content", "")
-                                if len(content) < 10000:  # 小于10KB直接展示
+                                if len(content) < 10000:  # Display directly if < 10KB
                                     yield {
                                         "type": "file_content",
                                         "path": tool_data.get("path", ""),
@@ -760,7 +760,7 @@ class SkillAgent:
                                         "size": len(content)
                                     }
                             
-                            # 旧的兼容逻辑（逐步移除）
+                            # Legacy compatibility logic (to be gradually removed)
                             tool_type = tool_data.get("__tool__")
                             if tool_type == "execute_code":
                                 yield {
@@ -786,7 +786,7 @@ class SkillAgent:
                     }
                     messages.append(tool_msg)
                     
-                    # 发送轮次完成事件，帮助前端区分对话轮次
+                    # Send turn complete event to help frontend distinguish conversation turns
                     yield {
                         "type": "turn_complete",
                         "turn": turn_count,
@@ -803,7 +803,7 @@ class SkillAgent:
             # Final response
             clean_answer = context.last_response_text  # No need to clean anymore
             
-            # === 记录 session 结束 ===
+            # === Log session end ===
             self.session_logger.log_session_end(
                 status="success",
                 total_turns=turn_count
@@ -816,7 +816,7 @@ class SkillAgent:
             }
         
         except Exception as e:
-            # === 记录错误和结束 ===
+            # === Log error and end ===
             if hasattr(self, 'session_logger') and self.session_logger:
                 self.session_logger.log_error(str(e), error_type=type(e).__name__)
                 self.session_logger.log_session_end(
@@ -826,7 +826,7 @@ class SkillAgent:
             raise
         
         finally:
-            # === 关闭 logger ===
+            # === Close logger ===
             if hasattr(self, 'session_logger') and self.session_logger:
                 self.session_logger.close()
 

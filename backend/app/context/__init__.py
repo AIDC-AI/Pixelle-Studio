@@ -8,14 +8,14 @@ from .models import (
     RevisionAdvice
 )
 
-# 延迟导入以避免循环依赖
+# Lazy import to avoid circular dependencies
 def _lazy_import():
-    """延迟导入避免启动时的依赖问题"""
+    """Lazy import to avoid startup dependency issues"""
     global ContextManager, StorageBackend, FileStorageBackend
     from .context_manager import ContextManager
     from .storage import StorageBackend, FileStorageBackend
 
-# 新功能可以直接导入 (不依赖 storage)
+# New features can be imported directly (no dependency on storage)
 from .guard import (
     evaluate_context_window_guard,
     should_compact_history,
@@ -27,12 +27,12 @@ from .compaction import (
     generate_simple_summary,
 )
 
-# 尝试导入,如果失败则延迟加载
+# Try to import, fallback to lazy loading on failure
 try:
     from .context_manager import ContextManager
     from .storage import StorageBackend, FileStorageBackend
 except ImportError:
-    # 延迟导入
+    # Lazy import
     ContextManager = None
     StorageBackend = None
     FileStorageBackend = None

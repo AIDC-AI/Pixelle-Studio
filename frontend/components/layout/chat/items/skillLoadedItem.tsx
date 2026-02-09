@@ -20,7 +20,7 @@ const SkillLoadedItem: React.FC<IProps> = (props) => {
             <div className="flex-1">
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-medium text-gray-600">
-                        技能已加载
+                        Skill Loaded
                     </span>
                     <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 text-xs">
                         <Zap className="w-2.5 h-2.5" />

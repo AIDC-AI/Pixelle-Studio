@@ -10,8 +10,8 @@ import FormSelect from "./form/select";
 interface IProps {
     open: boolean
     server?: MCPServer | null
-    onSuccess?: () => void // 添加成功回调
-    onClose?: () => void   // 关闭回调
+    onSuccess?: () => void // Success callback
+    onClose?: () => void   // Close callback
 }
 
 interface ServerFormData {
@@ -24,16 +24,16 @@ interface ServerFormData {
 }
 
 const connectionTypes = [
-    { label: 'Streamable HTTP (推荐)', value: 'streamable-http' },
+    { label: 'Streamable HTTP (Recommended)', value: 'streamable-http' },
     { label: 'SSE (Server-Sent Events)', value: 'sse' },
-    { label: 'STUDIO（本地进程）', value: 'stdio' },
+    { label: 'STDIO (Local Process)', value: 'stdio' },
 ];
 
 const ToolConfigureModal: React.FC<IProps> = (props) => {
     const { open, server, onSuccess, onClose } = props;
     const { showToast } = useApp()
 
-    // 初始化表单数据
+    // Initialize form data
     const [formData, setFormData] = useState<ServerFormData>({
         name: '',
         transport: 'streamable-http',
@@ -52,7 +52,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
     }, [server]);
 
     const handleSubmit = async (data: any) => {
-        // 只提取需要的字段
+        // Extract only required fields
         const serverData: Partial<MCPServer> = {
             name: data.name,
             transport: data.transport,
@@ -63,8 +63,8 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
         
         const res = await mcpServerAPI.createServer(serverData as any)
         if (!!res) {
-            showToast(ToastType.SUCCESS, `${!!server ? "编辑成功！" : "添加成功！"}`)
-            onSuccess?.()  // 调用成功回调
+            showToast(ToastType.SUCCESS, `${!!server ? "Edit successful!" : "Add successful!"}`)
+            onSuccess?.()  // Call success callback
             handleCancel()
         }
     };
@@ -95,7 +95,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                 aria-describedby={undefined}
             >
 				<div className="flex flex-row justify-between items-center">
-                    <Dialog.Title className="font-semibold text-gray-900 text-[17px]">{!!server ? "编辑工具" : "添加工具"}</Dialog.Title>
+                    <Dialog.Title className="font-semibold text-gray-900 text-[17px]">{!!server ? "Edit Tool" : "Add Tool"}</Dialog.Title>
                     <Dialog.Close asChild>
                         <button 
                             className="rounded-full flex justify-center items-center text-[rgba(0,0,0,0.45)] hover:text-[rgba(0,0,0,0.6)]" 
@@ -117,11 +117,11 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                 >
                     <FormInput 
                         name="name"
-                        label="名称"
+                        label="Name"
                         errorMessages={[
-                            { match:"valueMissing", content:"请先输入工具名称" }
+                            { match:"valueMissing", content:"Please enter the tool name" }
                         ]}
-                        placeholder="工具名称"            
+                        placeholder="Tool Name"            
                         value={formData.name}
                         setValue={(value: string) => {
                             setFormData(prev => ({
@@ -132,9 +132,9 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                     />
                     <FormSelect 
                         name="transport"
-                        label="传输类型"
+                        label="Transport Type"
                         errorMessages={[
-                            { match:"valueMissing", content:"请先选择传输类型" }
+                            { match:"valueMissing", content:"Please select the transport type" }
                         ]}
                         selectOptions={connectionTypes}
                         setValue={(value: string) => {
@@ -149,11 +149,11 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                             <>
                                 <FormInput 
                                     name="url"
-                                    label="服务器 URL"
+                                    label="Server URL"
                                     errorMessages={[
-                                        { match:"valueMissing", content:"请先输入服务器URL" }
+                                        { match:"valueMissing", content:"Please enter the server URL" }
                                     ]}
-                                    placeholder="服务器URL"
+                                    placeholder="Server URL"
                                     value={formData.url || ''}
                                     setValue={(value: string) => {
                                         setFormData(prev => ({
@@ -164,9 +164,9 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                                 />
                                 <FormInput 
                                     name="headers"
-                                    label="Headers"
+                                    label="Headers (Optional)"
                                     required={false}
-                                    placeholder="headers"
+                                    placeholder="Headers (Optional)"
                                     isTextarea={true}
                                     isFlexMax={true}
                                     value={formData.headers || ''}
@@ -185,11 +185,11 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                             <>
                                 <FormInput 
                                     name="command"
-                                    label="命令"
+                                    label="Command"
                                     errorMessages={[
-                                        { match:"valueMissing", content:"请先输入命令" }
+                                        { match:"valueMissing", content:"Please enter the command" }
                                     ]}
-                                    placeholder="命令"
+                                    placeholder="Command"
                                     value={formData.command || ''}
                                     setValue={(value: string) => {
                                         setFormData(prev => ({
@@ -200,11 +200,11 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                                 />
                                 <FormInput 
                                     name="args"
-                                    label="参数"
+                                    label="Arguments"
                                     errorMessages={[
-                                        { match:"valueMissing", content:"请先输入参数" }
+                                        { match:"valueMissing", content:"Please enter the arguments" }
                                     ]}
-                                    placeholder="参数"
+                                    placeholder="Arguments"
                                     value={formData.args || ''}
                                     setValue={(value: string) => {
                                         setFormData(prev => ({
@@ -219,7 +219,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                     <Form.Submit asChild>
                         <button className="inline-flex items-center justify-center rounded-lg px-3.75 text-[15px] leading-none font-medium h-8.75
                          w-full bg-white hover:bg-gray-100 text-gray-900 shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-gray-300 hover:border-gray-500">
-                            提交
+                            Submit
                         </button>
                     </Form.Submit>
                 </Form.Root>

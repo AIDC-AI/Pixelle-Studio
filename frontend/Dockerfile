@@ -1,41 +1,41 @@
 # frontend/Dockerfile
-# 阶段 1: 构建
+# Stage 1: Build
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# 配置 npm 使用国内镜像源（可选，如果网络好可以注释掉）
+# Configure npm mirror source (optional, comment out if network is good)
 RUN npm config set registry https://registry.npmmirror.com
 
-# 复制依赖文件
+# Copy dependency files
 COPY package.json package-lock.json* ./
 
-# 安装依赖（使用缓存和离线优先）
+# Install dependencies (with cache and offline-first)
 RUN npm install --prefer-offline --no-audit
 
-# 复制源码
+# Copy source code
 COPY . .
 
-# 设置构建时的环境变量 (重要：如果你的 Next.js 代码里用了 ENV，需要在构建时传入，或者在运行时通过 next.config.js 暴露)
-# 注意：这里先给一个占位符，实际部署时通常在浏览器端直接请求后端 URL
+# Set build-time environment variables (important: if Next.js code uses ENV, pass them at build time or expose via next.config.js at runtime)
+# Note: placeholder values here, actual deployment typically has browser directly request backend URL
 ARG NEXT_PUBLIC_API_BASE
 ARG NEXT_PUBLIC_WS_BASE
 ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
 ENV NEXT_PUBLIC_WS_BASE=${NEXT_PUBLIC_WS_BASE}
 
-# 构建 Next.js 应用（使用缓存）
+# Build Next.js application (with cache)
 RUN npm run build
 
-# 阶段 2: 运行
+# Stage 2: Run
 FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-# 创建非 root 用户增加安全性
+# Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# 复制构建产物
+# Copy build artifacts
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
@@ -48,4 +48,3 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "server.js"]
-

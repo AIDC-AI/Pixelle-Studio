@@ -1,6 +1,6 @@
 /**
- * 聊天记录存储工具
- * 使用 IndexedDB (idb) 进行本地缓存
+ * Chat history storage utility
+ * Uses IndexedDB (idb) for local caching
  */
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
@@ -10,7 +10,7 @@ import { Session } from '@/types/session';
 const DB_NAME = 'ChatDB';
 const DB_VERSION = 1;
 
-// 定义数据库结构
+// Define database schema
 interface ChatDB extends DBSchema {
   messages: {
     key: string;
@@ -29,7 +29,7 @@ interface ChatDB extends DBSchema {
   };
 }
 
-// 存储的消息类型（包含 id 和 sessionId）
+// Stored message type (includes id and sessionId)
 export interface StoredMessage extends Message {
   id: string;
   sessionId: string;
@@ -39,20 +39,20 @@ class ChatStorage {
   private dbPromise: Promise<IDBPDatabase<ChatDB>> | null = null;
 
   /**
-   * 获取数据库实例
+   * Get database instance
    */
   private async getDB(): Promise<IDBPDatabase<ChatDB>> {
     if (!this.dbPromise) {
       this.dbPromise = openDB<ChatDB>(DB_NAME, DB_VERSION, {
         upgrade(db) {
-          // 创建消息存储
+          // Create message store
           if (!db.objectStoreNames.contains('messages')) {
             const messageStore = db.createObjectStore('messages', { keyPath: 'id' });
             messageStore.createIndex('by-session', 'sessionId');
             messageStore.createIndex('by-timestamp', 'timestamp');
           }
 
-          // 创建会话存储
+          // Create session store
           if (!db.objectStoreNames.contains('sessions')) {
             const sessionStore = db.createObjectStore('sessions', { keyPath: 'id' });
             sessionStore.createIndex('by-timestamp', 'timestamp');
@@ -63,10 +63,10 @@ class ChatStorage {
     return this.dbPromise;
   }
 
-  // ==================== 消息操作 ====================
+  // ==================== Message Operations ====================
 
   /**
-   * 保存单条消息
+   * Save a single message
    */
   async saveMessage(sessionId: string, message: Message, messageId?: string): Promise<void> {
     const db = await this.getDB();
@@ -77,12 +77,12 @@ class ChatStorage {
     };
     await db.put('messages', messageWithMeta);
     
-    // 更新会话时间戳
+    // Update session timestamp
     await this.updateSessionTimestamp(sessionId);
   }
 
   /**
-   * 批量保存消息
+   * Save messages in batch
    */
   async saveMessages(sessionId: string, messages: Message[]): Promise<void> {
     const db = await this.getDB();
@@ -100,12 +100,12 @@ class ChatStorage {
       tx.done,
     ]);
 
-    // 更新会话时间戳
+    // Update session timestamp
     await this.updateSessionTimestamp(sessionId);
   }
 
   /**
-   * 获取会话的所有消息
+   * Get all messages for a session
    */
   async getMessages(sessionId: string): Promise<Message[]> {
     const db = await this.getDB();
@@ -114,7 +114,7 @@ class ChatStorage {
   }
 
   /**
-   * 获取会话的最新 N 条消息
+   * Get the latest N messages for a session
    */
   async getRecentMessages(sessionId: string, limit: number = 50): Promise<Message[]> {
     const messages = await this.getMessages(sessionId);
@@ -122,7 +122,7 @@ class ChatStorage {
   }
 
   /**
-   * 删除单条消息
+   * Delete a single message
    */
   async deleteMessage(messageId: string): Promise<void> {
     const db = await this.getDB();
@@ -130,7 +130,7 @@ class ChatStorage {
   }
 
   /**
-   * 删除会话的所有消息
+   * Delete all messages for a session
    */
   async deleteMessages(sessionId: string): Promise<void> {
     const db = await this.getDB();
@@ -144,19 +144,19 @@ class ChatStorage {
   }
 
   /**
-   * 清空所有消息
+   * Clear all messages
    */
   async clearAllMessages(): Promise<void> {
     const db = await this.getDB();
     await db.clear('messages');
   }
 
-  // ==================== 会话操作 ====================
+  // ==================== Session Operations ====================
 
   /**
-   * 创建新会话
+   * Create a new session
    */
-  async createSession(title: string = '新对话', backendSessionId?: string): Promise<Session> {
+  async createSession(title: string = 'New Chat', backendSessionId?: string): Promise<Session> {
     const db = await this.getDB();
     const session: Session = {
       id: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -169,16 +169,16 @@ class ChatStorage {
   }
 
   /**
-   * 获取所有会话
+   * Get all sessions
    */
   async getSessions(): Promise<Session[]> {
     const db = await this.getDB();
     const sessions = await db.getAllFromIndex('sessions', 'by-timestamp');
-    return sessions.reverse(); // 最新的在前
+    return sessions.reverse(); // Most recent first
   }
 
   /**
-   * 获取单个会话
+   * Get a single session
    */
   async getSession(sessionId: string): Promise<Session | undefined> {
     const db = await this.getDB();
@@ -186,7 +186,7 @@ class ChatStorage {
   }
 
   /**
-   * 更新会话标题
+   * Update session title
    */
   async updateSessionTitle(sessionId: string, title: string): Promise<void> {
     const db = await this.getDB();
@@ -199,7 +199,7 @@ class ChatStorage {
   }
 
   /**
-   * 更新会话的后端 ID
+   * Update session backend ID
    */
   async updateSessionBackendId(sessionId: string, backendSessionId: string): Promise<void> {
     const db = await this.getDB();
@@ -211,7 +211,7 @@ class ChatStorage {
   }
 
   /**
-   * 更新会话时间戳（内部使用）
+   * Update session timestamp (internal use)
    */
   private async updateSessionTimestamp(sessionId: string): Promise<void> {
     const db = await this.getDB();
@@ -224,20 +224,20 @@ class ChatStorage {
   }
 
   /**
-   * 删除会话（包括所有消息）
+   * Delete a session (including all messages)
    */
   async deleteSession(sessionId: string): Promise<void> {
     const db = await this.getDB();
     
-    // 删除所有消息
+    // Delete all messages
     await this.deleteMessages(sessionId);
     
-    // 删除会话
+    // Delete session
     await db.delete('sessions', sessionId);
   }
 
   /**
-   * 清空所有会话和消息
+   * Clear all sessions and messages
    */
   async clearAll(): Promise<void> {
     const db = await this.getDB();
@@ -247,10 +247,10 @@ class ChatStorage {
     ]);
   }
 
-  // ==================== 工具方法 ====================
+  // ==================== Utility Methods ====================
 
   /**
-   * 获取数据库统计信息
+   * Get database statistics
    */
   async getStats(): Promise<{
     totalSessions: number;
@@ -261,7 +261,7 @@ class ChatStorage {
     const sessions = await db.getAll('sessions');
     const messages = await db.getAll('messages');
 
-    // 估算数据库大小
+    // Estimate database size
     const estimatedSize = JSON.stringify({ sessions, messages }).length;
     const sizeInMB = (estimatedSize / 1024 / 1024).toFixed(2);
 
@@ -273,7 +273,7 @@ class ChatStorage {
   }
 
   /**
-   * 获取会话的消息数量
+   * Get message count for a session
    */
   async getMessageCount(sessionId: string): Promise<number> {
     const messages = await this.getMessages(sessionId);
@@ -281,7 +281,7 @@ class ChatStorage {
   }
 
   /**
-   * 导出所有数据（用于备份）
+   * Export all data (for backup)
    */
   async exportData(): Promise<{
     sessions: Session[];
@@ -294,7 +294,7 @@ class ChatStorage {
   }
 
   /**
-   * 导入数据（用于恢复）
+   * Import data (for restore)
    */
   async importData(data: {
     sessions: Session[];
@@ -302,17 +302,17 @@ class ChatStorage {
   }): Promise<void> {
     const db = await this.getDB();
     
-    // 清空现有数据
+    // Clear existing data
     await this.clearAll();
     
-    // 导入会话
+    // Import sessions
     const sessionTx = db.transaction('sessions', 'readwrite');
     await Promise.all([
       ...data.sessions.map((session) => sessionTx.store.put(session)),
       sessionTx.done,
     ]);
     
-    // 导入消息
+    // Import messages
     const msgTx = db.transaction('messages', 'readwrite');
     await Promise.all([
       ...data.messages.map((msg) => msgTx.store.put(msg)),
@@ -321,7 +321,7 @@ class ChatStorage {
   }
 
   /**
-   * 搜索消息
+   * Search messages
    */
   async searchMessages(keyword: string): Promise<Array<{ session: Session; message: StoredMessage }>> {
     const db = await this.getDB();
@@ -344,6 +344,6 @@ class ChatStorage {
   }
 }
 
-// 导出单例
+// Export singleton
 export const chatStorage = new ChatStorage();
 export default chatStorage;

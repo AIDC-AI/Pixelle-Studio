@@ -76,12 +76,12 @@ const ResultItem: React.FC<IProps> = (props) => {
                                     <AlertCircle className="w-4 h-4 text-red-600" />
                                 )}
                                 <span className={`text-sm font-medium ${isSuccess ? 'text-green-700' : 'text-red-700'}`}>
-                                    {isSuccess ? '任务完成' : '任务失败'}
+                                    {isSuccess ? 'Task Complete' : 'Task Failed'}
                                 </span>
                                 {totalIterations && (
                                     <span className="flex items-center gap-1 text-xs text-gray-500">
                                         <Clock className="w-3 h-3" />
-                                        {totalIterations} 次迭代
+                                        {totalIterations} iterations
                                     </span>
                                 )}
                             </div>
@@ -89,7 +89,7 @@ const ResultItem: React.FC<IProps> = (props) => {
                                 isSuccess ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                             }`}>
                                 {isSuccess ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                                {isSuccess ? '成功' : '失败'}
+                                {isSuccess ? 'Success' : 'Failed'}
                             </div>
                         </div>
                     </div>

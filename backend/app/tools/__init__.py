@@ -1,149 +1,148 @@
-"""
-新工具集 - 统一导出模块
-包含 AgentContext, Tool Schemas, Tool Handlers
+"""New tool set - unified export module.
+Contains AgentContext, Tool Schemas, Tool Handlers.
 """
 from typing import Dict, Any
 from dataclasses import dataclass, field
 from pathlib import Path
 
 # ============================================================================
-# AgentContext - 上下文
+# AgentContext - Context
 # ============================================================================
 
 @dataclass
 class AgentContext:
-    """Agent 上下文"""
+    """Agent context"""
     user_id: str = None
     session_id: str = ""
-    # __init__.py 在 app/tools/ 下，需要往上三层到 backend/
+    # __init__.py is under app/tools/, need to go up 3 levels to backend/
     script_dir: Path = None
     backend_root: Path = None
     
     def __post_init__(self):
-        """初始化后自动设置路径"""
-        # 如果没有显式传递 backend_root，自动计算
+        """Auto-set paths after initialization"""
+        # If backend_root is not explicitly passed, auto-calculate
         if self.backend_root is None:
             self.backend_root = Path(__file__).parent.parent.parent
         
-        # 如果没有显式传递 script_dir，根据 user_id 自动计算
+        # If script_dir is not explicitly passed, auto-calculate based on user_id
         if self.script_dir is None:
             user_subdir = self.user_id if self.user_id else "default"
             
-            # ✅ 添加日期子目录（方案 B）
+            # Add date subdirectory
             from datetime import date
-            today = date.today().isoformat()  # 格式: 2026-02-04
+            today = date.today().isoformat()  # Format: 2026-02-04
             
             self.script_dir = self.backend_root / "scripts" / user_subdir / today
-            # 自动创建目录
+            # Auto-create directory
             self.script_dir.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================================
-# Tool Schemas (OpenAI Function Calling 格式)
+# Tool Schemas (OpenAI Function Calling format)
 # ============================================================================
 
 TOOL_SCHEMAS = [
-    # 1. shell_exec (持久化会话 - 最重要)
+    # 1. shell_exec (persistent session - most important)
     {
         "type": "function",
         "function": {
             "name": "shell_exec",
-            "description": """在持久化会话中执行命令（变量和状态会保持）。
+            "description": """Execute commands in a persistent session (variables and state are preserved).
             
-🌟 关键特性：
-- ✅ 变量持久化：多次调用间变量保持
-- ✅ 自动管理：无需手动创建/关闭会话
-- ✅ 多语言支持：bash, python, ipython
-- ✅ 错误恢复：会话崩溃后自动重启
+Key features:
+- Variable persistence: variables persist across multiple calls
+- Auto-managed: no need to manually create/close sessions
+- Multi-language support: bash, python, ipython
+- Error recovery: auto-restart after session crash
 
-⚠️ 重要：shell_type 决定了 command 的格式！
+Important: shell_type determines the command format!
 
-**shell_type="bash"**: command 是 Bash 命令
+**shell_type="bash"**: command is a Bash command
 ```
-✅ 正确:
+Correct:
   shell_exec("ls -la", shell_type="bash")
   shell_exec("python script.py", shell_type="bash")
   shell_exec("python -c 'print(123)'", shell_type="bash")
   shell_exec("echo $HOME", shell_type="bash")
 
-❌ 错误:
-  shell_exec("import pandas", shell_type="bash")  # bash 不认识 import
+Wrong:
+  shell_exec("import pandas", shell_type="bash")  # bash doesn't recognize import
 ```
 
-**shell_type="python"**: command 是纯 Python 代码
+**shell_type="python"**: command is pure Python code
 ```
-✅ 正确:
+Correct:
   shell_exec("import pandas as pd", shell_type="python")
   shell_exec("x = 123", shell_type="python")
   shell_exec("print(x)", shell_type="python")
 
-❌ 错误:
-  shell_exec("python -c 'print(123)'", shell_type="python")  # python -c 是 bash 命令
-  shell_exec("ls -la", shell_type="python")  # ls 是 bash 命令
+Wrong:
+  shell_exec("python -c 'print(123)'", shell_type="python")  # python -c is a bash command
+  shell_exec("ls -la", shell_type="python")  # ls is a bash command
 ```
 
-工作流示例：
+Workflow example:
 ```
-# Bash 会话
+# Bash session
 shell_exec("x=123", shell_type="bash")
-shell_exec("echo $x", shell_type="bash")  # 输出: 123
+shell_exec("echo $x", shell_type="bash")  # Output: 123
 
-# Python 会话
+# Python session
 shell_exec("import pandas as pd", shell_type="python")
 shell_exec("df = pd.DataFrame({'a': [1,2,3]})", shell_type="python")
-shell_exec("print(df)", shell_type="python")  # df 变量仍存在
+shell_exec("print(df)", shell_type="python")  # df variable still exists
 ```
 
-vs exec 的区别：
-- exec: 每次都是新进程，变量不保持
-- shell_exec: 持久化会话，变量保持
+Difference from exec:
+- exec: new process each time, variables not preserved
+- shell_exec: persistent session, variables preserved
 
-⚠️ 代码长度限制：
-- **不要在 shell_exec 中执行超过 50 行或 1500 字符的代码**
-- 长代码必须使用 write_file + exec 方式：
+Code length limit:
+- **Do not execute code longer than 50 lines or 1500 characters in shell_exec**
+- Long code must use write_file + exec:
   ```
-  write_file("script.py", "...长代码...")
+  write_file("script.py", "...long code...")
   exec("python script.py")
   ```
-- 原因：pexpect 环境对长代码处理不稳定
+- Reason: pexpect environment is unstable with long code
 
-建议：
-- 多步骤任务 → shell_exec
-- 一次性命令 → exec
-- 长代码/复杂脚本 → write_file + exec
+Recommendations:
+- Multi-step tasks -> shell_exec
+- One-time commands -> exec
+- Long code/complex scripts -> write_file + exec
 """,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "要执行的命令"
+                        "description": "Command to execute"
                     },
                     "shell_type": {
                         "type": "string",
                         "enum": ["bash", "python", "ipython"],
-                        "description": """Shell 类型，默认 bash
+                        "description": """Shell type, default: bash
                         
-⚠️ 关键：shell_type 决定了 command 的格式！
-- bash: command 是 Bash 命令（如 "ls -la", "python script.py", "echo $x"）
-- python: command 是纯 Python 代码（如 "import pandas", "x = 123", "print(x)"）
-- ipython: command 是 IPython 代码（支持魔法命令）
+Key: shell_type determines the command format!
+- bash: command is a Bash command (e.g. "ls -la", "python script.py", "echo $x")
+- python: command is pure Python code (e.g. "import pandas", "x = 123", "print(x)")
+- ipython: command is IPython code (supports magic commands)
 
-常见错误：
-❌ shell_type="python" + command="python -c '...'" （python -c 是 bash 命令）
-✅ shell_type="bash" + command="python -c '...'"
-✅ shell_type="python" + command="print('hello')" （纯 Python 代码）
+Common mistakes:
+Wrong: shell_type="python" + command="python -c '...'" (python -c is a bash command)
+Correct: shell_type="bash" + command="python -c '...'"
+Correct: shell_type="python" + command="print('hello')" (pure Python code)
 """,
                         "default": "bash"
                     },
                     "new_session": {
                         "type": "boolean",
-                        "description": "是否强制创建新会话（会关闭旧会话），默认 False",
+                        "description": "Force create new session (closes old session), default: False",
                         "default": False
                     },
                     "timeout": {
                         "type": "integer",
-                        "description": "超时时间（秒），默认 300",
+                        "description": "Timeout in seconds, default: 300",
                         "default": 300
                     }
                 },
@@ -157,25 +156,25 @@ vs exec 的区别：
         "type": "function",
         "function": {
             "name": "read_file",
-            "description": """读取文件内容。
+            "description": """Read file contents.
             
-使用建议：
-- Skill 文件：直接读取全部内容
-- 用户小文件（< 1000 行）：直接读取
-- 用户大文件：先用 exec("wc -l file") 查看大小，再决定
+Usage suggestions:
+- Skill files: read full content directly
+- Small user files (< 1000 lines): read directly
+- Large user files: first use exec("wc -l file") to check size, then decide
 
-注意：大文件会有警告，但仍返回完整内容。对于大数据文件，建议使用 exec 命令查看部分内容。
+Note: large files will show a warning but still return full content. For large data files, it's recommended to use exec command to view partial content.
 """,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "文件路径（相对于工作目录或绝对路径）"
+                        "description": "File path (relative to working directory or absolute)"
                     },
                     "encoding": {
                         "type": "string",
-                        "description": "文件编码，默认 utf-8",
+                        "description": "File encoding, default: utf-8",
                         "default": "utf-8"
                     }
                 },
@@ -189,44 +188,44 @@ vs exec 的区别：
         "type": "function",
         "function": {
             "name": "write_file",
-            "description": """创建或覆盖文件。
+            "description": """Create or overwrite a file.
             
-推荐工作流（多步执行）：
-1. write_file("script.py", "代码内容...", notify_frontend=false)  # 中间文件
-2. exec("python script.py")  # 生成最终文件（PDF、Excel等）
+Recommended workflow (multi-step execution):
+1. write_file("script.py", "code content...", notify_frontend=false)  # Intermediate file
+2. exec("python script.py")  # Generate final files (PDF, Excel, etc.)
 
-⚠️ notify_frontend参数说明：
-- false（默认）：中间脚本文件，不通知前端
-- true：最终用户文件（如手动创建的配置文件），通知前端
-- **exec生成的文件会自动通知前端，无需设置**
+notify_frontend parameter:
+- false (default): intermediate script file, do not notify frontend
+- true: final user file (e.g. manually created config), notify frontend
+- **Files generated by exec automatically notify the frontend, no setup needed**
 
-对于短代码，可以直接执行：
+For short code, you can execute directly:
 - exec("python -c 'print(123)'")
 - exec("echo 'hello' > file.txt")
 
-如果参数过长导致错误，可以：
-1. 拆分成多个小文件
-2. 使用代码块格式（见文档）
+If parameter is too long and causes errors, you can:
+1. Split into multiple small files
+2. Use code block format (see documentation)
 """,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "文件路径"
+                        "description": "File path"
                     },
                     "content": {
                         "type": "string",
-                        "description": "文件内容"
+                        "description": "File content"
                     },
                     "encoding": {
                         "type": "string",
-                        "description": "文件编码，默认 utf-8",
+                        "description": "File encoding, default: utf-8",
                         "default": "utf-8"
                     },
                     "notify_frontend": {
                         "type": "boolean",
-                        "description": "是否通知前端显示此文件，默认 False（中间文件不显示）",
+                        "description": "Whether to notify frontend to display this file, default: False (intermediate files hidden)",
                         "default": False
                     }
                 },
@@ -240,25 +239,25 @@ vs exec 的区别：
         "type": "function",
         "function": {
             "name": "exec",
-            "description": """执行一次性命令（非持久化）。
+            "description": """Execute a one-time command (non-persistent).
             
-支持的命令：
-- Bash 命令：ls -la, cat file.txt, grep pattern file
-- Python 短代码：python -c "print('hello')"
-- Python 脚本：python script.py
+Supported commands:
+- Bash commands: ls -la, cat file.txt, grep pattern file
+- Python short code: python -c "print('hello')"
+- Python scripts: python script.py
 
-执行策略：
-- 短命令（1 行）：直接执行
-- 长代码：先用 write_file 创建脚本，再执行
+Execution strategy:
+- Short commands (1 line): execute directly
+- Long code: create script with write_file first, then execute
 
-后台运行：
-- 对于长时间任务（> 30s），使用 background=True
-- 后台任务返回 session_id，可通过 process 工具查询
+Background execution:
+- For long-running tasks (> 30s), use background=True
+- Background tasks return session_id, check with process tool
 
-⚠️ 重要：每次 exec 都是新进程，变量不会保持！
-如需多步执行和变量持久化，使用 shell_exec。
+Important: each exec is a new process, variables are not preserved!
+For multi-step execution and variable persistence, use shell_exec.
 
-示例：
+Examples:
 - exec("ls -la")
 - exec("python -c 'import sys; print(sys.version)'")
 - exec("python script.py", timeout=300)
@@ -269,20 +268,20 @@ vs exec 的区别：
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "要执行的命令"
+                        "description": "Command to execute"
                     },
                     "workdir": {
                         "type": "string",
-                        "description": "工作目录（可选，默认为用户脚本目录）"
+                        "description": "Working directory (optional, default: user script directory)"
                     },
                     "timeout": {
                         "type": "integer",
-                        "description": "超时时间（秒），默认 300",
+                        "description": "Timeout in seconds, default: 300",
                         "default": 300
                     },
                     "background": {
                         "type": "boolean",
-                        "description": "是否后台运行，默认 False",
+                        "description": "Run in background, default: False",
                         "default": False
                     }
                 },
@@ -296,19 +295,19 @@ vs exec 的区别：
         "type": "function",
         "function": {
             "name": "edit_file",
-            "description": """编辑文件（字符串替换）。
+            "description": """Edit a file (string replacement).
             
-适用场景：
-- 修改代码中的特定行
-- 更正配置文件中的值
-- 批量替换内容
+Use cases:
+- Modify specific lines in code
+- Correct values in configuration files
+- Batch replace content
 
-使用建议：
-- old_string 必须完全匹配（包括空格、缩进）
-- 建议先用 read_file 确认内容
-- 替换失败时会提示相似的行
+Usage suggestions:
+- old_string must match exactly (including spaces, indentation)
+- Recommended to use read_file first to confirm content
+- On replacement failure, similar lines will be suggested
 
-示例：
+Examples:
 edit_file("config.py", "DEBUG = False", "DEBUG = True")
 edit_file("script.py", "old_func()", "new_func()", replace_all=True)
 """,
@@ -317,19 +316,19 @@ edit_file("script.py", "old_func()", "new_func()", replace_all=True)
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "文件路径"
+                        "description": "File path"
                     },
                     "old_string": {
                         "type": "string",
-                        "description": "要替换的字符串（必须完全匹配）"
+                        "description": "String to replace (must match exactly)"
                     },
                     "new_string": {
                         "type": "string",
-                        "description": "替换后的字符串"
+                        "description": "Replacement string"
                     },
                     "replace_all": {
                         "type": "boolean",
-                        "description": "是否替换所有匹配，默认 False（只替换第一个）",
+                        "description": "Replace all matches, default: False (only first)",
                         "default": False
                     }
                 },
@@ -343,42 +342,42 @@ edit_file("script.py", "old_func()", "new_func()", replace_all=True)
         "type": "function",
         "function": {
             "name": "grep",
-            "description": """搜索文件内容（支持正则表达式）。
+            "description": """Search file contents (supports regex).
             
-适用场景：
-- 查找代码中的函数定义
-- 搜索配置文件中的关键字
-- 定位错误信息位置
+Use cases:
+- Find function definitions in code
+- Search for keywords in config files
+- Locate error message positions
 
-示例：
-grep("def.*main", "script.py")  # 查找 main 函数
+Examples:
+grep("def.*main", "script.py")  # Find main function
 grep("ERROR", "app.log", case_insensitive=True)
-grep("import.*pandas", ".", recursive=True)  # 递归搜索
+grep("import.*pandas", ".", recursive=True)  # Recursive search
 """,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "pattern": {
                         "type": "string",
-                        "description": "搜索模式（支持正则表达式）"
+                        "description": "Search pattern (supports regex)"
                     },
                     "path": {
                         "type": "string",
-                        "description": "文件或目录路径"
+                        "description": "File or directory path"
                     },
                     "case_insensitive": {
                         "type": "boolean",
-                        "description": "忽略大小写，默认 False",
+                        "description": "Case insensitive, default: False",
                         "default": False
                     },
                     "recursive": {
                         "type": "boolean",
-                        "description": "递归搜索目录，默认 False",
+                        "description": "Recursive directory search, default: False",
                         "default": False
                     },
                     "context_lines": {
                         "type": "integer",
-                        "description": "显示上下文行数，默认 0",
+                        "description": "Context lines to display, default: 0",
                         "default": 0
                     }
                 },
@@ -392,28 +391,28 @@ grep("import.*pandas", ".", recursive=True)  # 递归搜索
         "type": "function",
         "function": {
             "name": "find",
-            "description": """查找文件（按文件名）。
+            "description": """Find files by name.
             
-适用场景：
-- 查找特定类型的文件（*.py, *.csv）
-- 定位配置文件
-- 浏览项目结构
+Use cases:
+- Find specific file types (*.py, *.csv)
+- Locate configuration files
+- Browse project structure
 
-示例：
-find("*.py")  # 查找所有 Python 文件
-find("config.*")  # 查找所有 config 文件
-find("*test*", "src/")  # 在 src 目录下查找
+Examples:
+find("*.py")  # Find all Python files
+find("config.*")  # Find all config files
+find("*test*", "src/")  # Search in src directory
 """,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "pattern": {
                         "type": "string",
-                        "description": "文件名模式（支持 glob，如 *.py）"
+                        "description": "Filename pattern (supports glob, e.g. *.py)"
                     },
                     "directory": {
                         "type": "string",
-                        "description": "搜索目录，默认当前目录",
+                        "description": "Search directory, default: current",
                         "default": "."
                     }
                 },
@@ -427,53 +426,53 @@ find("*test*", "src/")  # 在 src 目录下查找
         "type": "function",
         "function": {
             "name": "ls",
-            "description": """列出目录内容。
+            "description": """List directory contents.
             
-⚠️ 重要：默认只显示10个文件，避免爆上下文！
+Important: default shows only 10 files to avoid context overflow!
 
-适用场景：
-- 快速查看少量文件
-- 配合 pattern 参数精确过滤
+Use cases:
+- Quickly view a few files
+- Use pattern parameter for precise filtering
 
-必须使用pattern过滤：
-- ls(pattern="*.pdf")  # 只看PDF文件
-- ls(pattern="*.py", limit=20)  # 前20个Python文件
-- find("*.csv")  # 或使用find工具
+Must use pattern filter:
+- ls(pattern="*.pdf")  # View PDF files only
+- ls(pattern="*.py", limit=20)  # First 20 Python files
+- find("*.csv")  # Or use find tool
 
-❌ 不要直接 ls() - 会返回10个文件，可能不是你要的！
-✅ 使用 ls(pattern="...")  或 find() 精确查找
+Don't use bare ls() - it returns only 10 files, may not be what you need!
+Use ls(pattern="...") or find() for precise lookup.
 
-示例：
-- ls(pattern="*.pdf")  # 查看PDF文件
-- ls(pattern="test_*", limit=5)  # 前5个test开头的文件
-- find("*.csv")  # 更好的选择
+Examples:
+- ls(pattern="*.pdf")  # View PDF files
+- ls(pattern="test_*", limit=5)  # First 5 files starting with test
+- find("*.csv")  # Better choice
 """,
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "目录路径，默认当前目录",
+                        "description": "Directory path, default: current",
                         "default": "."
                     },
                     "recursive": {
                         "type": "boolean",
-                        "description": "递归列出子目录，默认 False",
+                        "description": "Recursively list subdirectories, default: False",
                         "default": False
                     },
                     "show_hidden": {
                         "type": "boolean",
-                        "description": "显示隐藏文件，默认 False",
+                        "description": "Show hidden files, default: False",
                         "default": False
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "最多返回的条目数，默认 10（避免爆上下文）",
+                        "description": "Max entries to return, default: 10 (avoid context overflow)",
                         "default": 10
                     },
                     "pattern": {
                         "type": "string",
-                        "description": "文件名过滤模式（支持通配符，如 '*.pdf', 'test_*'），强烈建议使用"
+                        "description": "Filename filter pattern (supports wildcards, e.g. '*.pdf', 'test_*'), strongly recommended"
                     }
                 },
                 "required": []
@@ -486,15 +485,15 @@ find("*test*", "src/")  # 在 src 目录下查找
         "type": "function",
         "function": {
             "name": "process",
-            "description": """管理后台运行的进程。
+            "description": """Manage background processes.
             
-操作类型：
-- list: 列出所有后台进程
-- status: 查询指定进程的状态
-- logs: 获取进程的输出日志
-- kill: 终止指定进程
+Action types:
+- list: list all background processes
+- status: query status of a specific process
+- logs: get process output logs
+- kill: terminate a specific process
 
-示例：
+Examples:
 - process(action="list")
 - process(action="status", session_id="exec_abc123")
 - process(action="logs", session_id="exec_abc123")
@@ -506,11 +505,11 @@ find("*test*", "src/")  # 在 src 目录下查找
                     "action": {
                         "type": "string",
                         "enum": ["list", "status", "logs", "kill"],
-                        "description": "操作类型"
+                        "description": "Action type"
                     },
                     "session_id": {
                         "type": "string",
-                        "description": "进程会话 ID（list 操作不需要）"
+                        "description": "Process session ID (not needed for list action)"
                     }
                 },
                 "required": ["action"]
@@ -521,7 +520,7 @@ find("*test*", "src/")  # 在 src 目录下查找
 
 
 # ============================================================================
-# Tool Handlers - 导入所有工具实现
+# Tool Handlers - import all tool implementations
 # ============================================================================
 
 from .security import validate_path, validate_command, get_user_workdir
@@ -545,7 +544,7 @@ TOOL_HANDLERS: Dict[str, Any] = {
 
 
 # ============================================================================
-# 导出所有内容
+# Export all
 # ============================================================================
 
 __all__ = [
@@ -554,25 +553,25 @@ __all__ = [
     "TOOL_SCHEMAS",
     "TOOL_HANDLERS",
     
-    # 安全
+    # Security
     "validate_path",
     "validate_command",
     "get_user_workdir",
     
-    # 文件操作
+    # File operations
     "read_file",
     "write_file",
     "edit_file",
     
-    # 执行
+    # Execution
     "exec_command",
     "process_manage",
     
-    # 持久化会话
+    # Persistent sessions
     "shell_exec",
     "shell_session_manage",
     
-    # 辅助工具
+    # Auxiliary tools
     "grep",
     "find",
     "ls",

@@ -68,10 +68,10 @@ const SkillsPanel = () => {
             setSkills(prev => prev.filter((skill) => skill.name !== name))
             // setSkillEditored(false)
             // setCurrentSkillName(null)
-            showToast(ToastType.SUCCESS, '删除成功！')
+            showToast(ToastType.SUCCESS, 'Deletion successful!')
         } catch (error) {
             console.error(`Failed to fetch skills:`, error);
-            showToast(ToastType.ERROR, (error as Error).message || '删除失败！')
+            showToast(ToastType.ERROR, (error as Error).message || 'Delete failed!')
         }
 
         setLoading(false);
@@ -81,13 +81,13 @@ const SkillsPanel = () => {
         setLoading(true);
 
         try {
-            const res = await mcpServerAPI.getServers(true); // 获取包含状态和工具的数据
+            const res = await mcpServerAPI.getServers(true); // Get data including status and tools
             if (!!res) {
                 setMcpServers(res);
             }
         } catch (error) {
             console.error('Failed to fetch MCP servers:', error);
-            showToast(ToastType.ERROR, (error as Error).message || '获取服务器列表失败！');
+            showToast(ToastType.ERROR, (error as Error).message || 'Failed to fetch server list!');
         }
 
         setLoading(false);
@@ -97,21 +97,21 @@ const SkillsPanel = () => {
         try {
             await mcpServerAPI.deleteServer(id);
             setMcpServers(prev => [...prev.filter((server) => server.id !== id)])
-            showToast(ToastType.SUCCESS, '删除成功！')
+            showToast(ToastType.SUCCESS, 'Deleted successfully!')
         } catch (error) {
-            showToast(ToastType.ERROR, (error as Error).message || '删除失败！')
+            showToast(ToastType.ERROR, (error as Error).message || 'Delete failed!')
         }
     };
 
     const handleRefreshServer = async (serverId: string) => {
-        // 标记服务器为检查中状态
+        // Mark server as checking status
         setMcpServers(prev => prev.map(s => 
             s.id === serverId ? { ...s, status: 'checking' as const } : s
         ));
 
         try {
             const status = await mcpServerAPI.checkServerStatus(serverId);
-            // 更新服务器状态和工具
+            // Update server status and tools
             setMcpServers(prev => prev.map(s => 
                 s.id === serverId ? {
                     ...s,
@@ -145,7 +145,7 @@ const SkillsPanel = () => {
     //     }
     // }, [isChangeSkill])
 
-    // 总的工具数量
+    // Total tool count
     useEffect(() => {
         const list = mcpServers.reduce<MCPTool[]>((total, server) => {
             if (server?.tools && Array.isArray(server.tools)) {
@@ -169,11 +169,11 @@ const SkillsPanel = () => {
                             className="flex items-center gap-2 hover:opacity-70 transition-opacity"
                         >
                             <Book className="w-4 h-4 text-gray-600" />
-                            <span className="text-sm font-medium text-gray-800">技能</span>
+                            <span className="text-sm font-medium text-gray-800">Skills</span>
                             <span className="text-xs text-gray-400">({skills?.length || 0})</span>
                         </div>
                     }
-                    hoverContent="新建技能"
+                    hoverContent="New Skill"
                     onAdd={() => {
                         handleShowSkillEditor(null)
                     }}
@@ -218,11 +218,11 @@ const SkillsPanel = () => {
                             className="flex items-center gap-2 hover:opacity-70 transition-opacity"
                         >
                             <Wrench className="w-4 h-4 text-gray-600" />
-                            <span className="text-sm font-medium text-gray-800">工具</span>
+                            <span className="text-sm font-medium text-gray-800">Tools</span>
                             <span className="text-xs text-gray-400">({mcpTools?.length})</span>
                         </div>
                     }
-                    hoverContent="新建工具"
+                    hoverContent="New Tool"
                     onAdd={() => setToolConfigureOpen(true)}
                 >
                     <div className="p-4 space-y-2">

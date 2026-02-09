@@ -1,14 +1,14 @@
 {
-  "description": "模型故障转移配置 - 当主模型失败时自动尝试备用模型",
+  "description": "model fallback list-when the primary model fails, the system will automatically try the fallback models",
   "fallbacks": [
     "gpt-4o-mini",
     "gpt-4-turbo",
     "gpt-3.5-turbo"
   ],
   "notes": [
-    "fallbacks 列表按优先级排序",
-    "系统会依次尝试主模型和备用模型",
-    "如果所有模型都失败,则返回错误"
+    "the fallback list is sorted by priority",
+    "the system will try the primary model and the fallback models in order",
+    "if all models fail, an error will be returned"
   ]
 }
 

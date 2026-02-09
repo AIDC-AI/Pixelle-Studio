@@ -15,9 +15,9 @@ class NormalizationType(Enum):
 
 
 class SimilarityType(Enum):
-    COSINE = "COSINE" #余弦相似度,COSINE=L2_norm(IP)
-    L2 = "L2" #欧氏距离
-    IP = "IP" #内积
+    COSINE = "COSINE"  # Cosine similarity, COSINE=L2_norm(IP)
+    L2 = "L2"  # Euclidean distance
+    IP = "IP"  # Inner product
 
 
 class Qwen3Embedding:

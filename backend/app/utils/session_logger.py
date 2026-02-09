@@ -1,14 +1,14 @@
 """
 Session Logger - JSONL-based persistent logging for Agent sessions.
 
-每个 session 记录到独立的 .jsonl 文件,包含:
-- 所有消息 (user/assistant)
-- 所有工具调用和结果
-- 所有代码执行和输出
-- 故障转移事件
-- 上下文压缩事件
+Each session is logged to an independent .jsonl file containing:
+- All messages (user/assistant)
+- All tool calls and results
+- All code executions and outputs
+- Failover events
+- Context compaction events
 
-目录结构:
+Directory structure:
 backend/logs/sessions/
   ├── user_1/
   │   ├── sess_abc123.jsonl
@@ -25,7 +25,7 @@ from enum import Enum
 
 
 class EventType(str, Enum):
-    """Session 事件类型"""
+    """Session event type"""
     SESSION_START = "session_start"
     SESSION_END = "session_end"
     MESSAGE = "message"
@@ -36,15 +36,15 @@ class EventType(str, Enum):
     ERROR = "error"
     CONTEXT_COMPACTION = "context_compaction"
     FAILOVER = "failover"
-    STATUS = "status"  # Agent 状态更新
+    STATUS = "status"  # Agent status update
 
 
 class SessionLogger:
     """
-    Session 级别的日志记录器。
+    Session-level logger.
     
-    每个 session 记录到独立的 .jsonl 文件。
-    使用缓冲写入提升性能。
+    Each session is logged to an independent .jsonl file.
+    Uses buffered writes for better performance.
     """
     
     def __init__(
@@ -55,58 +55,58 @@ class SessionLogger:
         buffer_size: int = 10
     ):
         """
-        初始化 SessionLogger。
+        Initialize SessionLogger.
         
         Args:
             session_id: Session ID
-            user_id: 用户 ID (None 表示 default)
-            log_dir: 日志根目录 (默认: backend/logs/sessions/)
-            buffer_size: 缓冲区大小 (达到此大小时写入磁盘)
+            user_id: User ID (None means default)
+            log_dir: Log root directory (default: backend/logs/sessions/)
+            buffer_size: Buffer size (writes to disk when this size is reached)
         """
         self.session_id = session_id
         self.user_id = user_id or "default"
         self.buffer_size = buffer_size
         
-        # 创建日志目录
+        # Create log directory
         if log_dir is None:
             log_dir = Path(__file__).parent.parent.parent / "logs" / "sessions"
         
         self.user_log_dir = log_dir / str(self.user_id)
         self.user_log_dir.mkdir(parents=True, exist_ok=True)
         
-        # 日志文件路径
+        # Log file path
         self.log_file = self.user_log_dir / f"sess_{session_id}.jsonl"
         
-        # 缓冲区
+        # Buffer
         self.buffer: List[Dict[str, Any]] = []
         
-        # 事件计数器
+        # Event counter
         self.event_count = 0
     
     def _write_event(self, event: Dict[str, Any]):
         """
-        写入事件到缓冲区。
+        Write event to buffer.
         
         Args:
-            event: 事件数据
+            event: Event data
         """
-        # 添加时间戳
+        # Add timestamp
         if "timestamp" not in event:
             event["timestamp"] = datetime.utcnow().isoformat() + "Z"
         
-        # 添加事件序号
+        # Add event sequence number
         event["seq"] = self.event_count
         self.event_count += 1
         
-        # 添加到缓冲区
+        # Add to buffer
         self.buffer.append(event)
         
-        # 达到缓冲区大小时写入
+        # Write when buffer size is reached
         if len(self.buffer) >= self.buffer_size:
             self._flush()
     
     def _flush(self):
-        """刷新缓冲区到文件"""
+        """Flush buffer to file"""
         if not self.buffer:
             return
         
@@ -126,12 +126,12 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录 session 开始。
+        Log session start.
         
         Args:
-            model: 模型名称
-            mcp_server_url: MCP 服务器 URL
-            **kwargs: 其他元数据
+            model: Model name
+            mcp_server_url: MCP server URL
+            **kwargs: Additional metadata
         """
         self._write_event({
             "type": EventType.SESSION_START,
@@ -141,7 +141,7 @@ class SessionLogger:
             "mcp_server_url": mcp_server_url,
             **kwargs
         })
-        self._flush()  # 立即写入
+        self._flush()  # Write immediately
     
     def log_message(
         self, 
@@ -151,13 +151,13 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录消息 (user/assistant)。
+        Log message (user/assistant).
         
         Args:
-            role: 角色 ("user" 或 "assistant")
-            content: 消息内容
-            turn: 对话轮次
-            **kwargs: 其他元数据
+            role: Role ("user" or "assistant")
+            content: Message content
+            turn: Conversation turn
+            **kwargs: Additional metadata
         """
         event = {
             "type": EventType.MESSAGE,
@@ -180,14 +180,14 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录工具调用。
+        Log tool call.
         
         Args:
-            tool: 工具名称
-            args: 工具参数
-            call_id: 调用 ID
-            turn: 对话轮次
-            **kwargs: 其他元数据
+            tool: Tool name
+            args: Tool arguments
+            call_id: Call ID
+            turn: Conversation turn
+            **kwargs: Additional metadata
         """
         event = {
             "type": EventType.TOOL_CALL,
@@ -212,15 +212,15 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录工具结果。
+        Log tool result.
         
         Args:
-            tool: 工具名称
-            call_id: 调用 ID
-            status: 状态 ("success" 或 "error")
-            result: 结果数据
-            duration_ms: 执行时间 (毫秒)
-            **kwargs: 其他元数据
+            tool: Tool name
+            call_id: Call ID
+            status: Status ("success" or "error")
+            result: Result data
+            duration_ms: Execution time (milliseconds)
+            **kwargs: Additional metadata
         """
         event = {
             "type": EventType.TOOL_RESULT,
@@ -243,12 +243,12 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录代码执行。
+        Log code execution.
         
         Args:
-            code: 代码内容
-            turn: 对话轮次
-            **kwargs: 其他元数据
+            code: Code content
+            turn: Conversation turn
+            **kwargs: Additional metadata
         """
         event = {
             "type": EventType.CODE_EXECUTION,
@@ -271,15 +271,15 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录代码执行结果。
+        Log code execution result.
         
         Args:
-            status: 状态 ("success" 或 "error")
-            stdout: 标准输出
-            stderr: 标准错误
-            output_files: 生成的文件列表
-            duration_ms: 执行时间 (毫秒)
-            **kwargs: 其他元数据
+            status: Status ("success" or "error")
+            stdout: Standard output
+            stderr: Standard error
+            output_files: List of generated files
+            duration_ms: Execution time (milliseconds)
+            **kwargs: Additional metadata
         """
         event = {
             "type": EventType.CODE_RESULT,
@@ -303,13 +303,13 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录错误。
+        Log error.
         
         Args:
-            error: 错误消息
-            error_type: 错误类型
-            turn: 对话轮次
-            **kwargs: 其他元数据
+            error: Error message
+            error_type: Error type
+            turn: Conversation turn
+            **kwargs: Additional metadata
         """
         event = {
             "type": EventType.ERROR,
@@ -333,13 +333,13 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录上下文压缩。
+        Log context compaction.
         
         Args:
-            messages_before: 压缩前消息数
-            messages_after: 压缩后消息数
-            strategy: 压缩策略
-            **kwargs: 其他元数据
+            messages_before: Message count before compaction
+            messages_after: Message count after compaction
+            strategy: Compaction strategy
+            **kwargs: Additional metadata
         """
         self._write_event({
             "type": EventType.CONTEXT_COMPACTION,
@@ -358,14 +358,14 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录故障转移。
+        Log failover.
         
         Args:
-            layer: 转移层级 ("auth", "model", "thinking")
-            from_value: 原始值
-            to_value: 目标值
-            reason: 转移原因
-            **kwargs: 其他元数据
+            layer: Failover layer ("auth", "model", "thinking")
+            from_value: Original value
+            to_value: Target value
+            reason: Failover reason
+            **kwargs: Additional metadata
         """
         self._write_event({
             "type": EventType.FAILOVER,
@@ -383,12 +383,12 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录状态更新。
+        Log status update.
         
         Args:
-            content: 状态消息
-            turn: 对话轮次
-            **kwargs: 其他元数据
+            content: Status message
+            turn: Conversation turn
+            **kwargs: Additional metadata
         """
         event = {
             "type": EventType.STATUS,
@@ -409,13 +409,13 @@ class SessionLogger:
         **kwargs
     ):
         """
-        记录 session 结束。
+        Log session end.
         
         Args:
-            status: 结束状态 ("success", "error", "cancelled")
-            total_turns: 总对话轮次
-            total_events: 总事件数
-            **kwargs: 其他元数据
+            status: End status ("success", "error", "cancelled")
+            total_turns: Total conversation turns
+            total_events: Total event count
+            **kwargs: Additional metadata
         """
         self._write_event({
             "type": EventType.SESSION_END,
@@ -424,18 +424,18 @@ class SessionLogger:
             "total_events": total_events or self.event_count,
             **kwargs
         })
-        self._flush()  # 立即写入
+        self._flush()  # Write immediately
     
     def close(self):
-        """关闭 logger,刷新缓冲区"""
+        """Close logger, flush buffer"""
         self._flush()
     
     def __enter__(self):
-        """Context manager 支持"""
+        """Context manager support"""
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager 支持"""
+        """Context manager support"""
         self.close()
         return False
 

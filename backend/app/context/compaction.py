@@ -1,4 +1,4 @@
-"""Auto-Compaction - 自动上下文压缩"""
+"""Auto-Compaction - automatic context compression"""
 
 from typing import List, Dict, Any
 from openai import AsyncOpenAI
@@ -13,20 +13,20 @@ async def compact_history(
     client: AsyncOpenAI = None
 ) -> List[Dict[str, Any]]:
     """
-    压缩历史消息。
+    Compress history messages.
     
-    策略:
-    1. 保留最近 N 条消息 (默认 10 条)
-    2. 对早期消息生成摘要
-    3. 将摘要插入为 system 消息
+    Strategy:
+    1. Keep the most recent N messages (default 10)
+    2. Generate summary for earlier messages
+    3. Insert summary as system message
     
     Args:
-        messages: 历史消息列表
-        keep_recent: 保留最近几条消息
-        client: OpenAI 客户端 (可选)
+        messages: History message list
+        keep_recent: Number of recent messages to keep
+        client: OpenAI client (optional)
     
     Returns:
-        压缩后的消息列表
+        Compressed message list
     """
     if len(messages) <= keep_recent:
         logger.info(f"[Compaction] Message count ({len(messages)}) <= keep_recent ({keep_recent}), no compaction needed")
@@ -34,20 +34,20 @@ async def compact_history(
     
     logger.info(f"[Compaction] Starting compaction: {len(messages)} messages -> keep recent {keep_recent}")
     
-    # 分离早期消息和最近消息
+    # Separate old messages and recent messages
     old_messages = messages[:-keep_recent]
     recent_messages = messages[-keep_recent:]
     
-    # 生成摘要
+    # Generate summary
     try:
         summary = await generate_summary(old_messages, client)
         logger.info(f"[Compaction] Generated summary ({len(summary)} chars)")
     except Exception as e:
         logger.error(f"[Compaction] Failed to generate summary: {e}")
-        # 如果摘要生成失败,使用简单的文本摘要
+        # If summary generation fails, use simple text summary
         summary = generate_simple_summary(old_messages)
     
-    # 构建新历史
+    # Build new history
     compacted = [
         {
             "role": "system",
@@ -66,31 +66,31 @@ async def generate_summary(
     client: AsyncOpenAI = None
 ) -> str:
     """
-    使用 LLM 生成摘要。
+    Generate summary using LLM.
     
     Args:
-        messages: 要摘要的消息列表
-        client: OpenAI 客户端
+        messages: List of messages to summarize
+        client: OpenAI client
     
     Returns:
-        摘要文本
+        Summary text
     """
     if client is None:
         client = AsyncOpenAI()
     
-    # 构建摘要请求
+    # Build summary request
     messages_text = ""
     for msg in messages:
         role = msg.get("role", "unknown")
         content = msg.get("content", "")
         
-        # 跳过过长的内容
+        # Skip overly long content
         if len(str(content)) > 2000:
             content = str(content)[:2000] + "... (truncated)"
         
         messages_text += f"{role}: {content}\n\n"
     
-    # 限制输入长度
+    # Limit input length
     if len(messages_text) > 10000:
         messages_text = messages_text[:10000] + "\n... (truncated due to length)"
     
@@ -98,7 +98,7 @@ async def generate_summary(
     
     try:
         response = await client.chat.completions.create(
-            model="gpt-3.5-turbo",  # 使用便宜快速的模型
+            model="gpt-3.5-turbo",  # Use cheap and fast model
             messages=[
                 {
                     "role": "system",
@@ -128,9 +128,9 @@ async def generate_summary(
 
 def generate_simple_summary(messages: List[Dict[str, Any]]) -> str:
     """
-    生成简单的文本摘要 (不使用 LLM)。
+    Generate simple text summary (without LLM).
     
-    当 LLM 摘要失败时使用此方法作为 fallback。
+    Used as fallback when LLM summary generation fails.
     """
     logger.info(f"[Compaction] Using simple summary for {len(messages)} messages")
     
@@ -145,12 +145,12 @@ def generate_simple_summary(messages: List[Dict[str, Any]]) -> str:
     summary_parts.append(f"- User messages: {len(user_messages)}")
     summary_parts.append(f"- Assistant messages: {len(assistant_messages)}")
     
-    # 提取一些关键信息
+    # Extract some key information
     if user_messages:
         first_user = user_messages[0].get("content", "")[:100]
         summary_parts.append(f"- First user request: {first_user}...")
     
-    # 检查是否有工具调用
+    # Check for tool calls
     tool_calls_count = sum(
         1 for m in messages 
         if m.get("role") == "assistant" and "tool_calls" in m
@@ -166,24 +166,24 @@ def estimate_compacted_size(
     keep_recent: int = 10
 ) -> int:
     """
-    估算压缩后的大小 (token 数量)。
+    Estimate compressed size (token count).
     
-    用于预测压缩效果。
+    Used to predict compression effectiveness.
     """
     from .guard import estimate_token_count
     
     if len(messages) <= keep_recent:
-        # 不需要压缩
+        # No compression needed
         total = 0
         for msg in messages:
             content = msg.get("content", "")
             total += estimate_token_count(str(content))
         return total
     
-    # 估算摘要大小 (保守估计 500 tokens)
+    # Estimate summary size (conservative estimate of 500 tokens)
     summary_size = 500
     
-    # 估算保留消息大小
+    # Estimate size of retained messages
     recent_size = 0
     for msg in messages[-keep_recent:]:
         content = msg.get("content", "")

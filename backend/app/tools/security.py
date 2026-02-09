@@ -1,5 +1,5 @@
 """
-安全检查模块 - 路径和命令白名单验证
+Security module - path and command whitelist validation
 """
 from pathlib import Path
 from typing import Tuple, Optional
@@ -9,44 +9,44 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# 命令白名单
+# Command whitelist
 ALLOWED_COMMANDS = {
-    # 读取类
+    # Read operations
     "cat", "head", "tail", "less", "more",
     "grep", "egrep", "fgrep", "ag", "rg",
     "find", "ls", "tree", "du", "stat",
     "wc", "cut", "sort", "uniq", "diff",
     
-    # 基础命令
+    # Basic commands
     "echo", "pwd", "cd", "mkdir", "touch", "cp", "mv",
     
     # Python
     "python", "python3", "pip", "pip3",
     
-    # 其他工具
+    # Other tools
     "git", "curl", "wget", "jq", "awk", "sed",
     
     # Shell
     "bash", "sh", "zsh"
 }
 
-# 命令黑名单（一期禁止删除操作和包安装）
+# Command blocklist (Phase 1: delete operations and package installs prohibited)
 BLOCKED_COMMANDS = {
-    # 删除类
+    # Delete operations
     "rm", "rmdir", "unlink", "del",
     
-    # 危险命令
+    # Dangerous commands
     "sudo", "su", "chmod", "chown", "chgrp",
     "kill", "pkill", "killall",
     "dd", "mkfs", "fdisk", "parted",
     
-    # 网络危险
+    # Network dangerous
     "nc", "netcat", "nmap",
     
-    # 系统
+    # System
     "reboot", "shutdown", "halt", "poweroff", "init",
     
-    # 包管理（禁止用户自行安装包）
+    # Package management (users cannot install packages)
     "pip", "pip3", "easy_install", "conda",
     "npm", "yarn", "gem", "cargo"
 }
@@ -59,163 +59,163 @@ def validate_path(
     script_dir: Optional[Path] = None
 ) -> Path:
     """
-    验证并解析路径
+    Validate and resolve path.
     
     Args:
-        path: 文件路径
-        user_id: 用户ID
-        operation: 操作类型 ("read" | "write")
-        script_dir: 可选的脚本目录（通常是 context.script_dir，包含日期子目录）
+        path: File path
+        user_id: User ID
+        operation: Action type ("read" | "write")
+        script_dir: Optional script directory (usually context.script_dir, includes date subdirectory)
     
     Returns:
-        解析后的绝对路径
+        Resolved absolute path
     
     Raises:
-        PermissionError: 路径不被允许
+        PermissionError: Path not allowed
     
-    规则:
-        - 读取: 允许访问 skills/ (所有skill目录) 和 scripts/{user_id}/
-        - 写入: 只允许 scripts/{user_id}/
-        - 禁止: 系统目录、其他用户目录、路径遍历
+    Rules:
+        - Read: Allowed to access skills/ (all skill directories) and scripts/{user_id}/
+        - Write: Only allowed scripts/{user_id}/
+        - Prohibited: System directories, other user directories, path traversal
     """
-    # 获取 backend 根目录
-    # security.py 在 app/tools/ 下，所以需要往上两层到 backend/
+    # Get backend root directory
+    # security.py is under app/tools/, need to go up 2 levels to backend/
     backend_root = Path(__file__).parent.parent.parent
     
-    # ✅ 优先使用传入的 script_dir（包含日期子目录）
-    # 如果没有提供，使用旧的不带日期的路径（向后兼容）
+    # ✅ Prefer the passed script_dir (with date subdirectory)
+    # If not provided, use old path without date (backward compatible)
     if script_dir:
         user_scripts_dir = script_dir
-        # 用户目录的父目录（用于权限检查）
+        # Parent of user directory (for permission checks)
         user_scripts_parent = backend_root / "scripts" / (user_id or "default")
     else:
-        # 向后兼容：不带日期的路径
+        # Backward compatible: path without date
         user_scripts_dir = backend_root / "scripts" / (user_id or "default")
         user_scripts_parent = user_scripts_dir
     
-    # Skills 目录（包括 default 和用户自己的）
+    # Skills directory (including default and user-owned)
     skills_root = backend_root / "skills"
     default_skills_dir = skills_root / "default"
     user_skills_dir = skills_root / (user_id or "default")
     
-    # 解析路径
+    # Resolve path
     if Path(path).is_absolute():
         resolved = Path(path).resolve()
     else:
-        # 特殊处理：如果路径以 "skills/" 开头，基于 backend_root 解析
-        # 这样 LLM 可以使用 "skills/default/pdf/SKILL.md" 这样的相对路径
+        # Special handling: if path starts with "skills/", resolve based on backend_root
+        # So LLM can use relative paths like "skills/default/pdf/SKILL.md"
         if path.startswith("skills/") or path.startswith("skills\\"):
             resolved = (backend_root / path).resolve()
         else:
-            # 其他相对路径基于用户工作目录
+            # Other relative paths based on user working directory
             resolved = (user_scripts_dir / path).resolve()
     
-    # 规则 1: 写操作只能在用户目录（包括日期子目录）
+    # Rule 1: Write operations only in user directory (including date subdirectories)
     if operation == "write":
         if not _is_subpath(resolved, user_scripts_parent):
             raise PermissionError(
-                f"写入被拒绝: 只能写入您的工作目录\n"
-                f"允许: {user_scripts_parent}\n"
-                f"尝试: {resolved}"
+                f"Write denied: can only write to your working directory\n"
+                f"Allowed: {user_scripts_parent}\n"
+                f"Attempted: {resolved}"
             )
         return resolved
     
-    # 规则 2: 读操作可以访问 skills（所有子目录）和用户工作目录（包括日期子目录）
+    # Rule 2: Read operations can access skills (all subdirectories) and user working directory (including date subdirectories)
     if operation == "read":
         allowed_dirs = [
-            user_scripts_parent,   # 用户工作目录（包括所有日期子目录）
-            skills_root,           # 所有 skills（包括子目录）
+            user_scripts_parent,   # User working directory (including all date subdirectories)
+            skills_root,           # All skills (including subdirectories)
         ]
         
         if any(_is_subpath(resolved, allowed) for allowed in allowed_dirs):
             return resolved
         
         raise PermissionError(
-            f"读取被拒绝: 只能读取 skills 目录或您的工作目录\n"
-            f"允许目录:\n"
-            f"  - 工作目录: {user_scripts_parent}\n"
-            f"  - Skills: {skills_root} (及所有子目录)\n"
-            f"尝试访问: {resolved}"
+            f"Read denied: can only read skills directory or your working directory\n"
+            f"Allowed directories:\n"
+            f"  - Working directory: {user_scripts_parent}\n"
+            f"  - Skills: {skills_root} (and all subdirectories)\n"
+            f"Attempted to access: {resolved}"
         )
     
-    raise ValueError(f"未知操作类型: {operation}")
+    raise ValueError(f"Unknown operation type: {operation}")
 
 
 def validate_command(command: str, user_id: Optional[str]) -> Tuple[bool, Optional[str]]:
     """
-    验证命令是否安全
+    Validate if command is safe.
     
     Args:
-        command: 要执行的命令
-        user_id: 用户ID
+        command: Command to execute
+        user_id: User ID
     
     Returns:
         (is_safe, error_message)
-        - is_safe: 命令是否安全
-        - error_message: 如果不安全，返回错误信息
+        - is_safe: Whether command is safe
+        - error_message: Error message if unsafe
     """
-    # 1. 解析命令
+    # 1. Parse command
     try:
         tokens = shlex.split(command)
     except ValueError as e:
-        return False, f"命令解析失败: {e}"
+        return False, f"Command parse failed: {e}"
     
     if not tokens:
-        return False, "空命令"
+        return False, "Empty command"
     
-    # 提取主命令
+    # Extract main command
     main_command = tokens[0]
     cmd_name = Path(main_command).name
     
-    # 2. 检查黑名单
+    # 2. Check blocklist
     if cmd_name in BLOCKED_COMMANDS:
         return False, (
-            f"命令 '{cmd_name}' 被禁止\n"
-            f"原因: 该命令可能造成系统损坏或数据丢失\n"
-            f"提示: 一期不支持删除和系统管理操作"
+            f"Command '{cmd_name}' is blocked\n"
+            f"Reason: this command may cause system damage or data loss\n"
+            f"Note: Phase 1 does not support delete and system management operations"
         )
     
-    # 2.5 特殊检查：python -m pip 等绕过方式
+    # 2.5 Special check: python -m pip bypass
     if cmd_name in ["python", "python3"]:
-        # 检查是否有 -m pip 参数
+        # Check for -m pip arguments
         if len(tokens) >= 3 and tokens[1] == "-m" and tokens[2] in ["pip", "pip3"]:
             return False, (
-                f"禁止使用 'python -m pip' 安装包\n"
-                f"原因: 当前环境为共享环境，不支持用户自行安装包\n"
-                f"提示: 如需特定包，请联系管理员"
+                f"Using 'python -m pip' to install packages is prohibited\n"
+                f"Reason: current environment is shared, does not support user package installation\n"
+                f"Note: contact admin if you need specific packages"
             )
     
-    # 3. 检查白名单（可选，目前采用宽松策略）
+    # 3. Check allowlist (optional, currently using lenient policy)
     # if cmd_name not in ALLOWED_COMMANDS:
-    #     return False, f"命令 '{cmd_name}' 不在允许列表中"
+    #     return False, f"Command '{cmd_name}' is not in allowed list"
     
-    # 4. 检查危险模式（放宽限制，&& 和 || 允许）
+    # 4. Check dangerous patterns (relaxed, && and || allowed)
     dangerous_patterns = [
-        (";", "命令注入风险"),
-        # && 和 || 是常用功能，允许
-        # "|" 和 ">" 允许（管道和重定向是常用功能）
+        (";", "Command injection risk"),
+        # && and || are common features, allowed
+        # "|" and ">" allowed (pipes and redirects are common features)
     ]
     
     for pattern, reason in dangerous_patterns:
         if pattern in command:
-            # 但允许在字符串中出现
+            # But allow inside strings
             if f'"{pattern}"' in command or f"'{pattern}'" in command:
                 continue
-            return False, f"命令包含危险字符 '{pattern}' ({reason})"
+            return False, f"Command contains dangerous character '{pattern}' ({reason})"
     
-    # 5. 检查路径参数（如果有文件路径）
+    # 5. Check path arguments (if there are file paths)
     for token in tokens[1:]:
         if token.startswith("-"):
-            continue  # 选项参数，跳过
+            continue  # Option argument, skip
         
-        # 检查是否看起来像路径
+        # Check if it looks like a path
         if "/" in token or "\\" in token or token.endswith((".txt", ".py", ".csv", ".json")):
             try:
-                # 尝试验证路径
+                # Try to validate path
                 validate_path(token, user_id, operation="read")
             except PermissionError:
-                # 路径验证失败，但不一定是错误（可能是参数而非路径）
-                # 记录警告但允许执行
+                # Path validation failed, but not necessarily an error (may be argument, not path)
+                # Log warning but allow execution
                 logger.warning(f"Command contains potentially invalid path: {token}")
     
     return True, None
@@ -223,14 +223,14 @@ def validate_command(command: str, user_id: Optional[str]) -> Tuple[bool, Option
 
 def _is_subpath(path: Path, parent: Path) -> bool:
     """
-    检查 path 是否在 parent 目录下
+    Check if path is under parent directory.
     
     Args:
-        path: 要检查的路径
-        parent: 父目录
+        path: Path to check
+        parent: Parent directory
     
     Returns:
-        True 如果 path 在 parent 下
+        True if path is under parent
     """
     try:
         path.resolve().relative_to(parent.resolve())
@@ -241,15 +241,15 @@ def _is_subpath(path: Path, parent: Path) -> bool:
 
 def get_user_workdir(user_id: Optional[str]) -> Path:
     """
-    获取用户工作目录
+    Get user working directory.
     
     Args:
-        user_id: 用户ID
+        user_id: User ID
     
     Returns:
-        用户工作目录的绝对路径
+        Absolute path of user working directory
     """
-    # security.py 在 app/tools/ 下，所以需要往上两层到 backend/
+    # security.py is under app/tools/, need to go up 2 levels to backend/
     backend_root = Path(__file__).parent.parent.parent
     workdir = backend_root / "scripts" / (user_id or "default")
     workdir.mkdir(parents=True, exist_ok=True)

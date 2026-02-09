@@ -1,6 +1,6 @@
 """
 SubAgent API Routes
-提供查询和管理 SubAgent 的 API 端点
+Provides API endpoints for querying and managing SubAgents
 """
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any, Optional
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/subagents", tags=["SubAgents"])
 # ===== Request/Response Models =====
 
 class SubAgentInfo(BaseModel):
-    """SubAgent 信息"""
+    """SubAgent information"""
     subagent_id: str
     parent_session_id: str
     task: str
@@ -32,13 +32,13 @@ class SubAgentInfo(BaseModel):
 @router.get("/{subagent_id}", response_model=Dict[str, Any])
 async def get_subagent_status(subagent_id: str):
     """
-    获取指定 SubAgent 的状态
+    Get status of a specific SubAgent.
     
     Args:
         subagent_id: SubAgent ID
         
     Returns:
-        SubAgent 状态信息
+        SubAgent status information
     """
     logger.info(f"[API] Getting status for subagent: {subagent_id}")
     
@@ -57,14 +57,14 @@ async def list_subagents(
     status_filter: Optional[str] = None  # "running" or "completed"
 ):
     """
-    列出所有 SubAgents
+    List all SubAgents.
     
     Args:
-        parent_session_id: 可选，只返回特定父会话的 SubAgents
-        status_filter: 可选，过滤状态 ("running" 或 "completed")
+        parent_session_id: Optional, only return SubAgents for a specific parent session
+        status_filter: Optional, filter by status ("running" or "completed")
         
     Returns:
-        SubAgent 列表
+        SubAgent list
     """
     logger.info(f"[API] Listing subagents (parent_session={parent_session_id}, status={status_filter})")
     
@@ -75,7 +75,7 @@ async def list_subagents(
     elif status_filter == "completed":
         subagents = manager.list_completed(parent_session_id)
     else:
-        # 返回所有
+        # Return all
         running = manager.list_running(parent_session_id)
         completed = manager.list_completed(parent_session_id)
         subagents = running + completed

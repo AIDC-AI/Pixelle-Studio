@@ -43,7 +43,7 @@ const Input: React.FC<IProps> = (props) => {
                                     window.open(file.url, '_blank')
                                 }}
                             >
-                                {/* 进度背景层 */}
+                                {/* Progress background layer */}
                                 {file.status === "uploading" && (
                                     <div
                                         className="absolute inset-0 z-1 bg-blue-100 transition-all duration-300"
@@ -51,7 +51,7 @@ const Input: React.FC<IProps> = (props) => {
                                     />
                                 )}
                             
-                                {/* 默认背景 */}
+                                {/* Default background */}
                                 <div className={`absolute inset-0 z-0 ${
                                     file.status === "error" ? "bg-red-50" : "bg-gray-100"
                                 }`} />
@@ -115,7 +115,7 @@ const Input: React.FC<IProps> = (props) => {
                                 handleSubmit?.();
                             }
                         }}
-                        placeholder="输入消息...（支持文本和文件）"
+                        placeholder="Type a message... (supports text and files)"
                         className="flex-1 h-full resize-none bg-transparent px-3 py-3 focus:ring-0! focus:outline-none! text-gray-800 placeholder-gray-400"
                         rows={1}
                         disabled={isProcessing}
@@ -128,7 +128,7 @@ const Input: React.FC<IProps> = (props) => {
                                 onStop?.()
                             }}
                             className="p-2.5 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all shrink-0 flex items-center gap-2"
-                            title="停止推理"
+                            title="Stop inference"
                         >
                             <Square className="w-4 h-4 fill-current" />
                             <span className="text-sm font-medium">Stop</span>

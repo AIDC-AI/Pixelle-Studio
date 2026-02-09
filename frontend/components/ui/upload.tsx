@@ -14,7 +14,7 @@ export interface UploadFile {
   response?: any;
 }
 
-export const LIST_IGNORE = "无法上传更多文件！"
+export const LIST_IGNORE = "Cannot upload more files!"
 
 interface UploadProps {
   accept?: string;
@@ -130,7 +130,7 @@ export const Upload: React.FC<UploadProps> = ({
             uploadFile.status = 'done';
             uploadFile.percent = 100;
             uploadFile.url = response?.url;
-            // 如果服务器返回了 file_name，更新为服务器保存的文件名
+            // If the server returned a file_name, update to the server-saved filename
             if (response?.file_name) {
               uploadFile.name = response.file_name;
             }

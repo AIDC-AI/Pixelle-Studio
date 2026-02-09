@@ -13,11 +13,11 @@ export interface ConnectionStatus {
     status: 'connected' | 'disconnected' | 'error';
     message: string;
     response_time: number;
-    tools: MCPTool[];  // 添加 tools 字段
+    tools: MCPTool[];  // Added tools field
 }
 
 export const mcpServerAPI = {
-    // 获取所有服务器（包含状态和工具）
+    // Get all servers (including status and tools)
     async getServers(checkStatus: boolean = true): Promise<MCPServer[]> {
         const url = checkStatus 
             ? `${API_BASE}/mcp-servers?check_status=true`
@@ -32,7 +32,7 @@ export const mcpServerAPI = {
         return response.json();
     },
 
-    // 获取单个服务器
+    // Get a single server
     async getServer(id: string): Promise<MCPServer> {
         const response = await fetch(`${API_BASE}/mcp-servers/${id}`, {
             headers: getAuthHeaders()
@@ -43,7 +43,7 @@ export const mcpServerAPI = {
         return response.json();
     },
 
-    // 检查服务器连接状态（包含工具列表）
+    // Check server connection status (includes tool list)
     async checkServerStatus(serverId: string): Promise<ConnectionStatus> {
         const response = await fetch(`${API_BASE}/mcp-servers/${serverId}/status`, {
             headers: getAuthHeaders()
@@ -55,7 +55,7 @@ export const mcpServerAPI = {
         return response.json();
     },
 
-    // 创建服务器
+    // Create server
     async createServer(server: Omit<MCPServer, 'id' | 'uid' | 'created_at' | 'updated_at'>): Promise<MCPServer> {
         const response = await fetch(`${API_BASE}/mcp-servers`, {
             method: 'POST',
@@ -69,7 +69,7 @@ export const mcpServerAPI = {
         return response.json();
     },
 
-    // 更新服务器
+    // Update server
     async updateServer(id: string, server: Partial<Omit<MCPServer, 'id' | 'uid' | 'created_at' | 'updated_at'>>): Promise<MCPServer> {
         const response = await fetch(`${API_BASE}/mcp-servers/${id}`, {
             method: 'PUT',
@@ -83,7 +83,7 @@ export const mcpServerAPI = {
         return response.json();
     },
 
-    // 删除服务器
+    // Delete server
     async deleteServer(id: string): Promise<void> {
         const response = await fetch(`${API_BASE}/mcp-servers/${id}`, {
             method: 'DELETE',

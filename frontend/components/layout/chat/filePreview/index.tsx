@@ -6,7 +6,7 @@ import { OutputFile } from '@/types/message';
 import { API_BASE } from '@/lib/data';
 import MarkDown from '@/components/ui/markDown';
 
-// 动态导入 DataGrid（样式在 globals.css 中导入）
+// Dynamically import DataGrid (styles imported in globals.css)
 const DataGrid = lazy(() => import('react-data-grid').then(mod => ({ default: mod.DataGrid })));
 
 interface IProps {
@@ -25,7 +25,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
     const [sheetNames, setSheetNames] = useState<string[]>([]);
 
     useEffect(() => {
-        // 当文件改变时，重新加载
+        // Reload when file changes
         setIframeKey(prev => prev + 1);
         setIsLoading(true);
         setLoadError(null);
@@ -39,11 +39,11 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
     if (!file) return null;
 
     const loadData = () => {
-        // 如果是 Excel 文件，加载数据
+        // If it's an Excel file, load data
         const ext = getFileExtension(file?.file_name || '');
         if (file && (ext === 'xlsx' || ext === 'xls' || ext === 'csv')) {
             loadExcelFile(getFullUrl(file.file_url));
-        }else if (file && ext === 'md') { // md文件
+        }else if (file && ext === 'md') { // Markdown file
             loadMarkdownFile(getFullUrl(file.file_url));
         } 
     }
@@ -52,12 +52,12 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         return filename.split('.').pop()?.toLowerCase() || '';
     };
 
-    // 加载 Excel 文件
+    // Load Excel file
     const loadExcelFile = async (url: string) => {
         try {
             setIsLoading(true);
 
-            // 动态导入 XLSX
+            // Dynamically import XLSX
             const XLSX = await import('xlsx');
 
             const response = await fetch(url);
@@ -76,7 +76,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             setIsLoading(false);
         } catch (error) {
             console.error('Failed to load Excel file:', error);
-            setLoadError('Excel 文件加载失败');
+            setLoadError('Failed to load Excel file');
             setIsLoading(false);
         }
     };
@@ -92,40 +92,40 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             setIsLoading(false);
         } catch (error) {
             console.error('Error loading markdown file:', error);
-            setLoadError('加载 Markdown 文件失败');
+            setLoadError('Failed to load Markdown file');
             setIsLoading(false);
         }
     };
 
-    // 计算列宽度的辅助函数
+    // Helper function to calculate column width
     const calculateColumnWidth = (columnData: string[], headerName: string): number => {
         const MIN_WIDTH = 80;
         const MAX_WIDTH = 400;
-        const CHAR_WIDTH = 10; // 每个字符的平均宽度
-        const PADDING = 24; // 单元格内边距
+        const CHAR_WIDTH = 10; // Average width per character
+        const PADDING = 24; // Cell padding
 
-        // 计算表头宽度
+        // Calculate header width
         let maxLength = headerName?.toString().length || 0;
 
-        // 遍历列数据找到最大长度，只检查前100行以提高性能
+        // Iterate column data to find max length, only check first 100 rows for performance
         const sampleSize = Math.min(columnData.length, 100);
         for (let i = 0; i < sampleSize; i++) {
             const cellValue = columnData[i]?.toString() || '';
             maxLength = Math.max(maxLength, cellValue.length);
         }
 
-        // 计算宽度，考虑中文字符占用更多空间
+        // Calculate width, considering CJK characters take more space
         const calculatedWidth = maxLength * CHAR_WIDTH + PADDING;
         return Math.min(Math.max(calculatedWidth, MIN_WIDTH), MAX_WIDTH);
     };
 
-    // 加载指定的工作表
+    // Load specified sheet
     const loadSheet = async (workbook: any, sheetName: string) => {
-        // 动态导入 XLSX
+        // Dynamically import XLSX
         const XLSX = await import('xlsx');
 
         const worksheet = workbook.Sheets[sheetName];
-        // raw: false 保留 Excel 格式化后的显示值（如百分比、日期等）
+        // raw: false preserves Excel formatted display values (e.g. percentages, dates)
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: false }) as any[][];
 
         if (jsonData.length === 0) {
@@ -133,7 +133,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             return;
         }
 
-        // 找到最大列数（有些行可能有更多的列）
+        // Find max column count (some rows may have more columns)
         let maxCols = 0;
         jsonData.forEach(row => {
             if (Array.isArray(row)) {
@@ -141,10 +141,10 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             }
         });
 
-        // 第一行作为列名
+        // First row as column names
         const headers = jsonData[0] || [];
 
-        // 提取每列的数据用于计算宽度
+        // Extract column data for width calculation
         const columnDataArrays: string[][] = [];
         for (let colIndex = 0; colIndex < maxCols; colIndex++) {
             const colData: string[] = [];
@@ -155,7 +155,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             columnDataArrays.push(colData);
         }
 
-        // 创建列配置，带有自动计算的宽度
+        // Create column config with auto-calculated width
         const columns = [];
         for (let index = 0; index < maxCols; index++) {
             const headerName = headers[index]?.toString() || `Column ${index + 1}`;
@@ -172,7 +172,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             });
         }
 
-        // 剩余行作为数据
+        // Remaining rows as data
         const rows = jsonData.slice(1).map((row, rowIndex) => {
             const rowData: any = { id: rowIndex };
             for (let colIndex = 0; colIndex < maxCols; colIndex++) {
@@ -183,13 +183,13 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
         setExcelData({ columns, rows });
     };
 
-    // 切换工作表
+    // Switch sheet
     const handleSheetChange = async (sheetName: string) => {
         setSelectedSheet(sheetName);
         setIsLoading(true);
 
         try {
-            // 动态导入 XLSX
+            // Dynamically import XLSX
             const XLSX = await import('xlsx');
 
             const response = await fetch(getFullUrl(file.file_url));
@@ -199,7 +199,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             setIsLoading(false);
         } catch (error) {
             console.error('Failed to load sheet:', error);
-            setLoadError('工作表加载失败');
+            setLoadError('Failed to load sheet');
             setIsLoading(false);
         }
     };
@@ -246,17 +246,17 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
 
     const handleIframeError = () => {
         setIsLoading(false);
-        setLoadError('加载失败，请尝试在新窗口打开');
+        setLoadError('Failed to load, please try opening in a new window');
     };
 
-    // 获取完整的文件URL
+    // Get full file URL
     const getFullUrl = (url: string) => {
         if (url.startsWith('http://') || url.startsWith('https://')) {
             return url;
         }
 
-        // 构造后端文件URL
-        // 如果API_BASE包含localhost，且当前访问不是localhost，则替换为当前host
+        // Construct backend file URL
+        // If API_BASE contains localhost but current access is not localhost, replace with current host
         let baseUrl = API_BASE;
         if (baseUrl.endsWith('/api')) {
             baseUrl = baseUrl.slice(0, -4);
@@ -264,8 +264,8 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             baseUrl = baseUrl.slice(0, -5);
         }
 
-        // 如果在浏览器环境，且API_BASE使用localhost，但当前访问不是localhost
-        // 则将localhost替换为当前host，以支持IP访问
+        // In browser environment, if API_BASE uses localhost but current access is not localhost
+        // Replace localhost with current host to support IP access
         if (typeof window !== 'undefined') {
             const currentHost = window.location.hostname;
             if (currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
@@ -281,7 +281,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
     const renderPreview = () => {
         const ext = getFileExtension(file.file_name);
 
-        // 如果有加载错误，显示错误信息和备选操作
+        // If there's a load error, show error message and fallback actions
         if (loadError) {
             return (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 text-gray-500 p-8">
@@ -294,7 +294,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                             className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm hover:bg-gray-300 transition-colors flex items-center gap-2"
                         >
                             <RefreshCw className="w-4 h-4" />
-                            重试
+                            Retry
                         </button>
                         <a
                             href={fullUrl}
@@ -303,7 +303,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                             className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition-colors flex items-center gap-2"
                         >
                             <ExternalLink className="w-4 h-4" />
-                            新窗口打开
+                            Open in New Window
                         </a>
                     </div>
                 </div>
@@ -316,10 +316,10 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             case 'csv':
                 return (
                     <div className="w-full h-full flex flex-col bg-white">
-                        {/* 工作表选择器 */}
+                        {/* Sheet selector */}
                         {sheetNames.length > 1 && (
                             <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
-                                <span className="text-sm text-gray-600">工作表:</span>
+                                <span className="text-sm text-gray-600">Sheet:</span>
                                 <div className="flex gap-1">
                                     {sheetNames.map((name) => (
                                         <button
@@ -337,13 +337,13 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                             </div>
                         )}
 
-                        {/* 数据表格 */}
+                        {/* Data table */}
                         <div className="flex-1 overflow-auto">
                             {isLoading ? (
                                 <div className="w-full h-full flex items-center justify-center">
                                     <div className="flex flex-col items-center gap-2">
                                         <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
-                                        <span className="text-sm text-gray-500">加载中...</span>
+                                        <span className="text-sm text-gray-500">Loading...</span>
                                     </div>
                                 </div>
                             ) : excelData && excelData.rows.length > 0 ? (
@@ -362,7 +362,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                                 </Suspense>
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                    <p className="text-sm">工作表为空</p>
+                                    <p className="text-sm">Sheet is empty</p>
                                 </div>
                             )}
                         </div>
@@ -376,7 +376,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                             <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
                                 <div className="flex flex-col items-center gap-2">
                                     <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
-                                    <span className="text-sm text-gray-500">加载中...</span>
+                                    <span className="text-sm text-gray-500">Loading...</span>
                                 </div>
                             </div>
                         )}
@@ -398,7 +398,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                             <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
                                 <div className="flex flex-col items-center gap-2">
                                     <RefreshCw className="w-6 h-6 animate-spin text-orange-500" />
-                                    <span className="text-sm text-gray-500">加载 PDF...</span>
+                                    <span className="text-sm text-gray-500">Loading PDF...</span>
                                 </div>
                             </div>
                         )}
@@ -432,7 +432,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                             onLoad={() => setIsLoading(false)}
                             onError={() => {
                                 setIsLoading(false);
-                                setLoadError('图片加载失败');
+                                setLoadError('Failed to load image');
                             }}
                         />
                     </div>
@@ -473,7 +473,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                                     className="px-3 py-1.5 bg-orange-500 text-white rounded text-sm hover:bg-orange-600 transition-colors flex items-center gap-1"
                                 >
                                     <ExternalLink className="w-3.5 h-3.5" />
-                                    在新窗口打开
+                                    Open in New Window
                                 </a>
                             </div>
                         ) : (
@@ -487,7 +487,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                 return (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 text-gray-500">
                         <File className="w-16 h-16 mb-4 text-gray-300" />
-                        <p className="text-sm">无法预览此文件类型</p>
+                        <p className="text-sm">Cannot preview this file type</p>
                         <p className="text-xs text-gray-400 mt-1">{file.file_name}</p>
                         <a
                             href={fullUrl}
@@ -496,7 +496,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                             className="mt-4 px-4 py-2 bg-gray-700 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors flex items-center gap-2"
                         >
                             <Download className="w-4 h-4" />
-                            下载文件
+                            Download File
                         </a>
                     </div>
                 );
@@ -524,7 +524,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                 <button
                     onClick={handleRefresh}
                     className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-600"
-                    title="刷新"
+                    title="Refresh"
                 >
                     <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                 </button>
@@ -533,7 +533,7 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-600"
-                    title="在新窗口打开"
+                    title="Open in New Window"
                 >
                     <ExternalLink className="w-4 h-4" />
                 </a>
@@ -541,21 +541,21 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                     href={fullUrl}
                     download={file.file_name}
                     className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-600"
-                    title="下载"
+                    title="Download"
                 >
                     <Download className="w-4 h-4" />
                 </a>
                 <button
                     onClick={() => setIsFullscreen(!isFullscreen)}
                     className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-600"
-                    title={isFullscreen ? "退出全屏" : "全屏"}
+                    title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
                 >
                     {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                 </button>
                 <button
                     onClick={onClose}
                     className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-600"
-                    title="关闭"
+                    title="Close"
                 >
                     <X className="w-4 h-4" />
                 </button>

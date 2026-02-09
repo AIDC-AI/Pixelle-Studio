@@ -2,11 +2,11 @@ import { HoverCard } from "radix-ui";
 import { useEffect, useRef, useState } from "react";
 
 interface IProps {
-    lineCount?: number // 最大行数，默认3
+    lineCount?: number // Max number of lines, default 3
     description?: string
 }
 
-// 超出最大行数时省略，同时hover时弹出气泡显示所有内容 不超出最大行数hover无效果
+// Truncate when exceeding max lines, show full content in hover popover; no hover effect if not overflowing
 const Description: React.FC<IProps> = (props) => {
     const { lineCount = 3, description } = props
 

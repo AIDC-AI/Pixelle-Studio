@@ -20,17 +20,17 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     useEffect(() => {
         const isAuthRoute = PUBLIC_ROUTES.includes(pathname);
         if (!token && !isAuthRoute) {
-            // token 不存在或失效，且访问受保护路由，跳转到 auth 页面
+            // Token doesn't exist or is invalid, and accessing protected route, redirect to auth page
             router.push('/auth');
         } else if (token && isAuthRoute) {
-            // token 合法且访问 auth 页面，跳转到主页
+            // Token is valid and accessing auth page, redirect to home
             router.push('/');
         } else {
             setIsChecking(false);
         }
     }, [token, pathname, router]);
 
-    // 显示加载状态
+    // Show loading state
     if (isChecking) {
         return (
             <div className="w-screen h-screen flex items-center justify-center bg-gray-50">

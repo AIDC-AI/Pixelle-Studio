@@ -31,19 +31,19 @@ const ExcelPreview: React.FC<IProps> = (props) => {
       setLoading(true);
       setError(null);
 
-      // 获取文件
+      // Fetch file
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch file');
 
       const arrayBuffer = await response.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 
-      // 解析所有工作表
+      // Parse all worksheets
       const parsedSheets: SheetData[] = workbook.SheetNames.map((sheetName) => {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-        // 提取表头和数据
+        // Extract headers and data
         const headers = jsonData[0]?.map((h: any) => String(h || '')) || [];
         const data = jsonData.slice(1);
 
@@ -57,7 +57,7 @@ const ExcelPreview: React.FC<IProps> = (props) => {
       setSheets(parsedSheets);
     } catch (err) {
       console.error('Error loading Excel file:', err);
-      setError('无法加载 Excel 文件');
+      setError('Unable to load Excel file');
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ const ExcelPreview: React.FC<IProps> = (props) => {
         <div className="bg-white rounded-lg p-8 max-w-md">
           <div className="flex items-center gap-3 mb-4">
             <FileSpreadsheet className="w-6 h-6 text-red-500" />
-            <h3 className="text-lg font-semibold">加载失败</h3>
+            <h3 className="text-lg font-semibold">Loading Failed</h3>
           </div>
           <p className="text-gray-600 mb-4">{error}</p>
           <div className="flex gap-2">
@@ -96,14 +96,14 @@ const ExcelPreview: React.FC<IProps> = (props) => {
               onClick={handleDownload}
               className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
             >
-              下载文件
+              Download File
             </button>
             {onClose && (
               <button
                 onClick={onClose}
                 className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50"
               >
-                关闭
+                Close
               </button>
             )}
           </div>
@@ -121,13 +121,13 @@ const ExcelPreview: React.FC<IProps> = (props) => {
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-3">
             <FileSpreadsheet className="w-5 h-5 text-gray-700" />
-            <h3 className="font-semibold text-lg">Excel 预览</h3>
+            <h3 className="font-semibold text-lg">Excel Preview</h3>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownload}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="下载"
+              title="Download"
             >
               <Download className="w-5 h-5" />
             </button>
@@ -135,7 +135,7 @@ const ExcelPreview: React.FC<IProps> = (props) => {
               <button
                 onClick={onClose}
                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                title="关闭"
+                title="Close"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -174,7 +174,7 @@ const ExcelPreview: React.FC<IProps> = (props) => {
                         key={index}
                         className="px-4 py-2 text-left font-medium text-gray-700 border-b border-r last:border-r-0"
                       >
-                        {header || `列 ${index + 1}`}
+                        {header || `Column ${index + 1}`}
                       </th>
                     ))}
                   </tr>
@@ -202,7 +202,7 @@ const ExcelPreview: React.FC<IProps> = (props) => {
 
         {/* Footer Info */}
         <div className="px-4 py-2 border-t bg-gray-50 text-sm text-gray-600">
-          共 {currentSheet?.data.length || 0} 行 × {currentSheet?.headers.length || 0} 列
+          Total {currentSheet?.data.length || 0} rows × {currentSheet?.headers.length || 0} columns
         </div>
       </div>
     </div>

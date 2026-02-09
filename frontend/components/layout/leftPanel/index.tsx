@@ -23,12 +23,12 @@ export type TAB_TYPE = 'chat' | 'skills'
 
 const TABS = [
   {
-    title: '对话',
+    title: 'Chat',
     type: 'chat',
     icon: <MessageSquare className="w-5 h-5" />
   },
   {
-    title: '能力',
+    title: 'Skills',
     type: 'skills',
     icon: <Wrench className="w-5 h-5" />
   }

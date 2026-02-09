@@ -1,13 +1,13 @@
 """
-代码块解析器 - write_file 兜底机制
+Code block parser - write_file fallback mechanism
 
-当 LLM 无法使用 write_file（参数过长）时，可以输出特殊格式的代码块：
+When the LLM cannot use write_file (parameter too long), it can output specially formatted code blocks:
 
 ```language:filename
 code content here
 ```
 
-Agent 会自动检测并创建文件。
+The Agent will automatically detect and create files.
 """
 import re
 import logging
@@ -19,14 +19,14 @@ logger = logging.getLogger(__name__)
 
 def extract_code_blocks(message: str) -> List[Dict[str, str]]:
     """
-    从消息中提取代码块
+    Extract code blocks from a message.
     
-    支持的格式：
+    Supported formats:
     ```python:script.py
     code here
     ```
     
-    或
+    or
     
     ```bash:install.sh
     #!/bin/bash
@@ -36,7 +36,7 @@ def extract_code_blocks(message: str) -> List[Dict[str, str]]:
     Returns:
         [{"language": "python", "filename": "script.py", "content": "code here"}, ...]
     """
-    # 匹配模式：```language:filename\ncontent\n```
+    # Match pattern: ```language:filename\ncontent\n```
     pattern = r'```(\w+):([^\n]+)\n(.*?)```'
     
     matches = re.findall(pattern, message, re.DOTALL)
@@ -50,15 +50,15 @@ def extract_code_blocks(message: str) -> List[Dict[str, str]]:
         })
     
     if code_blocks:
-        logger.info(f"[code_block_parser] 提取到 {len(code_blocks)} 个代码块")
+        logger.info(f"[code_block_parser] Extracted {len(code_blocks)} code blocks")
         for block in code_blocks:
-            logger.info(f"  - {block['filename']} ({block['language']}, {len(block['content'])} 字符)")
+            logger.info(f"  - {block['filename']} ({block['language']}, {len(block['content'])} chars)")
     
     return code_blocks
 
 
 def has_code_blocks(message: str) -> bool:
-    """检查消息是否包含代码块"""
+    """Check if message contains code blocks"""
     pattern = r'```\w+:[^\n]+\n.*?```'
     return bool(re.search(pattern, message, re.DOTALL))
 
@@ -69,29 +69,29 @@ async def process_code_blocks(
     write_file_handler
 ) -> Optional[str]:
     """
-    处理消息中的代码块，自动创建文件
+    Process code blocks in a message, automatically creating files.
     
     Args:
-        message: LLM 输出的消息
+        message: LLM output message
         context: AgentContext
-        write_file_handler: write_file 工具处理函数
+        write_file_handler: write_file tool handler function
     
     Returns:
-        处理结果消息（如果有代码块），否则 None
+        Processing result message (if code blocks found), otherwise None
     """
     code_blocks = extract_code_blocks(message)
     
     if not code_blocks:
         return None
     
-    # 处理每个代码块
+    # Process each code block
     results = []
     for block in code_blocks:
         filename = block['filename']
         content = block['content']
         language = block['language']
         
-        # 调用 write_file
+        # Call write_file
         result = await write_file_handler(
             context,
             path=filename,
@@ -105,9 +105,9 @@ async def process_code_blocks(
             "size": len(content)
         })
     
-    # 生成摘要消息
+    # Generate summary message
     summary_lines = [
-        f"\n📝 自动创建了 {len(results)} 个文件（从代码块）:\n"
+        f"\n📝 Automatically created {len(results)} files (from code blocks):\n"
     ]
     
     for r in results:
@@ -115,11 +115,11 @@ async def process_code_blocks(
         try:
             result_data = json.loads(r['result'])
             if result_data.get('status') == 'success':
-                summary_lines.append(f"  ✅ {r['filename']} ({r['size']} 字符)")
+                summary_lines.append(f"  ✅ {r['filename']} ({r['size']} chars)")
             else:
                 summary_lines.append(f"  ❌ {r['filename']}: {result_data.get('error', 'unknown error')}")
         except:
-            summary_lines.append(f"  ⚠️ {r['filename']}: 解析错误")
+            summary_lines.append(f"  ⚠️ {r['filename']}: parse error")
     
     summary = '\n'.join(summary_lines)
     logger.info(f"[code_block_parser] {summary}")
@@ -129,32 +129,32 @@ async def process_code_blocks(
 
 def build_code_block_guide() -> str:
     """
-    生成代码块格式指南（用于 System Prompt）
+    Generate code block format guide (for System Prompt).
     """
     return """
-## 代码块格式（write_file 兜底）
+## Code Block Format (write_file fallback)
 
-如果 write_file 工具的 content 参数过长导致错误，可以使用以下格式：
+If the write_file tool's content parameter is too long and causes errors, use the following format:
 
 ```python:filename.py
-# 你的 Python 代码
+# Your Python code
 def main():
     pass
 ```
 
 ```bash:script.sh
 #!/bin/bash
-# 你的 Bash 脚本
+# Your Bash script
 echo "hello"
 ```
 
-系统会自动检测并创建这些文件。
+The system will automatically detect and create these files.
 
-**格式要求**:
-- 第一行：```language:filename
-- 中间：代码内容
-- 最后：```
+**Format requirements**:
+- First line: ```language:filename
+- Middle: code content
+- Last line: ```
 
-**支持的语言**: python, bash, javascript, typescript, java, etc.
+**Supported languages**: python, bash, javascript, typescript, java, etc.
 """
 

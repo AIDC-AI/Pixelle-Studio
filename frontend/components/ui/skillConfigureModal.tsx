@@ -27,23 +27,23 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
         showToast
     } = useApp()
 
-  // 初始化表单数据
+  // Initialize form data
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     content: ''
   });
 
-  // 脚本列表
+  // Script list
   const [scripts, setScripts] = useState<Script[]>([])
 
-  // 拖拽状态
+  // Drag state
   const [dragOverScript, setDragOverScript] = useState<boolean>(false)
   
-  // 保存状态
+  // Save state
   const [saving, setSaving] = useState<boolean>(false)
   
-  // 只读模式（共享技能）
+  // Read-only mode (shared skills)
   const [isReadOnly, setIsReadOnly] = useState<boolean>(false)
 
   const handleClear = () => {
@@ -66,7 +66,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
           content: res.content
         })
         setIsReadOnly(!!res.meta.is_default)
-        // 不是default的skill才需要获取scripts
+        // Only non-default skills need to fetch scripts
         if (!res.meta.is_default) {
           getScriptsFromSkill(res.content)
         }
@@ -76,9 +76,9 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
     }
   }
 
-  // 从skill中获取scripts
+  // Get scripts from skill
   const getScriptsFromSkill = (content: string) => {
-    // 修改正则以支持路径格式，如 # test/i_crop-start #
+    // Modify regex to support path format, e.g. # test/i_crop-start #
     const regex = /#\s*([\w\-/]+)-start\s*#/g;
     const matches = [...content.matchAll(regex)];
     if (!!matches?.[0]?.[1]) {
@@ -90,7 +90,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
     }
   }
 
-  // 处理 MCP Tool 拖拽
+  // Handle MCP Tool drag
   const handleToolDragStart = (e: React.DragEvent, tool: MCPTool) => {
     if (isReadOnly)
       return
@@ -129,11 +129,11 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
         }
       }
       const topicStr = topics?.length > 0 ? topics.reduce<string>((total, topic) => `${total}${total === "" ? "" : ","}${topic.name}:${topic.label}`, "") : ""
-      // 在内容中插入工具占位符
+      // Insert tool placeholder in content
       const placeholderStart = `# ${tool.server_name}/${tool.name}-start #`
       const placeholderEnd = `# ${tool.server_name}/${tool.name}-end #`
       
-      // 构建工具描述（如果存在）
+      // Build tool description (if available)
       const descriptionComment = tool.description 
         ? `# ${tool.description}\n` 
         : ''
@@ -147,17 +147,17 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
         server_name: tool.server_name
       }])
     } catch (e) {
-      console.error('处理拖拽失败:', e)
+      console.error('Drag failed:', e)
     }
   }
 
-  // 删除脚本
+  // Delete script
   const handleDeleteScript = async (scriptName: string, scriptServerName?: string) => {
     const name = !!scriptServerName ? `${scriptServerName}/${scriptName}` : scriptName
-    // 转义特殊字符（如 /）
+    // Escape special characters (e.g. /)
     const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
-    // 删除整个块，支持路径格式如 test/i_crop
+    // Delete entire block, supports path format like test/i_crop
     const regex = new RegExp(
       `#\\s*${escapedName}-start\\s*#[\\s\\S]*?#\\s*${escapedName}-end\\s*#`,
       'g'
@@ -165,7 +165,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
     setFormData(prev => ({
         ...prev,
         content: prev.content
-        .replace(regex, '')  // 删除块
+        .replace(regex, '')  // Remove block
       })
     );
     setScripts(prev => prev.filter((script) => scriptServerName ? (script.name !== scriptName || script.server_name !== scriptServerName) : script.name !== scriptName))
@@ -175,26 +175,26 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
     try {
       setSaving(true)
       if (!!skillName) {
-        // 更新：使用原名称作为第一个参数
+        // Update: use original name as first parameter
         await skillAPI.updateSkill(skillName, {
           description: data.description,
           content: data.content
         }, user?.uid)
-        showToast(ToastType.SUCCESS, "更新成功！")
+        showToast(ToastType.SUCCESS, "Update successful!")
       } else {
-        // 创建
+        // Create
         await skillAPI.createSkill({
           name: data.name,
           description: data.description,
           content: data.content
         }, user?.uid)
-        showToast(ToastType.SUCCESS, "添加成功！")
+        showToast(ToastType.SUCCESS, "Add success!")
       }
       onSuccess?.()
       return null
     } catch (e) {
-      console.error('保存请求失败:', e)
-      showToast(ToastType.ERROR, (e as Error).message || '保存失败！')
+      console.error('Save request failed:', e)
+      showToast(ToastType.ERROR, (e as Error).message || 'Save failed!')
       return null
     } finally {
       setSaving(false)
@@ -234,7 +234,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                 aria-describedby={undefined}
             >
                 <div className="flex flex-row justify-between items-center">
-                    <Dialog.Title className="flex flex-1 font-semibold text-gray-900 text-[17px]">{!skillName ? '新建技能' : isReadOnly ? '查看技能' : '编辑技能'}</Dialog.Title>
+                    <Dialog.Title className="flex flex-1 font-semibold text-gray-900 text-[17px]">{!skillName ? 'New Skill' : isReadOnly ? 'View Skill' : 'Edit Skill'}</Dialog.Title>
                     <div className="flex flex-row gap-4">
                         {!isReadOnly && (
                             <button
@@ -244,7 +244,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                                 className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-gray-900 hover:bg-gray-800 rounded-lg disabled:opacity-50 transition-colors"
                             >
                                 <Save className="w-4 h-4" />
-                                {saving ? '保存中...' : '保存'}
+                                {saving ? 'Saving...' : 'Save'}
                             </button>
                         )}
                         <Dialog.Close asChild>
@@ -257,9 +257,9 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                         </Dialog.Close>
                     </div>
                 </div>
-                {/* 主内容区 - 左右分栏 */}
+                {/* Main content area - left-right split */}
                 <div className="flex-1 flex overflow-hidden overscroll-contain mt-4 gap-4">
-                    {/* 左侧：Markdown 编辑区 */}
+                    {/* Left: Markdown editor */}
                     <Form.Root 
                         id="skillForm"
                         onSubmit={async (e) => {
@@ -272,11 +272,11 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                     >
                         <FormInput 
                             name="name"
-                            label="名称（创建后不可修改）"
+                            label="Name (Cannot be modified after creation)"
                             errorMessages={[
-                                { match:"valueMissing", content:"请先输入技能名称" }
+                                { match:"valueMissing", content:"Please enter the skill name" }
                             ]}
-                            placeholder="技能名称"            
+                            placeholder="Skill Name"            
                             value={formData.name}
                             setValue={(value: string) => {
                             setFormData(prev => ({
@@ -288,11 +288,11 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                         />
                         <FormInput 
                             name="description"
-                            label="描述"
+                            label="Description"
                             errorMessages={[
-                            { match:"valueMissing", content:"请先输入技能描述" }
+                            { match:"valueMissing", content:"Please enter the skill description" }
                             ]}
-                            placeholder="技能描述"
+                            placeholder="Skill Description"
                             isTextarea={true}
                             value={formData.description}
                             setValue={(value: string) => {
@@ -305,11 +305,11 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                         />
                         <FormInput 
                             name="content"
-                            label="详细内容（Markdown）"
+                            label="Detailed Content (Markdown)"
                             errorMessages={[
-                            { match:"valueMissing", content:"请先输入详细内容" }
+                            { match:"valueMissing", content:"Please enter the detailed content" }
                             ]}
-                            placeholder="详细内容"
+                            placeholder="Detailed Content"
                             isTextarea={true}
                             isFlexMax={true}
                             value={formData.content}
@@ -323,23 +323,23 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                         />
                     </Form.Root>
 
-                    {/* 右侧：脚本管理区 */}
+                    {/* Right: Script management area */}
                     <div className="w-80 flex flex-col bg-gray-50 overflow-hidden">
-                        {/* 当前技能的脚本 */}
+                        {/* Current skill's scripts */}
                         <div className="pl-4 pr-2 pb-2 border-b border-gray-200">
                             <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
                                 <FileCode className="w-4 h-4" />
-                                脚本文件
+                                Script Files
                             </h3>
                             
                             {scripts.length === 0 ? (
-                                <p className="text-xs text-gray-500">暂无脚本，可从下方拖拽工具添加</p>
+                                <p className="text-xs text-gray-500">No scripts, drag tools from below</p>
                             ) : (
                             <div 
                               className="space-y-2 max-h-[200px] overflow-auto"
                               style={{ scrollbarGutter: 'stable' }}
                             >
-                                {/* 已保存的脚本 */}
+                                {/* Saved scripts */}
                                 {scripts.map((script, index) => (
                                     <div
                                         key={`${script.server_name}-${script.name}-${index}`}
@@ -350,7 +350,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                                         <button
                                             onClick={() => handleDeleteScript(script.name, script.server_name)}
                                             className="p-1.5 hover:bg-red-100 rounded transition-all"
-                                            title="删除脚本"
+                                            title="Delete script"
                                         >
                                             <Trash2 className="w-3.5 h-3.5 text-red-500" />
                                         </button>
@@ -360,17 +360,17 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                             )}
                         </div>
 
-                        {/* MCP Tools 拖拽区 */}
+                        {/* MCP Tools drag area */}
                         <div className="pt-4 px-4">
                             <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
                                 <Link className="w-4 h-4" />
-                                可用工具 (MCP)
+                                Available Tools (MCP)
                             </h3>
                                 <p className="text-xs text-gray-500 mb-3">
-                                拖拽工具到左侧内容区，自动生成调用脚本
+                                Drag tool to the left content area, automatically generate call script
                             </p>
                             
-                            {/* 拖拽目标区域 */}
+                            {/* Drag target area */}
                             <div
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
@@ -379,7 +379,7 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                                     ${dragOverScript ? "border-blue-400 bg-blue-50" : "border-gray-300 bg-white"}`}
                             >
                                 <p className="text-sm text-gray-500">
-                                    {dragOverScript ? "释放以添加工具" : "拖拽工具到这里"}
+                                    {dragOverScript ? "Release to add tool" : "Drag tool here"}
                                 </p>
                             </div>
                       </div>
@@ -387,9 +387,9 @@ const SkillConfigureModal: React.FC<IProps> = (props) => {
                         className="pl-4 pr-2 overflow-auto"
                         style={{ scrollbarGutter: 'stable' }}
                       >
-                            {/* MCP Tools 列表 */}
+                            {/* MCP Tools list */}
                             {mcpTools?.length === 0 ? (
-                                <p className="text-xs text-gray-500">暂无可用工具</p>
+                                <p className="text-xs text-gray-500">No available tools</p>
                                 ) : (
                                 <div className="space-y-2">
                                     {mcpTools?.map((tool, index) => (

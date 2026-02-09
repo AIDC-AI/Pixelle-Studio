@@ -23,7 +23,7 @@ const ServerCard: React.FC<IProps> = (props) => {
                 <button
                     onClick={() => onRefresh(server.id)}
                     className="p-1 hover:bg-gray-100 rounded transition-colors"
-                    title="刷新状态"
+                    title="Refresh status"
                     disabled={server.status === 'checking'}
                 >
                     <RefreshCw className={`w-3.5 h-3.5 text-gray-500 ${server.status === 'checking' ? 'animate-spin' : ''}`} />

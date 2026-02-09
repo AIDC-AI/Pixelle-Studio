@@ -28,7 +28,7 @@ const CodeItem: React.FC<IProps> = (props) => {
 
     return (
         <div className="bg-white rounded-lg overflow-hidden border border-emerald-200">
-            {/* Header - 浅绿色 */}
+            {/* Header - light green */}
             <div 
                 className="flex items-center justify-between px-3 py-2 bg-emerald-50 cursor-pointer hover:bg-emerald-100 transition-colors border-b border-emerald-200"
                 onClick={() => setIsExpanded(!isExpanded)}
@@ -42,7 +42,7 @@ const CodeItem: React.FC<IProps> = (props) => {
                             Execute Code #{executionCount}
                         </span>
                         <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-600">
-                            {lineCount} 行
+                            {lineCount} lines
                         </span>
                     </div>
                 </div>
@@ -53,7 +53,7 @@ const CodeItem: React.FC<IProps> = (props) => {
                             handleCopy();
                         }}
                         className="p-1 rounded hover:bg-emerald-200 transition-colors text-emerald-600"
-                        title="复制代码"
+                        title="Copy code"
                     >
                         {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     </button>
@@ -72,7 +72,7 @@ const CodeItem: React.FC<IProps> = (props) => {
                 </div>
             )}
             
-            {/* Code Content - 白色底 */}
+            {/* Code Content - white background */}
             <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[500px]' : 'max-h-0'} overflow-hidden`}>
                 <div className="relative overflow-auto max-h-100">
                     <CodeHighlighter 

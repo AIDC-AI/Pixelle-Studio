@@ -26,7 +26,7 @@ const ItemWithTrash: React.FC<IProps> = (props) => {
             {children}
         </div>
         <PopoverCheck
-            content="是否删除？"
+            content="Delete this item?"
             onConfirm={onTrash}
             setIsOpen={setIsOpen}
             // isInParent={isInParent}

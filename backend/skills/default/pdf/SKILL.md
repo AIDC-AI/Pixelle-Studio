@@ -120,13 +120,13 @@ if all_tables:
 
 ### reportlab - Create PDFs
 
-⚠️ **重要：中文字体支持**
+⚠️ **Important: Chinese Font Support**
 
-reportlab 默认字体**不支持中文**，会显示为黑色方块 ▓▓▓。**必须注册中文字体并明确指定 fontName！**
+reportlab's default fonts **do not support Chinese**, and will display as black blocks ▓▓▓. **You must register a Chinese font and explicitly specify fontName!**
 
-#### 中文字体处理（必读）
+#### Chinese Font Handling (Must Read)
 
-**✅ 正确方法：注册字体 + 设置 ParagraphStyle**
+**✅ Correct approach: Register font + Set ParagraphStyle**
 
 ```python
 from reportlab.lib.pagesizes import A4
@@ -137,10 +137,10 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.enums import TA_LEFT
 import os
 
-# 🔑 第1步：注册中文字体（必须！）
+# 🔑 Step 1: Register Chinese font (required!)
 font_paths = [
     '/System/Library/Fonts/PingFang.ttc',  # macOS
-    '/System/Library/Fonts/STHeiti Light.ttc',  # macOS 备选
+    '/System/Library/Fonts/STHeiti Light.ttc',  # macOS fallback
     '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',  # Linux
     'c:/windows/fonts/simsun.ttc',  # Windows
 ]
@@ -151,23 +151,23 @@ for font_path in font_paths:
         try:
             pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
             font_registered = True
-            print(f"✅ 成功注册字体: {font_path}")
+            print(f"✅ Successfully registered font: {font_path}")
             break
         except Exception as e:
-            print(f"⚠️ 字体 {font_path} 注册失败: {e}")
+            print(f"⚠️ Font {font_path} registration failed: {e}")
             continue
 
 if not font_registered:
-    raise Exception("❌ 无法注册中文字体，请检查字体路径")
+    raise Exception("❌ Cannot register Chinese font, please check font paths")
 
-# 🔑 第2步：创建使用中文字体的样式
+# 🔑 Step 2: Create styles using Chinese font
 styles = getSampleStyleSheet()
 
-# ⚠️ 注意：必须设置 fontName='ChineseFont'，否则还是会乱码！
+# ⚠️ Note: fontName='ChineseFont' must be set, otherwise garbled text will still appear!
 chinese_title = ParagraphStyle(
     'ChineseTitle',
     parent=styles['Title'],
-    fontName='ChineseFont',  # 🔑 关键：指定字体
+    fontName='ChineseFont',  # 🔑 Key: specify font
     fontSize=18,
     leading=22,
     alignment=TA_LEFT
@@ -176,13 +176,13 @@ chinese_title = ParagraphStyle(
 chinese_normal = ParagraphStyle(
     'ChineseNormal',
     parent=styles['Normal'],
-    fontName='ChineseFont',  # 🔑 关键：指定字体
+    fontName='ChineseFont',  # 🔑 Key: specify font
     fontSize=12,
     leading=16,
     alignment=TA_LEFT
 )
 
-# 🔑 第3步：使用自定义样式创建内容
+# 🔑 Step 3: Create content using custom styles
 doc = SimpleDocTemplate("chinese.pdf", pagesize=A4)
 
 story = [
@@ -193,33 +193,33 @@ story = [
 ]
 
 doc.build(story)
-print("✅ 中文PDF创建成功")
+print("✅ Chinese PDF created successfully")
 ```
 
-**❌ 错误示例：**
+**❌ Wrong examples:**
 
 ```python
-# ❌ 错误：没有注册字体
+# ❌ Wrong: font not registered
 styles = getSampleStyleSheet()
-content = [Paragraph("中文", styles['Normal'])]  # 会显示黑色方块！
+content = [Paragraph("中文", styles['Normal'])]  # Will show black blocks!
 
-# ❌ 错误：注册了字体但没有在 ParagraphStyle 中设置 fontName
+# ❌ Wrong: font registered but fontName not set in ParagraphStyle
 pdfmetrics.registerFont(TTFont('ChineseFont', '/path/to/font.ttc'))
 styles = getSampleStyleSheet()
-content = [Paragraph("中文", styles['Normal'])]  # 还是会显示黑色方块！
+content = [Paragraph("中文", styles['Normal'])]  # Will still show black blocks!
 
-# ✅ 正确：注册字体 + 设置 fontName
+# ✅ Correct: register font + set fontName
 pdfmetrics.registerFont(TTFont('ChineseFont', '/path/to/font.ttc'))
 my_style = ParagraphStyle('MyStyle', fontName='ChineseFont', fontSize=12)
-content = [Paragraph("中文", my_style)]  # 正常显示
+content = [Paragraph("中文", my_style)]  # Displays correctly
 ```
 
-**最佳实践：**
-1. ✅ **必须注册字体** - 使用 `pdfmetrics.registerFont(TTFont(...))`
-2. ✅ **必须设置 fontName** - 在 `ParagraphStyle` 中指定 `fontName='ChineseFont'`
-3. ✅ **提供多个字体路径** - 兼容不同操作系统
-4. ✅ **添加错误处理** - 字体加载可能失败
-5. ⚠️ **注意 .ttc 字体** - 可能包含多个字体，加载较慢但通常能用
+**Best Practices:**
+1. ✅ **Must register font** - Use `pdfmetrics.registerFont(TTFont(...))`
+2. ✅ **Must set fontName** - Specify `fontName='ChineseFont'` in `ParagraphStyle`
+3. ✅ **Provide multiple font paths** - Compatible with different operating systems
+4. ✅ **Add error handling** - Font loading may fail
+5. ⚠️ **Note about .ttc fonts** - May contain multiple fonts, loads slower but usually works
 
 #### Basic PDF Creation (English Only)
 ```python
@@ -240,39 +240,39 @@ c.line(100, height - 140, 400, height - 140)
 c.save()
 ```
 
-#### Create PDF with Multiple Pages (支持中文)
+#### Create PDF with Multiple Pages (Chinese Support)
 ```python
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
 
-# ✅ 使用 A4 而不是 letter（更适合国际化）
+# ✅ Use A4 instead of letter (better for internationalization)
 doc = SimpleDocTemplate("report.pdf", pagesize=A4)
 styles = getSampleStyleSheet()
 story = []
 
-# ⚠️ 注意：必须先注册中文字体并创建使用该字体的样式
-# 参见上面"中文字体处理（必读）"章节
+# ⚠️ Note: Must register Chinese font and create styles using that font first
+# See "Chinese Font Handling (Must Read)" section above
 
-# 假设已经注册了字体并创建了 chinese_title 和 chinese_normal 样式
-title = Paragraph("报告标题", chinese_title)  # 使用中文样式
+# Assuming font is already registered and chinese_title and chinese_normal styles are created
+title = Paragraph("报告标题", chinese_title)  # Use Chinese style
 story.append(title)
 story.append(Spacer(1, 12))
 
-# 中文正文
+# Chinese body text
 body = Paragraph("这是报告的正文内容。可以包含中文、英文和数字。" * 10, chinese_normal)
 story.append(body)
 story.append(PageBreak())
 
-# 第二页
+# Second page
 story.append(Paragraph("第二页标题", chinese_title))
 story.append(Paragraph("第二页的内容", chinese_normal))
 
-# 混合中英文
+# Mixed Chinese and English
 mixed = Paragraph("Mixed content: 中英文混合 123 ABC", chinese_normal)
 story.append(mixed)
 
-# 生成 PDF
+# Generate PDF
 doc.build(story)
 ```
 
