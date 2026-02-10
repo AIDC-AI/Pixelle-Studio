@@ -47,7 +47,6 @@ test_*.*
 /package-lock.json
 /pyproject.toml
 /requirements.txt
-/start.sh
 /uv.lock
 /test_runner.py
 
@@ -57,3 +56,5 @@ backend/diagnose_file_created_event.py
 
 # Skills iteration data
 backend/skills/*/
+
+*.log
