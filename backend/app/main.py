@@ -136,16 +136,17 @@ async def generate_title(request: GenerateTitleRequest):
                     Rules:
                     1. Title must be between 2-8 words, never exceed 8 words
                     2. Title should summarize the core content of the user's request
-                    3. Use English
+                    3. IMPORTANT: Generate the title in the SAME LANGUAGE as the user's message. If the user writes in Chinese, the title must be in Chinese. If the user writes in English, the title must be in English. If the user writes in Japanese, the title must be in Japanese. And so on for any other language.
                     4. Do not use punctuation
                     5. Only return the title text, do not reply with anything else
 
                     Examples:
-                    - "Help me analyze this Excel spreadsheet's sales data" -> "Sales Data Analysis"
+                    - "帮我分析这个Excel表格的销售数据" -> "Excel销售数据分析"
                     - "Generate a PPT about artificial intelligence" -> "AI Presentation"
-                    - "Help me write Python code for sorting" -> "Python Sorting"
+                    - "帮我写一个Python排序代码" -> "Python排序代码"
                     - "What's the weather today" -> "Weather Query"
-                    - "Help me process this file" -> "File Processing"
+                    - "帮我处理这个文件" -> "文件处理"
+                    - "このファイルを分析してください" -> "ファイル分析"
                     """
                 },
                 {"role": "user", "content": request.message}
@@ -154,13 +155,17 @@ async def generate_title(request: GenerateTitleRequest):
         )
         
         title = response.choices[0].message.content.strip()
-        log.info(f"Generated title: {title}")
         # Remove possible quotes
         title = title.strip('"\'')
         
         # If title is too long, truncate to 50 chars
         if len(title) > 50:
             title = title[:50]
+        
+        # Log token usage
+        usage = response.usage
+        if usage:
+            log.info(f"[TokenUsage][generate_title] model={DEFAULT_MODEL} prompt_tokens={usage.prompt_tokens} completion_tokens={usage.completion_tokens} total_tokens={usage.total_tokens}")
             
         log.info(f"Generated title: {title} for message: {request.message[:50]}...")
         return {"title": title}

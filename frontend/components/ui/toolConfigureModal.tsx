@@ -57,6 +57,7 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
             name: data.name,
             transport: data.transport,
             url: data.url || null,
+            headers: data.headers || null,
             command: data.command || null,
             args: data.args || null,
         }
@@ -164,9 +165,9 @@ const ToolConfigureModal: React.FC<IProps> = (props) => {
                                 />
                                 <FormInput 
                                     name="headers"
-                                    label="Headers (Optional)"
+                                    label="Headers (Optional, JSON)"
                                     required={false}
-                                    placeholder="Headers (Optional)"
+                                    placeholder='{"Authorization": "Bearer your-token"}'
                                     isTextarea={true}
                                     isFlexMax={true}
                                     value={formData.headers || ''}

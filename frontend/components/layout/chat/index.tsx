@@ -748,9 +748,10 @@ const Chat = () => {
     >
       {/* Left Panel with dynamic width */}
       <div
-        className="h-screen fixed left-0 top-0 z-40"
+        className="fixed left-0 top-0 z-40"
         style={{
           width: isLeftPanelCollapsed ? 48 : leftPanelWidth,
+          height: '100vh',
           transition: isLeftDragging ? 'none' : 'width 0.15s ease-out'
         }}
       >

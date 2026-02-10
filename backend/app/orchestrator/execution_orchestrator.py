@@ -407,8 +407,9 @@ class ExecutionOrchestrator:
                     image_url_for_api = f"data:{mime_type};base64,{image_data}"
             
             # Call vision API
+            vision_model = "gpt-4o"
             response = await client.chat.completions.create(
-                model="gpt-4o",  # Use a vision-capable model
+                model=vision_model,  # Use a vision-capable model
                 messages=[
                     {
                         "role": "user",
@@ -428,6 +429,17 @@ class ExecutionOrchestrator:
                 ],
                 max_tokens=500
             )
+            
+            # Log token usage
+            if hasattr(response, 'usage') and response.usage:
+                usage = response.usage
+                from app.utils.session_logger_simple import estimate_cost
+                cost = estimate_cost(vision_model, usage.prompt_tokens, usage.completion_tokens)
+                print(
+                    f"[TokenUsage][image_summary] model={vision_model} "
+                    f"prompt={usage.prompt_tokens} completion={usage.completion_tokens} "
+                    f"total={usage.total_tokens} cost=${cost:.6f}"
+                )
             
             description = response.choices[0].message.content
             

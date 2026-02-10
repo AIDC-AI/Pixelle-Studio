@@ -160,7 +160,7 @@ const SkillsPanel = () => {
         setMcpTools(list)
     }, [mcpServers])
 
-    return <div className="left-panel p-4 gap-4">
+    return <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', minHeight: 0, overflowY: 'auto', padding: 16, gap: 16 }}>
         {
             loading ? <Skeleton active /> : <>
                 <ExpandeBox 

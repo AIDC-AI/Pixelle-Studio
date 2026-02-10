@@ -25,6 +25,7 @@ export interface MCPServer {
   name: string
   transport: TransportType
   url?: string | null
+  headers?: string | null  // JSON string for custom headers (e.g. {"Authorization": "Bearer ..."})
   command?: string | null
   args?: string | null
   error?: string | null

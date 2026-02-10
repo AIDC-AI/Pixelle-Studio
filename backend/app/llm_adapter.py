@@ -20,6 +20,24 @@ from openai import AsyncOpenAI
 from app.skills.loader import get_skill_loader
 from app.mcp_aggregator import MCPServerConfig
 
+logger = logging.getLogger(__name__)
+
+
+def _log_llm_usage(response, call_type: str, model: str):
+    """Log LLM token usage from a non-streaming response."""
+    try:
+        if hasattr(response, 'usage') and response.usage:
+            usage = response.usage
+            from app.utils.session_logger_simple import estimate_cost
+            cost = estimate_cost(model, usage.prompt_tokens, usage.completion_tokens)
+            logger.info(
+                f"[TokenUsage][{call_type}] model={model} "
+                f"prompt={usage.prompt_tokens} completion={usage.completion_tokens} "
+                f"total={usage.total_tokens} cost=${cost:.6f}"
+            )
+    except Exception as e:
+        logger.debug(f"Failed to log LLM usage: {e}")
+
 # LLM Configuration - read from environment variables, supports custom configuration
 # LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://REDACTED_BASE_URL_HOST/v1")
 # LLM_API_KEY = os.getenv("LLM_API_KEY", "REDACTED_API_KEY")
@@ -137,6 +155,9 @@ Only return the Python code block. Do not include markdown formatting like ```py
             llm_kwargs["tools"] = formatted_tools
         
         response = await client.chat.completions.create(**llm_kwargs)
+        
+        # Log token usage
+        _log_llm_usage(response, "workflow_script_gen", DEFAULT_MODEL)
         
         generated_code = response.choices[0].message.content
         
@@ -299,6 +320,9 @@ Only return the Python code block.
                 llm_kwargs["tools"] = formatted_tools
         
         response = await client.chat.completions.create(**llm_kwargs)
+        
+        # Log token usage
+        _log_llm_usage(response, "script_gen", DEFAULT_MODEL)
         
         generated_code = response.choices[0].message.content
         

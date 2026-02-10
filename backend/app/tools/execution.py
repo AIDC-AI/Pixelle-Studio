@@ -104,7 +104,7 @@ async def exec_command(
         logger.warning(f"[exec] .venv/bin/python not found, using system Python")
     
     # ✅ If running a Python script, inject call_tool bootstrap
-    # Default MCP servers (高德/Bing/Fetch) are built into mcp_client.py,
+    # Default MCP servers (高德/Exa Search/Fetch) are built into mcp_client.py,
     # so bootstrap is always created (not just when mcp_url is set)
     if _is_python_script_command(command):
         bootstrap_file = _ensure_mcp_bootstrap(backend_root, mcp_url, mcp_type)
@@ -506,7 +506,7 @@ def _ensure_mcp_bootstrap(backend_root: Path, mcp_url: str = None, mcp_type: str
     making call_tool() transparently available without LLM needing MCP server details.
     
     Architecture:
-    - Default MCP servers (高德/Bing/Fetch) are built into app.mcp_client.DEFAULT_MCP_SERVERS
+    - Default MCP servers (高德/Exa Search/Fetch) are built into app.mcp_client.DEFAULT_MCP_SERVERS
     - call_tool() does lazy discovery → auto-routes to the correct server
     - User-specific server (from DB) is optionally registered via env vars
     - LLM never sees any of this; it just uses call_tool() as described in Skills
@@ -521,7 +521,7 @@ def _ensure_mcp_bootstrap(backend_root: Path, mcp_url: str = None, mcp_type: str
 Auto-generated MCP bootstrap for exec environment.
 Provides call_tool() function transparently.
 
-Default MCP servers (高德/Bing/Fetch) are built into app.mcp_client.
+Default MCP servers (高德/Exa Search/Fetch) are built into app.mcp_client.
 call_tool() auto-discovers and routes to the correct server.
 """
 import os
@@ -545,26 +545,46 @@ def _setup_call_tool():
             register_tool_server("__user_env__", mcp_url, mcp_type)
         
         import asyncio
+        import time as _time
+        
+        # Rate-limiting: track last call time to enforce minimum interval
+        _last_call_time = [0.0]  # mutable container for closure
+        _MIN_CALL_INTERVAL = 2.0  # minimum seconds between consecutive calls
         
         def call_tool(tool_name, args=None):
             """
             Call an MCP tool synchronously.
             
-            Built-in servers: 高德地图, Bing搜索, Fetch网页抓取
-            Usage: result = call_tool('bing_search', {'query': 'search term'})
+            Built-in servers: 高德地图, Exa Search搜索, Fetch网页抓取
+            Usage: result = call_tool('web_search_exa', {'query': 'search term'})
+            
+            Note: Automatically enforces minimum 2s interval between calls
+            to prevent remote server connection instability.
             """
             import asyncio
             from app.mcp_client import call_tool as _act
+            
+            # Enforce minimum interval between calls
+            now = _time.time()
+            elapsed = now - _last_call_time[0]
+            if elapsed < _MIN_CALL_INTERVAL and _last_call_time[0] > 0:
+                wait = _MIN_CALL_INTERVAL - elapsed
+                _time.sleep(wait)
+            
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor() as pool:
-                        return pool.submit(asyncio.run, _act(tool_name, args or {})).result()
+                        result = pool.submit(asyncio.run, _act(tool_name, args or {})).result()
                 else:
-                    return loop.run_until_complete(_act(tool_name, args or {}))
+                    result = loop.run_until_complete(_act(tool_name, args or {}))
             except RuntimeError:
-                return asyncio.run(_act(tool_name, args or {}))
+                result = asyncio.run(_act(tool_name, args or {}))
+            finally:
+                _last_call_time[0] = _time.time()
+            
+            return result
         
         return call_tool
     except ImportError as e:

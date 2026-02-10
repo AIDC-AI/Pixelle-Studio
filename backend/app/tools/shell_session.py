@@ -383,7 +383,7 @@ class ShellSessionManager:
         environment without the LLM needing to know about MCP server details.
         
         Architecture:
-        - Default MCP servers (高德/Bing/Fetch) are built into app.mcp_client
+        - Default MCP servers (高德/Exa Search/Fetch) are built into app.mcp_client
         - call_tool() does lazy discovery → auto-routes to the correct server
         - User-specific server (from DB) is optionally registered on top
         - LLM never sees any of this; it just uses call_tool() as described in Skills
@@ -404,25 +404,36 @@ class ShellSessionManager:
                 f"register_tool_server('__user__', {repr(mcp_server_url)}, {repr(mcp_server_type)})"
             )
         
-        # Step 2: Define sync call_tool wrapper
+        # Step 2: Define sync call_tool wrapper with rate-limiting
         # The async call_tool from mcp_client handles:
         # - Routing to registered tools
         # - Lazy discovery from DEFAULT_MCP_SERVERS
         # - Fallback to try each default server
+        # Rate-limiting prevents remote server connection instability
         step2 = (
+            "import time as _time\n"
+            "_last_call_time = [0.0]\n"
+            "_MIN_CALL_INTERVAL = 2.0\n"
             "def call_tool(tool_name, args=None):\n"
             "    import asyncio\n"
             "    from app.mcp_client import call_tool as _act\n"
+            "    now = _time.time()\n"
+            "    elapsed = now - _last_call_time[0]\n"
+            "    if elapsed < _MIN_CALL_INTERVAL and _last_call_time[0] > 0:\n"
+            "        _time.sleep(_MIN_CALL_INTERVAL - elapsed)\n"
             "    try:\n"
             "        loop = asyncio.get_event_loop()\n"
             "        if loop.is_running():\n"
             "            import concurrent.futures\n"
             "            with concurrent.futures.ThreadPoolExecutor() as pool:\n"
-            "                return pool.submit(asyncio.run, _act(tool_name, args or {})).result()\n"
+            "                result = pool.submit(asyncio.run, _act(tool_name, args or {})).result()\n"
             "        else:\n"
-            "            return loop.run_until_complete(_act(tool_name, args or {}))\n"
+            "            result = loop.run_until_complete(_act(tool_name, args or {}))\n"
             "    except RuntimeError:\n"
-            "        return asyncio.run(_act(tool_name, args or {}))\n"
+            "        result = asyncio.run(_act(tool_name, args or {}))\n"
+            "    finally:\n"
+            "        _last_call_time[0] = _time.time()\n"
+            "    return result\n"
         )
         
         try:
@@ -443,7 +454,7 @@ class ShellSessionManager:
             if "__call_tool_ok__" in str(output):
                 logger.info(
                     f"[session] ✅ call_tool verified in session {session.session_id} "
-                    f"(defaults: 高德/Bing/Fetch, user_mcp: {mcp_server_url or 'none'})"
+                    f"(defaults: 高德/Exa Search/Fetch, user_mcp: {mcp_server_url or 'none'})"
                 )
             else:
                 logger.warning(

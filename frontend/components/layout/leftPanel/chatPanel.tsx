@@ -24,7 +24,7 @@ const ChatPanel: React.FC<IProps> = (props) => {
         handleChangeSession?.('')
     }
 
-    return <div className="left-panel p-4 gap-4 overflow-y-auto">
+    return <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', minHeight: 0, overflowY: 'auto', padding: 16, gap: 16 }}>
         {/* Knowledge Base */}
         {/* <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 text-gray-400">

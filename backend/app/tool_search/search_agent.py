@@ -106,6 +106,16 @@ Format must be a JSON list string, response must not contain irrelevant content.
                 "content": user_message
             }],
         )
+        # Log token usage
+        if hasattr(response, 'usage') and response.usage:
+            usage = response.usage
+            from app.utils.session_logger_simple import estimate_cost
+            cost = estimate_cost(DEFAULT_MODEL, usage.prompt_tokens, usage.completion_tokens)
+            print(
+                f"[TokenUsage][tool_search] model={DEFAULT_MODEL} "
+                f"prompt={usage.prompt_tokens} completion={usage.completion_tokens} "
+                f"total={usage.total_tokens} cost=${cost:.6f}"
+            )
         res_content = response.choices[0].message.content
         print(f"SearchAgent response: {res_content}")
         # Convert string list to Python list object

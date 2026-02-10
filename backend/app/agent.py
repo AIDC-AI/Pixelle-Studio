@@ -232,6 +232,7 @@ class SkillAgent:
                         "model": model_name,
                         "messages": messages,
                         "stream": True,
+                        "stream_options": {"include_usage": True},  # Track token usage in streaming mode
                     }
                     
                     # Add tools (if any)
@@ -249,8 +250,17 @@ class SkillAgent:
                     if self.current_auth_profile:
                         self.auth_store.mark_success(self.current_auth_profile.id)
                     
-                    # Return stream
+                    # Return stream, capture usage from last chunk
                     async for chunk in response_stream:
+                        # Check for usage info (comes in the last chunk with stream_options)
+                        if hasattr(chunk, 'usage') and chunk.usage is not None:
+                            yield {
+                                "type": "usage",
+                                "model": model_name,
+                                "prompt_tokens": chunk.usage.prompt_tokens or 0,
+                                "completion_tokens": chunk.usage.completion_tokens or 0,
+                                "total_tokens": chunk.usage.total_tokens or 0,
+                            }
                         yield {"type": "chunk", "chunk": chunk}
                     
                     # Successfully completed
@@ -502,11 +512,17 @@ class SkillAgent:
                     # === Call LLM with failover ===
                     final_content = ""
                     tool_calls_accumulator: Dict[int, Dict] = {}
+                    turn_usage = None  # Track token usage for this turn
                 
                     async for event in self._call_llm_with_failover(
                         messages=messages,
                         tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None
                     ):
+                        # Capture usage event
+                        if event["type"] == "usage":
+                            turn_usage = event
+                            continue
+                        
                         if event["type"] != "chunk":
                             continue
                         
@@ -545,6 +561,17 @@ class SkillAgent:
                                     tool_calls_accumulator[idx]["name"] += tc_chunk.function.name
                                 if tc_chunk.function and tc_chunk.function.arguments:
                                     tool_calls_accumulator[idx]["arguments"] += tc_chunk.function.arguments
+                    
+                    # === Log LLM token usage ===
+                    if turn_usage:
+                        self.session_logger.log_llm_usage(
+                            model=turn_usage["model"],
+                            prompt_tokens=turn_usage["prompt_tokens"],
+                            completion_tokens=turn_usage["completion_tokens"],
+                            total_tokens=turn_usage["total_tokens"],
+                            call_type="agent_chat",
+                            turn=turn_count
+                        )
                     
                     # Convert accumulated tool calls to list
                     tool_calls_list = []

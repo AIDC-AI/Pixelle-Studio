@@ -85,6 +85,17 @@ Be strict: if anything is missing or seems wrong, set meets_requirement to false
                 temperature=0.3  # Lower temperature for more consistent evaluation
             )
             
+            # Log token usage
+            if hasattr(response, 'usage') and response.usage:
+                usage = response.usage
+                from app.utils.session_logger_simple import estimate_cost
+                cost = estimate_cost(self.llm_model, usage.prompt_tokens, usage.completion_tokens)
+                print(
+                    f"[TokenUsage][result_validation] model={self.llm_model} "
+                    f"prompt={usage.prompt_tokens} completion={usage.completion_tokens} "
+                    f"total={usage.total_tokens} cost=${cost:.6f}"
+                )
+            
             # Parse response
             result_text = response.choices[0].message.content
             result_json = json.loads(result_text)

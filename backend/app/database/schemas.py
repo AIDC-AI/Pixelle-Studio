@@ -7,6 +7,7 @@ class MCPServerBase(BaseModel):
     name: str
     transport: str  # 'streamable-http' | 'sse' | 'stdio'
     url: Optional[str] = None
+    headers: Optional[str] = None  # JSON string for custom headers (e.g. {"Authorization": "Bearer ..."})
     command: Optional[str] = None
     args: Optional[str] = None  # JSON string
     error: Optional[str] = None
@@ -20,6 +21,7 @@ class MCPServerUpdate(BaseModel):
     name: Optional[str] = None
     transport: Optional[str] = None
     url: Optional[str] = None
+    headers: Optional[str] = None
     command: Optional[str] = None
     args: Optional[str] = None
     error: Optional[str] = None

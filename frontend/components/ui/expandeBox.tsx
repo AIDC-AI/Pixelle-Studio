@@ -14,7 +14,7 @@ const ExpandeBox: React.FC<IProps> = (props) => {
 
     const [isExpanded, setIsExpanded] = useState<boolean>(false)
 
-    return <div className="border border-gray-200 rounded-lg overflow-hidden">
+    return <div className="border border-gray-200 rounded-lg overflow-hidden" style={{ flexShrink: 0 }}>
         <div 
             className="flex items-center justify-between p-3 bg-gray-50"
             onClick={(e) => {

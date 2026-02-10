@@ -8,6 +8,7 @@ from app.mcp_aggregator import MCPAggregator, MCPServerConfig as AggregatorConfi
 from pydantic import BaseModel
 from app.utils.logger import log
 import asyncio
+import json
 
 router = APIRouter(prefix="/api/mcp-servers", tags=["MCP Servers"])
 
@@ -76,6 +77,14 @@ async def _check_single_server_status(server: MCPServer) -> dict:
                 "tools": []
             }
         
+        # Parse headers from JSON string
+        parsed_headers = None
+        if hasattr(server, 'headers') and server.headers:
+            try:
+                parsed_headers = json.loads(server.headers)
+            except (json.JSONDecodeError, TypeError):
+                parsed_headers = None
+        
         # Build MCP server config
         mcp_server = {
             "id": server.id,
@@ -83,7 +92,7 @@ async def _check_single_server_status(server: MCPServer) -> dict:
             "type": server_type,
             "config": config_data,
             "enabled": True,
-            "headers": None
+            "headers": parsed_headers
         }
         
         config = AggregatorConfig(servers=[mcp_server])
@@ -135,13 +144,16 @@ async def _check_builtin_server_status(server_config: dict) -> dict:
         else:
             config_data = {"url": url}
         
+        # Parse headers from server config (built-in servers may have headers too)
+        parsed_headers = server_config.get("headers", None)
+        
         mcp_server = {
             "id": f"builtin_{server_config['name']}",
             "name": server_config["name"],
             "type": server_type,
             "config": config_data,
             "enabled": True,
-            "headers": None
+            "headers": parsed_headers
         }
         
         config = AggregatorConfig(servers=[mcp_server])
@@ -400,6 +412,14 @@ async def check_server_status(
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported transport type: {server.transport}")
         
+        # Parse headers from JSON string
+        parsed_headers = None
+        if hasattr(server, 'headers') and server.headers:
+            try:
+                parsed_headers = json.loads(server.headers)
+            except (json.JSONDecodeError, TypeError):
+                parsed_headers = None
+        
         # Build MCP server config
         mcp_server = {
             "id": server.id,
@@ -407,7 +427,7 @@ async def check_server_status(
             "type": server_type,
             "config": config_data,
             "enabled": True,
-            "headers": None
+            "headers": parsed_headers
         }
         
         config = AggregatorConfig(servers=[mcp_server])

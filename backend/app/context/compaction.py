@@ -97,8 +97,9 @@ async def generate_summary(
     logger.info(f"[Compaction] Generating summary for {len(messages_text)} chars of history")
     
     try:
+        summary_model = "gpt-3.5-turbo"
         response = await client.chat.completions.create(
-            model="gpt-3.5-turbo",  # Use cheap and fast model
+            model=summary_model,  # Use cheap and fast model
             messages=[
                 {
                     "role": "system",
@@ -117,6 +118,17 @@ async def generate_summary(
             temperature=0.3,
             max_tokens=500
         )
+        
+        # Log token usage
+        if hasattr(response, 'usage') and response.usage:
+            usage = response.usage
+            from app.utils.session_logger_simple import estimate_cost
+            cost = estimate_cost(summary_model, usage.prompt_tokens, usage.completion_tokens)
+            logger.info(
+                f"[TokenUsage][compaction_summary] model={summary_model} "
+                f"prompt={usage.prompt_tokens} completion={usage.completion_tokens} "
+                f"total={usage.total_tokens} cost=${cost:.6f}"
+            )
         
         summary = response.choices[0].message.content
         return summary or "(No summary generated)"

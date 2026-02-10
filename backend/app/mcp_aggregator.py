@@ -37,18 +37,12 @@ class MCPAggregator:
                     aggregated_tools.extend(tools)
                 elif server.type == 'stdio':
                     # TODO: Implement stdio support
-                    # tools = await self._fetch_stdio_tools(server)
-                    # aggregated_tools.extend(tools)
                     print(f"Stdio support not yet implemented for server: {server.name}")
                 elif server.type == 'http':
                     tools = await self._fetch_http_tools(server)
                     aggregated_tools.extend(tools)
             except Exception as e:
                 print(f"Error fetching tools from server {server.name}: {e}")
-        
-        # Only add default mock tools if no servers are configured or no tools were fetched
-        if not aggregated_tools:
-            aggregated_tools.extend(self._get_default_tools())
         
         self.tools = aggregated_tools
         return aggregated_tools
@@ -73,23 +67,13 @@ class MCPAggregator:
                     # aggregated_tools.extend(tools)
                     print(f"Stdio support not yet implemented for server: {server.name}")
                 elif server.type == 'http':
-                     # Treat 'http' as SSE for now based on current UI implementation
-                     # or if it's a simple HTTP endpoint, we need a different client.
-                     # Assuming SSE for 'http' type if it points to an SSE endpoint.
-                     # But let's stick to 'sse' type for SSE.
-                     if server.config.get('endpoint'):
-                         # If it's just a raw HTTP endpoint, we might need a different logic
-                         # For now, let's assume the user selects 'sse' for SSE servers.
-                         pass
+                    tools = await self._fetch_http_tools(server)
+                    aggregated_tools.append(tools)
             except Exception as e:
                 print(f"Error fetching tools from server {server.name}: {e}")
         
-        # Only add default mock tools if no servers are configured or no tools were fetched
-        if not aggregated_tools:
-            aggregated_tools.extend(self._get_default_tools())
-        
         self.tools = aggregated_tools
-        return aggregated_tools        
+        return aggregated_tools
 
     async def _fetch_sse_tools(self, server: MCPServer) -> List[Dict[str, Any]]:
         url = server.config.get('url')

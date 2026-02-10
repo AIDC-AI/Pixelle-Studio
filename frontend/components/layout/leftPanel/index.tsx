@@ -78,9 +78,9 @@ const LeftPanel: React.FC<IProps> = (props) => {
   }
 
   return (
-    <div className="w-full h-full bg-white flex flex-col">
+    <div className="bg-white" style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200" style={{ flexShrink: 0 }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex flex-row gap-2 items-center">
             {/* <h2 className="text-lg font-semibold text-gray-800">Pixelle-Studio</h2> */}

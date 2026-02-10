@@ -1,4 +1,4 @@
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import CodeHighlighter from "./codeHighlighter";
@@ -28,6 +28,17 @@ const MarkDown: React.FC<IProps> = (props) => {
             ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-gray-700">{children}</ul>,
             ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-700">{children}</ol>,
             li: ({ children }) => <li className="text-gray-700">{children}</li>,
+            a: ({ href, children }) => (
+                <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 text-orange-600 hover:text-orange-700 hover:underline transition-colors"
+                >
+                    {children}
+                    <ExternalLink className="w-3 h-3 shrink-0" />
+                </a>
+            ),
             strong: ({ children }) => <strong className="font-bold text-gray-800">{children}</strong>,
             em: ({ children }) => <em className="text-gray-600 italic">{children}</em>,
             code: ({ node, inline, className, children, ...props }: any) => {

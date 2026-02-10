@@ -34,10 +34,10 @@ DEFAULT_MCP_SERVERS: List[Dict[str, str]] = [
         "description": "高德地图 MCP Server - 地图/地理/路线/POI相关工具",
     },
     {
-        "name": "bing",
-        "url": "https://mcp.api-inference.modelscope.net/710be47785c445/mcp",
+        "name": "exa_search",
+        "url": "https://mcp.api-inference.modelscope.net/733dcc87f12e4d/mcp",
         "type": "http",
-        "description": "Bing搜索 MCP Server - 网页搜索",
+        "description": "Exa Search MCP Server - 网页搜索/公司研究/代码文档搜索",
     },
     {
         "name": "fetch",
@@ -98,7 +98,7 @@ async def call_tool(tool_name: str, args: dict = None) -> Any:
     4. Mock fallback (for testing)
     
     Usage in Skills:
-        result = call_tool('bing_search', {'query': '搜索词'})
+        result = call_tool('web_search_exa', {'query': '搜索词'})
         result = call_tool('fetch', {'url': 'https://example.com'})
     """
     args = args or {}
@@ -278,9 +278,38 @@ async def _list_server_tools(
     return tools
 
 
-async def _call_real_tool(tool_name: str, args: dict, config: dict) -> Any:
+def _is_retryable_error(exc: Exception) -> bool:
+    """Check if an exception is a transient/retryable network error."""
+    error_msg = str(exc).lower()
+    retryable_patterns = [
+        "peer closed connection",
+        "remoteprotocolerror",
+        "connection reset",
+        "connection refused",
+        "connection aborted",
+        "broken pipe",
+        "incomplete read",
+        "server disconnected",
+        "eof occurred",
+        "timed out",          # connect timeout (not our asyncio.timeout)
+        "connect timeout",
+    ]
+    return any(p in error_msg for p in retryable_patterns)
+
+
+async def _call_real_tool(
+    tool_name: str, args: dict, config: dict,
+    max_retries: int = 2, base_delay: float = 3.0
+) -> Any:
     """
     Make a real MCP call via SSE or HTTP Streamable.
+    
+    Includes automatic retry with exponential backoff for transient network errors
+    (e.g. RemoteProtocolError / peer closed connection).
+    
+    Args:
+        max_retries: Maximum number of retries on transient errors (default 2, so up to 3 attempts total)
+        base_delay: Base delay in seconds between retries (doubles each retry)
     """
     from mcp import ClientSession
     from mcp.client.sse import sse_client
@@ -292,58 +321,86 @@ async def _call_real_tool(tool_name: str, args: dict, config: dict) -> Any:
     
     _ensure_no_proxy()
     
-    logger.info(f"[MCP Client] Calling tool '{tool_name}' on {url} (type: {server_type})...")
+    MCP_CALL_TIMEOUT = 60  # 1 minute max per tool call attempt (reduced from 120s)
     
-    MCP_CALL_TIMEOUT = 120  # 2 minutes max per tool call
+    last_error = None
     
-    try:
-        async with asyncio.timeout(MCP_CALL_TIMEOUT):
-            if server_type == "http":
-                client_context = streamablehttp_client(url, headers=headers)
-            else:
-                client_context = sse_client(url, headers=headers)
-            
-            async with client_context as client_tuple:
-                read, write = client_tuple[0], client_tuple[1]
+    for attempt in range(1 + max_retries):
+        if attempt > 0:
+            delay = base_delay * (2 ** (attempt - 1))  # 3s, 6s, ...
+            logger.warning(
+                f"[MCP Client] Retry {attempt}/{max_retries} for tool '{tool_name}' "
+                f"after {delay:.1f}s delay (previous error: {last_error})"
+            )
+            await asyncio.sleep(delay)
+        
+        logger.info(
+            f"[MCP Client] Calling tool '{tool_name}' on {url} "
+            f"(type: {server_type}, attempt: {attempt + 1}/{1 + max_retries})..."
+        )
+        
+        try:
+            async with asyncio.timeout(MCP_CALL_TIMEOUT):
+                if server_type == "http":
+                    client_context = streamablehttp_client(url, headers=headers)
+                else:
+                    client_context = sse_client(url, headers=headers)
                 
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    result = await session.call_tool(tool_name, arguments=args)
+                async with client_context as client_tuple:
+                    read, write = client_tuple[0], client_tuple[1]
                     
-                    output = []
-                    for content in result.content:
-                        if content.type == 'text':
-                            output.append(content.text)
-                        elif content.type == 'image':
-                            output.append(f"[Image: {content.mimeType}]")
-                        elif content.type == 'resource':
-                            output.append(f"[Resource: {content.uri}]")
-                    
-                    # Single text output → try JSON parse
-                    if len(output) == 1 and isinstance(output[0], str):
-                        try:
-                            return json.loads(output[0])
-                        except (json.JSONDecodeError, ValueError):
-                            return output[0]
-                    
-                    # Multiple outputs → try JSON parse first
-                    if output and isinstance(output[0], str):
-                        try:
-                            return json.loads(output[0])
-                        except (json.JSONDecodeError, ValueError):
-                            pass
-                    
-                    return output
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        result = await session.call_tool(tool_name, arguments=args)
+                        
+                        output = []
+                        for content in result.content:
+                            if content.type == 'text':
+                                output.append(content.text)
+                            elif content.type == 'image':
+                                output.append(f"[Image: {content.mimeType}]")
+                            elif content.type == 'resource':
+                                output.append(f"[Resource: {content.uri}]")
+                        
+                        # Single text output → try JSON parse
+                        if len(output) == 1 and isinstance(output[0], str):
+                            try:
+                                return json.loads(output[0])
+                            except (json.JSONDecodeError, ValueError):
+                                return output[0]
+                        
+                        # Multiple outputs → try JSON parse first
+                        if output and isinstance(output[0], str):
+                            try:
+                                return json.loads(output[0])
+                            except (json.JSONDecodeError, ValueError):
+                                pass
+                        
+                        return output
+        
+        except asyncio.TimeoutError:
+            last_error = f"Timeout after {MCP_CALL_TIMEOUT}s"
+            logger.error(f"[MCP Client] TIMEOUT calling tool '{tool_name}' after {MCP_CALL_TIMEOUT}s (attempt {attempt + 1})")
+            # Timeout is retryable
+            if attempt < max_retries:
+                continue
+            return {"error": f"Tool call timed out after {MCP_CALL_TIMEOUT} seconds ({1 + max_retries} attempts)"}
+        
+        except Exception as e:
+            last_error = e
+            if _is_retryable_error(e) and attempt < max_retries:
+                # Transient error — will retry
+                logger.warning(f"[MCP Client] Transient error calling tool '{tool_name}': {e}")
+                continue
+            
+            # Non-retryable error or exhausted retries
+            logger.error(f"[MCP Client] Error calling tool '{tool_name}' (attempt {attempt + 1}/{1 + max_retries}): {e}")
+            import traceback
+            traceback.print_exc()
+            return {"error": str(e)}
     
-    except asyncio.TimeoutError:
-        logger.error(f"[MCP Client] TIMEOUT calling tool '{tool_name}' after {MCP_CALL_TIMEOUT}s")
-        return {"error": f"Tool call timed out after {MCP_CALL_TIMEOUT} seconds"}
-    
-    except Exception as e:
-        logger.error(f"[MCP Client] Error calling tool '{tool_name}': {e}")
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e)}
+    # Should not reach here, but just in case
+    return {"error": f"Tool call failed after {1 + max_retries} attempts: {last_error}"}
 
 
 # ============================================================================

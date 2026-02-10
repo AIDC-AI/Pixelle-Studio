@@ -15,6 +15,7 @@ class MCPServer(Base):
     name = Column(String, unique=True, nullable=False, index=True)
     transport = Column(String, nullable=False)  # 'streamable-http' | 'sse' | 'stdio'
     url = Column(String, nullable=True)  # for streamable-http/SSE
+    headers = Column(Text, nullable=True)  # JSON string for custom headers (e.g. Authorization)
     command = Column(String, nullable=True)  # for stdio
     args = Column(String, nullable=True)  # JSON string array
     error = Column(String, nullable=True)
@@ -138,6 +139,23 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Create tables
 Base.metadata.create_all(bind=engine)
 print(f"[Database] Initialized database at: {DATABASE_URL}")
+
+# Migrate: add missing columns to existing tables (SQLite doesn't auto-add columns)
+def _migrate_add_column(engine, table_name: str, column_name: str, column_type: str, default: str = "NULL"):
+    """Add a column to an existing table if it doesn't exist (SQLite migration helper)."""
+    from sqlalchemy import text, inspect
+    inspector = inspect(engine)
+    columns = [c["name"] for c in inspector.get_columns(table_name)]
+    if column_name not in columns:
+        with engine.connect() as conn:
+            conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type} DEFAULT {default}"))
+            conn.commit()
+        print(f"[Database] Migrated: added column '{column_name}' to table '{table_name}'")
+
+try:
+    _migrate_add_column(engine, "mcp_servers", "headers", "TEXT", "NULL")
+except Exception as e:
+    print(f"[Database] Migration check (non-critical): {e}")
 
 # Dependency
 def get_db():

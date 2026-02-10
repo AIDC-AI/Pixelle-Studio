@@ -21,7 +21,7 @@ const ServerCard: React.FC<IProps> = (props) => {
             <span className="text-sm font-medium text-gray-800">{server.name}</span>
             {isBuiltin && (
                 <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-full font-medium leading-none">
-                    内置
+                    default
                 </span>
             )}
             <div className="flex-1" />

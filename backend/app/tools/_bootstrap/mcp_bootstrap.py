@@ -2,7 +2,7 @@
 Auto-generated MCP bootstrap for exec environment.
 Provides call_tool() function transparently.
 
-Default MCP servers (高德/Bing/Fetch) are built into app.mcp_client.
+Default MCP servers (高德/Exa Search/Fetch) are built into app.mcp_client.
 call_tool() auto-discovers and routes to the correct server.
 """
 import os
@@ -26,26 +26,46 @@ def _setup_call_tool():
             register_tool_server("__user_env__", mcp_url, mcp_type)
         
         import asyncio
+        import time as _time
+        
+        # Rate-limiting: track last call time to enforce minimum interval
+        _last_call_time = [0.0]  # mutable container for closure
+        _MIN_CALL_INTERVAL = 2.0  # minimum seconds between consecutive calls
         
         def call_tool(tool_name, args=None):
             """
             Call an MCP tool synchronously.
             
-            Built-in servers: 高德地图, Bing搜索, Fetch网页抓取
-            Usage: result = call_tool('bing_search', {'query': 'search term'})
+            Built-in servers: 高德地图, Exa Search搜索, Fetch网页抓取
+            Usage: result = call_tool('web_search_exa', {'query': 'search term'})
+            
+            Note: Automatically enforces minimum 2s interval between calls
+            to prevent remote server connection instability.
             """
             import asyncio
             from app.mcp_client import call_tool as _act
+            
+            # Enforce minimum interval between calls
+            now = _time.time()
+            elapsed = now - _last_call_time[0]
+            if elapsed < _MIN_CALL_INTERVAL and _last_call_time[0] > 0:
+                wait = _MIN_CALL_INTERVAL - elapsed
+                _time.sleep(wait)
+            
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor() as pool:
-                        return pool.submit(asyncio.run, _act(tool_name, args or {})).result()
+                        result = pool.submit(asyncio.run, _act(tool_name, args or {})).result()
                 else:
-                    return loop.run_until_complete(_act(tool_name, args or {}))
+                    result = loop.run_until_complete(_act(tool_name, args or {}))
             except RuntimeError:
-                return asyncio.run(_act(tool_name, args or {}))
+                result = asyncio.run(_act(tool_name, args or {}))
+            finally:
+                _last_call_time[0] = _time.time()
+            
+            return result
         
         return call_tool
     except ImportError as e:
