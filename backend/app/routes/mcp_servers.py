@@ -29,6 +29,9 @@ class MCPServerWithStatus(BaseModel):
     message: str
     response_time: float
     tools: List[dict] = []
+    
+    # Built-in flag
+    is_builtin: bool = False
 
 
 class ConnectionStatus(BaseModel):
@@ -115,47 +118,183 @@ async def _check_single_server_status(server: MCPServer) -> dict:
         }
 
 
+async def _check_builtin_server_status(server_config: dict) -> dict:
+    """Check status of a built-in default MCP server."""
+    import time
+    start_time = time.time()
+    
+    try:
+        server_type = server_config.get("type", "http")
+        url = server_config["url"]
+        
+        # Build config for aggregator
+        if server_type == 'sse':
+            config_data = {"url": url}
+        elif server_type == 'http':
+            config_data = {"endpoint": url}
+        else:
+            config_data = {"url": url}
+        
+        mcp_server = {
+            "id": f"builtin_{server_config['name']}",
+            "name": server_config["name"],
+            "type": server_type,
+            "config": config_data,
+            "enabled": True,
+            "headers": None
+        }
+        
+        config = AggregatorConfig(servers=[mcp_server])
+        aggregator = MCPAggregator()
+        
+        try:
+            tools = await asyncio.wait_for(aggregator.fetch_tools(config), timeout=3.0)
+            response_time = (time.time() - start_time) * 1000
+            return {
+                "status": "connected",
+                "message": f"Found {len(tools)} tools",
+                "response_time": round(response_time, 2),
+                "tools": tools
+            }
+        except asyncio.TimeoutError:
+            response_time = (time.time() - start_time) * 1000
+            return {
+                "status": "error",
+                "message": "Connection timeout (3s)",
+                "response_time": round(response_time, 2),
+                "tools": []
+            }
+    except Exception as e:
+        response_time = (time.time() - start_time) * 1000
+        return {
+            "status": "disconnected",
+            "message": f"Connection failed: {str(e)}",
+            "response_time": round(response_time, 2),
+            "tools": []
+        }
+
+
 @router.get("", response_model=List[MCPServerWithStatus])
 async def get_all_servers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     check_status: bool = True  # Query parameter: whether to check status
 ):
-    """Get all MCP servers for current user with status and tools"""
+    """Get all MCP servers for current user with status and tools.
+    
+    Includes both:
+    - Built-in default servers (from mcp_client.DEFAULT_MCP_SERVERS)
+    - User-configured servers (from database)
+    """
+    from app.mcp_client import DEFAULT_MCP_SERVERS
+    from datetime import datetime
+    
     servers = db.query(MCPServer).filter(
         MCPServer.uid == current_user.uid
     ).order_by(MCPServer.created_at.desc()).all()
     
-    if not check_status:
-        # If status check not needed, only return basic info
-        return [
-            MCPServerWithStatus(
-                id=s.id,
-                name=s.name,
-                transport=s.transport,
-                url=s.url,
-                command=s.command,
-                args=s.args,
-                error=s.error,
-                uid=s.uid,
-                created_at=s.created_at.isoformat(),
-                updated_at=s.updated_at.isoformat(),
-                status="unknown",
-                message="Status check disabled",
-                response_time=0,
-                tools=[]
-            )
-            for s in servers
-        ]
-    print(f"123123123")
-    # Concurrently check all server statuses
-    status_tasks = [_check_single_server_status(server) for server in servers]
-    status_results = await asyncio.gather(*status_tasks, return_exceptions=True)
+    # Collect user-configured server URLs to avoid duplicates
+    user_server_urls = {s.url for s in servers if s.url}
     
-    # Combine results
+    if not check_status:
+        # Return basic info without status checks
+        result = []
+        
+        # Add built-in servers first (skip if user already configured same URL)
+        for ds in DEFAULT_MCP_SERVERS:
+            if ds["url"] not in user_server_urls:
+                result.append(
+                    MCPServerWithStatus(
+                        id=f"builtin_{ds['name']}",
+                        name=ds.get("description", ds["name"]),
+                        transport="streamable-http",
+                        url=ds["url"],
+                        command=None,
+                        args=None,
+                        error=None,
+                        uid=current_user.uid,
+                        created_at=datetime.utcnow().isoformat(),
+                        updated_at=datetime.utcnow().isoformat(),
+                        status="unknown",
+                        message="Status check disabled",
+                        response_time=0,
+                        tools=[],
+                        is_builtin=True
+                    )
+                )
+        
+        # Add user servers
+        for s in servers:
+            result.append(
+                MCPServerWithStatus(
+                    id=s.id,
+                    name=s.name,
+                    transport=s.transport,
+                    url=s.url,
+                    command=s.command,
+                    args=s.args,
+                    error=s.error,
+                    uid=s.uid,
+                    created_at=s.created_at.isoformat(),
+                    updated_at=s.updated_at.isoformat(),
+                    status="unknown",
+                    message="Status check disabled",
+                    response_time=0,
+                    tools=[],
+                    is_builtin=False
+                )
+            )
+        return result
+
+    # === With status check ===
+    
+    # 1. Check built-in servers (skip if user already configured same URL)
+    builtin_to_check = [ds for ds in DEFAULT_MCP_SERVERS if ds["url"] not in user_server_urls]
+    
+    # 2. Build all status check tasks concurrently
+    builtin_tasks = [_check_builtin_server_status(ds) for ds in builtin_to_check]
+    user_tasks = [_check_single_server_status(server) for server in servers]
+    
+    all_results = await asyncio.gather(*(builtin_tasks + user_tasks), return_exceptions=True)
+    
+    builtin_results = all_results[:len(builtin_tasks)]
+    user_results = all_results[len(builtin_tasks):]
+    
+    # 3. Combine results
     result = []
-    for server, status_data in zip(servers, status_results):
-        # If check failed, use defaults
+    
+    # Built-in servers first
+    for ds, status_data in zip(builtin_to_check, builtin_results):
+        if isinstance(status_data, Exception):
+            status_data = {
+                "status": "error",
+                "message": str(status_data),
+                "response_time": 0,
+                "tools": []
+            }
+        
+        result.append(
+            MCPServerWithStatus(
+                id=f"builtin_{ds['name']}",
+                name=ds.get("description", ds["name"]),
+                transport="streamable-http",
+                url=ds["url"],
+                command=None,
+                args=None,
+                error=None,
+                uid=current_user.uid,
+                created_at=datetime.utcnow().isoformat(),
+                updated_at=datetime.utcnow().isoformat(),
+                status=status_data["status"],
+                message=status_data["message"],
+                response_time=status_data["response_time"],
+                tools=status_data["tools"],
+                is_builtin=True
+            )
+        )
+    
+    # User servers
+    for server, status_data in zip(servers, user_results):
         if isinstance(status_data, Exception):
             status_data = {
                 "status": "error",
@@ -179,7 +318,8 @@ async def get_all_servers(
                 status=status_data["status"],
                 message=status_data["message"],
                 response_time=status_data["response_time"],
-                tools=status_data["tools"]
+                tools=status_data["tools"],
+                is_builtin=False
             )
         )
     
@@ -210,6 +350,23 @@ async def check_server_status(
 ):
     """Check connection status of a specific MCP server and return tools"""
     import time
+    
+    # Handle built-in servers
+    if server_id.startswith("builtin_"):
+        from app.mcp_client import DEFAULT_MCP_SERVERS
+        builtin_name = server_id[len("builtin_"):]
+        builtin_config = next((s for s in DEFAULT_MCP_SERVERS if s["name"] == builtin_name), None)
+        if builtin_config:
+            status_data = await _check_builtin_server_status(builtin_config)
+            return ConnectionStatus(
+                server_id=server_id,
+                server_name=builtin_config.get("description", builtin_config["name"]),
+                status=status_data["status"],
+                message=status_data["message"],
+                response_time=status_data["response_time"],
+                tools=status_data["tools"]
+            )
+        raise HTTPException(status_code=404, detail="Built-in server not found")
     
     server = db.query(MCPServer).filter(
         MCPServer.id == server_id,

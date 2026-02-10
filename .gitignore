@@ -38,6 +38,7 @@ work_dir/
 *.db
 reference/
 dev_docs/
+doc/
 test_*.*
 
 # Root-level deprecated files

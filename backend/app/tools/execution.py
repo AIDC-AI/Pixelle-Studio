@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 # Background process registry
 _background_processes: Dict[str, Dict] = {}
 
+# ✅ Maximum completed processes to keep (prevents memory leak)
+_MAX_COMPLETED_PROCESSES = 50
+
 
 async def exec_command(
     context,  # AgentContext
@@ -69,9 +72,22 @@ async def exec_command(
     # 3. Prepare environment variables
     exec_env = dict(os.environ) if env is None else {**os.environ, **env}
     
+    # ✅ Inject PYTHONPATH and MCP config for call_tool support
+    backend_root = Path(__file__).parent.parent.parent
+    existing_pythonpath = exec_env.get("PYTHONPATH", "")
+    backend_root_str = str(backend_root)
+    if backend_root_str not in existing_pythonpath:
+        exec_env["PYTHONPATH"] = f"{backend_root_str}:{existing_pythonpath}" if existing_pythonpath else backend_root_str
+    
+    # Set MCP server config as env vars (read by _mcp_env_bootstrap.py)
+    mcp_url = getattr(context, 'mcp_server_url', None)
+    mcp_type = getattr(context, 'mcp_server_type', 'sse')
+    if mcp_url:
+        exec_env["_MCP_SERVER_URL"] = mcp_url
+        exec_env["_MCP_SERVER_TYPE"] = mcp_type
+    
     # ✅ If command uses python, replace with .venv Python
     original_command = command
-    backend_root = Path(__file__).parent.parent.parent
     venv_python = backend_root / ".venv" / "bin" / "python"
     
     if venv_python.exists():
@@ -86,6 +102,19 @@ async def exec_command(
             logger.info(f"[exec] Using .venv Python: {venv_python}")
     else:
         logger.warning(f"[exec] .venv/bin/python not found, using system Python")
+    
+    # ✅ If running a Python script, inject call_tool bootstrap
+    # Default MCP servers (高德/Bing/Fetch) are built into mcp_client.py,
+    # so bootstrap is always created (not just when mcp_url is set)
+    if _is_python_script_command(command):
+        bootstrap_file = _ensure_mcp_bootstrap(backend_root, mcp_url, mcp_type)
+        if bootstrap_file:
+            exec_env["_MCP_BOOTSTRAP"] = str(bootstrap_file)
+            # ✅ Create a wrapper that imports bootstrap then runs the actual script
+            wrapper = _ensure_mcp_wrapper(backend_root)
+            if wrapper:
+                command = _wrap_python_command(command, str(wrapper))
+                logger.info(f"[exec] Wrapped command with MCP bootstrap: {command[:120]}")
     
     # 4. Generate session ID
     session_id = f"exec_{uuid.uuid4().hex[:8]}"
@@ -252,12 +281,38 @@ async def _collect_background_output(session_id: str):
         proc_info["completed_at"] = time.time()
         proc_info["status"] = "completed" if process.returncode == 0 else "failed"
         
+        # ✅ Release the process object to free resources
+        proc_info["process"] = None
+        
         logger.info(f"[background] {session_id}: completed (exit_code: {process.returncode})")
         
     except Exception as e:
         logger.error(f"[background] {session_id}: error - {e}")
         proc_info["status"] = "error"
         proc_info["error"] = str(e)
+        proc_info["process"] = None
+    
+    # ✅ FIX: Cleanup old completed processes to prevent memory leak
+    _cleanup_completed_processes()
+
+
+def _cleanup_completed_processes():
+    """Remove old completed processes from the registry to prevent memory leak."""
+    completed = [
+        (sid, info) for sid, info in _background_processes.items()
+        if info.get("status") in ("completed", "failed", "error", "killed")
+    ]
+    
+    if len(completed) > _MAX_COMPLETED_PROCESSES:
+        # Sort by completion time, remove oldest
+        completed.sort(key=lambda x: x[1].get("completed_at", 0))
+        to_remove = completed[:len(completed) - _MAX_COMPLETED_PROCESSES]
+        
+        for sid, _ in to_remove:
+            del _background_processes[sid]
+            logger.debug(f"[background] Cleaned up old process: {sid}")
+        
+        logger.info(f"[background] Cleaned up {len(to_remove)} old completed processes")
 
 
 async def process_manage(
@@ -429,6 +484,203 @@ async def process_manage(
         }, ensure_ascii=False)
 
 
-# Import os module
+def _is_python_script_command(command: str) -> bool:
+    """Check if command is running a Python script."""
+    cmd = command.strip()
+    # Match patterns like: python script.py, python3 script.py, /path/to/python script.py
+    parts = cmd.split()
+    if len(parts) >= 2:
+        exe = Path(parts[0]).name
+        if exe in ("python", "python3") or "python" in exe:
+            # Second part should be a .py file
+            if parts[1].endswith(".py"):
+                return True
+    return True if ("python" in cmd and ".py" in cmd) else False
+
+
+def _ensure_mcp_bootstrap(backend_root: Path, mcp_url: str = None, mcp_type: str = "sse") -> Optional[Path]:
+    """
+    Create the MCP bootstrap file that provides call_tool in exec environment.
+    
+    This file is auto-imported at the start of Python scripts executed via exec,
+    making call_tool() transparently available without LLM needing MCP server details.
+    
+    Architecture:
+    - Default MCP servers (高德/Bing/Fetch) are built into app.mcp_client.DEFAULT_MCP_SERVERS
+    - call_tool() does lazy discovery → auto-routes to the correct server
+    - User-specific server (from DB) is optionally registered via env vars
+    - LLM never sees any of this; it just uses call_tool() as described in Skills
+    """
+    bootstrap_dir = backend_root / "app" / "tools" / "_bootstrap"
+    bootstrap_dir.mkdir(parents=True, exist_ok=True)
+    
+    bootstrap_file = bootstrap_dir / "mcp_bootstrap.py"
+    
+    # Create/update the bootstrap file
+    bootstrap_code = '''"""
+Auto-generated MCP bootstrap for exec environment.
+Provides call_tool() function transparently.
+
+Default MCP servers (高德/Bing/Fetch) are built into app.mcp_client.
+call_tool() auto-discovers and routes to the correct server.
+"""
 import os
+import sys
+
+def _setup_call_tool():
+    """Setup call_tool in the exec environment."""
+    # Ensure backend root is in sys.path
+    backend_root = os.environ.get("PYTHONPATH", "").split(":")[0]
+    if backend_root and backend_root not in sys.path:
+        sys.path.insert(0, backend_root)
+    
+    try:
+        from app.mcp_client import call_tool as _async_call_tool
+        
+        # Optionally register user-specific MCP server from env vars
+        mcp_url = os.environ.get("_MCP_SERVER_URL")
+        mcp_type = os.environ.get("_MCP_SERVER_TYPE", "sse")
+        if mcp_url:
+            from app.mcp_client import register_tool_server
+            register_tool_server("__user_env__", mcp_url, mcp_type)
+        
+        import asyncio
+        
+        def call_tool(tool_name, args=None):
+            """
+            Call an MCP tool synchronously.
+            
+            Built-in servers: 高德地图, Bing搜索, Fetch网页抓取
+            Usage: result = call_tool('bing_search', {'query': 'search term'})
+            """
+            import asyncio
+            from app.mcp_client import call_tool as _act
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        return pool.submit(asyncio.run, _act(tool_name, args or {})).result()
+                else:
+                    return loop.run_until_complete(_act(tool_name, args or {}))
+            except RuntimeError:
+                return asyncio.run(_act(tool_name, args or {}))
+        
+        return call_tool
+    except ImportError as e:
+        print(f"[MCP Bootstrap] Warning: Cannot import mcp_client: {e}")
+        return None
+
+# Auto-setup on import
+_call_tool_func = _setup_call_tool()
+if _call_tool_func:
+    # Make call_tool available as a module-level function
+    call_tool = _call_tool_func
+'''
+    
+    try:
+        # Only write if content changed
+        if bootstrap_file.exists():
+            existing = bootstrap_file.read_text()
+            if existing == bootstrap_code:
+                return bootstrap_file
+        
+        bootstrap_file.write_text(bootstrap_code)
+        logger.info(f"[exec] Created MCP bootstrap: {bootstrap_file}")
+        return bootstrap_file
+    except Exception as e:
+        logger.warning(f"[exec] Failed to create MCP bootstrap: {e}")
+        return None
+
+
+def _ensure_mcp_wrapper(backend_root: Path) -> Optional[Path]:
+    """
+    Create a wrapper script that imports the MCP bootstrap then runs the target script.
+    
+    This is the key mechanism that makes call_tool() available in exec-launched Python scripts.
+    The wrapper:
+    1. Reads and executes the bootstrap file (which defines call_tool in globals)
+    2. Runs the target script with call_tool already in builtins
+    """
+    bootstrap_dir = backend_root / "app" / "tools" / "_bootstrap"
+    bootstrap_dir.mkdir(parents=True, exist_ok=True)
+    
+    wrapper_file = bootstrap_dir / "_run_with_mcp.py"
+    
+    wrapper_code = '''"""
+Auto-generated wrapper: injects call_tool() then runs the target Python script.
+Usage: python _run_with_mcp.py <target_script.py> [args...]
+"""
+import os
+import sys
+import runpy
+
+def _inject_call_tool():
+    """Load MCP bootstrap to make call_tool available as a builtin."""
+    bootstrap_path = os.environ.get("_MCP_BOOTSTRAP")
+    if not bootstrap_path or not os.path.exists(bootstrap_path):
+        return
+    
+    try:
+        # Execute bootstrap in a namespace
+        ns = {}
+        exec(open(bootstrap_path).read(), ns)
+        
+        # If bootstrap defined call_tool, inject it into builtins
+        # so it's available in ALL subsequently executed scripts
+        if "call_tool" in ns:
+            import builtins
+            builtins.call_tool = ns["call_tool"]
+    except Exception as e:
+        print(f"[MCP Wrapper] Warning: Failed to load bootstrap: {e}", file=sys.stderr)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python _run_with_mcp.py <script.py> [args...]", file=sys.stderr)
+        sys.exit(1)
+    
+    # Inject call_tool into builtins
+    _inject_call_tool()
+    
+    # Fix sys.argv so the target script sees the correct arguments
+    target_script = sys.argv[1]
+    sys.argv = sys.argv[1:]
+    
+    # Run the target script
+    runpy.run_path(target_script, run_name="__main__")
+'''
+    
+    try:
+        if wrapper_file.exists():
+            existing = wrapper_file.read_text()
+            if existing == wrapper_code:
+                return wrapper_file
+        
+        wrapper_file.write_text(wrapper_code)
+        logger.info(f"[exec] Created MCP wrapper: {wrapper_file}")
+        return wrapper_file
+    except Exception as e:
+        logger.warning(f"[exec] Failed to create MCP wrapper: {e}")
+        return None
+
+
+def _wrap_python_command(command: str, wrapper_path: str) -> str:
+    """
+    Wrap a Python script command to use the MCP wrapper.
+    
+    Transforms:
+        /path/to/python script.py arg1 arg2
+    Into:
+        /path/to/python /path/to/_run_with_mcp.py script.py arg1 arg2
+    """
+    cmd = command.strip()
+    parts = cmd.split(None, 1)  # Split into [python_exe, rest]
+    
+    if len(parts) < 2:
+        return command  # No script to wrap
+    
+    python_exe = parts[0]
+    script_and_args = parts[1]
+    
+    return f"{python_exe} {wrapper_path} {script_and_args}"
 

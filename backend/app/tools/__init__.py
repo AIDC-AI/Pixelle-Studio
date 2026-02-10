@@ -17,6 +17,9 @@ class AgentContext:
     # __init__.py is under app/tools/, need to go up 3 levels to backend/
     script_dir: Path = None
     backend_root: Path = None
+    # MCP server configuration (for call_tool injection into execution environment)
+    mcp_server_url: str = None
+    mcp_server_type: str = "sse"
     
     def __post_init__(self):
         """Auto-set paths after initialization"""

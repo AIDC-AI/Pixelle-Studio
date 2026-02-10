@@ -65,14 +65,23 @@ class ShellSessionManager:
             self._cleanup_task = asyncio.create_task(self._auto_cleanup())
     
     async def _auto_cleanup(self):
-        """Auto cleanup expired sessions"""
+        """
+        Auto cleanup expired sessions.
+        
+        ✅ Fix: Added error counter to prevent silent task death.
+        If cleanup fails repeatedly, it logs a critical warning but keeps running.
+        """
+        consecutive_errors = 0
+        MAX_CONSECUTIVE_ERRORS = 10
+        
         while True:
             try:
                 await asyncio.sleep(30)  # Check every 30 seconds
                 
+                # ✅ Use list() to avoid "dict changed during iteration" errors
                 # Collect sessions that need to be closed
                 to_close = []
-                for sid, session in self.sessions.items():
+                for sid, session in list(self.sessions.items()):
                     # Check if cleanup is needed
                     if not session.is_alive:
                         to_close.append((sid, "Process has ended"))
@@ -86,15 +95,30 @@ class ShellSessionManager:
                 # Close sessions
                 for sid, reason in to_close:
                     logger.info(f"[cleanup] Closing session {sid}: {reason}")
-                    await self._close_session(sid)
+                    try:
+                        await self._close_session(sid)
+                    except Exception as e:
+                        logger.error(f"[cleanup] Error closing session {sid}: {e}")
                 
                 # Check total session count
                 if len(self.sessions) > self.MAX_TOTAL_SESSIONS:
                     logger.warning(f"[cleanup] Total session count exceeded ({len(self.sessions)} > {self.MAX_TOTAL_SESSIONS})")
                     await self._emergency_cleanup()
+                
+                # Reset error counter on successful iteration
+                consecutive_errors = 0
                     
+            except asyncio.CancelledError:
+                logger.info("[cleanup] Cleanup task cancelled")
+                break
             except Exception as e:
-                logger.error(f"[cleanup] Cleanup task error: {e}")
+                consecutive_errors += 1
+                logger.error(f"[cleanup] Cleanup task error ({consecutive_errors}/{MAX_CONSECUTIVE_ERRORS}): {e}")
+                
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    logger.critical(f"[cleanup] Too many consecutive errors, cleanup task degraded")
+                    # Don't exit - keep trying but with longer interval
+                    await asyncio.sleep(60)
     
     async def _emergency_cleanup(self):
         """Emergency cleanup: close oldest idle sessions"""
@@ -133,7 +157,9 @@ class ShellSessionManager:
         self,
         user_id: str,
         shell_type: str = "bash",
-        workdir: Optional[Path] = None
+        workdir: Optional[Path] = None,
+        mcp_server_url: Optional[str] = None,
+        mcp_server_type: str = "sse"
     ) -> ShellSession:
         """
         Get or create session (auto-managed).
@@ -333,10 +359,100 @@ class ShellSessionManager:
         
         logger.info(f"[session] Created new session: {session_id} ({shell_type}, user: {user_id})")
         
+        # ✅ Inject call_tool into Python/IPython sessions (transparent to LLM)
+        # Always inject: default MCP servers are built into mcp_client.py,
+        # plus optionally register user-specific server if provided
+        if shell_type in ("python", "ipython"):
+            await self._inject_call_tool(session, mcp_server_url, mcp_server_type)
+        
         # Ensure cleanup task is running
         self.start_cleanup_task()
         
         return session
+    
+    async def _inject_call_tool(
+        self, 
+        session: ShellSession, 
+        mcp_server_url: Optional[str] = None, 
+        mcp_server_type: str = "sse"
+    ):
+        """
+        Inject call_tool function into Python/IPython session.
+        
+        This makes `call_tool('tool_name', {args})` available in the execution
+        environment without the LLM needing to know about MCP server details.
+        
+        Architecture:
+        - Default MCP servers (高德/Bing/Fetch) are built into app.mcp_client
+        - call_tool() does lazy discovery → auto-routes to the correct server
+        - User-specific server (from DB) is optionally registered on top
+        - LLM never sees any of this; it just uses call_tool() as described in Skills
+        """
+        backend_root = Path(__file__).parent.parent.parent
+        
+        # Step 1: Setup sys.path and imports
+        # mcp_client.py has DEFAULT_MCP_SERVERS built-in, no explicit registration needed
+        step1 = (
+            f"import sys; sys.path.insert(0, {repr(str(backend_root))}); "
+            f"import asyncio"
+        )
+        
+        # Optionally register user-specific MCP server (from DB)
+        if mcp_server_url:
+            step1 += (
+                f"; from app.mcp_client import register_tool_server; "
+                f"register_tool_server('__user__', {repr(mcp_server_url)}, {repr(mcp_server_type)})"
+            )
+        
+        # Step 2: Define sync call_tool wrapper
+        # The async call_tool from mcp_client handles:
+        # - Routing to registered tools
+        # - Lazy discovery from DEFAULT_MCP_SERVERS
+        # - Fallback to try each default server
+        step2 = (
+            "def call_tool(tool_name, args=None):\n"
+            "    import asyncio\n"
+            "    from app.mcp_client import call_tool as _act\n"
+            "    try:\n"
+            "        loop = asyncio.get_event_loop()\n"
+            "        if loop.is_running():\n"
+            "            import concurrent.futures\n"
+            "            with concurrent.futures.ThreadPoolExecutor() as pool:\n"
+            "                return pool.submit(asyncio.run, _act(tool_name, args or {})).result()\n"
+            "        else:\n"
+            "            return loop.run_until_complete(_act(tool_name, args or {}))\n"
+            "    except RuntimeError:\n"
+            "        return asyncio.run(_act(tool_name, args or {}))\n"
+        )
+        
+        try:
+            # Step 1: Setup imports
+            session.process.sendline(step1)
+            session.process.expect(session._prompt, timeout=10)
+            
+            # Step 2: Define call_tool function using exec
+            escaped_step2 = repr(step2)
+            session.process.sendline(f"exec(compile({escaped_step2}, '<mcp_init>', 'exec'))")
+            session.process.expect(session._prompt, timeout=10)
+            
+            # Step 3: Verify call_tool is actually defined
+            session.process.sendline("print('__call_tool_ok__' if callable(call_tool) else '__call_tool_fail__')")
+            idx = session.process.expect([session._prompt, pexpect.TIMEOUT], timeout=5)
+            output = session.process.before if hasattr(session.process, 'before') else ""
+            
+            if "__call_tool_ok__" in str(output):
+                logger.info(
+                    f"[session] ✅ call_tool verified in session {session.session_id} "
+                    f"(defaults: 高德/Bing/Fetch, user_mcp: {mcp_server_url or 'none'})"
+                )
+            else:
+                logger.warning(
+                    f"[session] ⚠️ call_tool injection unverified in session {session.session_id}. "
+                    f"Output: {str(output)[:200]}"
+                )
+            
+        except Exception as e:
+            logger.warning(f"[session] Failed to inject call_tool into session {session.session_id}: {e}")
     
     async def execute_in_session(
         self,
@@ -488,7 +604,14 @@ class ShellSessionManager:
             }
     
     async def _close_session(self, session_id: str):
-        """Closing session"""
+        """
+        Close a session with proper timeout and resource cleanup.
+        
+        ✅ Fixes applied:
+        - Added timeout to process.wait() to prevent hanging forever
+        - Properly close PTY file descriptors to prevent FD leak
+        - Force kill if graceful exit fails
+        """
         if session_id not in self.sessions:
             return
         
@@ -497,26 +620,40 @@ class ShellSessionManager:
         try:
             if session.is_alive:
                 # Try graceful exit
-                if session.shell_type == "bash":
-                    session.process.sendline("exit")
-                elif session.shell_type in ["python", "ipython"]:
-                    session.process.sendline("quit()")
-                
-                # Wait for process to end
                 try:
-                    session.process.wait()
-                except:
+                    if session.shell_type == "bash":
+                        session.process.sendline("exit")
+                    elif session.shell_type in ["python", "ipython"]:
+                        session.process.sendline("quit()")
+                except Exception:
                     pass
                 
-                # Force close
+                # ✅ FIX: Wait with timeout (was hanging forever before)
+                try:
+                    # Use expect with timeout instead of blocking wait()
+                    session.process.expect(pexpect.EOF, timeout=5)
+                except (pexpect.TIMEOUT, pexpect.EOF, Exception):
+                    pass
+                
+                # Force kill if still alive
                 if session.is_alive:
-                    session.process.kill(9)
+                    try:
+                        session.process.kill(9)
+                    except Exception:
+                        pass
+            
+            # ✅ FIX: Explicitly close the PTY file descriptor to prevent FD leak
+            try:
+                session.process.close(force=True)
+            except Exception:
+                pass
         
         except Exception as e:
             logger.error(f"[session] Failed to close session {session_id}: {e}")
         
         finally:
-            del self.sessions[session_id]
+            # Always remove from registry
+            self.sessions.pop(session_id, None)
     
     def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session information"""
@@ -625,7 +762,9 @@ async def shell_exec(
         session = await _session_manager.get_or_create_session(
             user_id=context.user_id,
             shell_type=shell_type,
-            workdir=context.script_dir
+            workdir=context.script_dir,
+            mcp_server_url=getattr(context, 'mcp_server_url', None),
+            mcp_server_type=getattr(context, 'mcp_server_type', 'sse'),
         )
         logger.info(f"[shell_exec] Got session: {session.session_id}, workdir={session.workdir}")
         

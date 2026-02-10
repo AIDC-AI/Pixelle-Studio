@@ -37,4 +37,7 @@ export interface MCPServer {
   message: string
   response_time: number
   tools: MCPTool[]
+  
+  // Built-in flag (default servers from mcp_client.py)
+  is_builtin?: boolean
 }

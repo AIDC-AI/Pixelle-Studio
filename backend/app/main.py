@@ -378,25 +378,27 @@ async def process_with_agent(
             await websocket.send_json(event)
 
             # Persist step trace (Cursor-like)
+            step_type = event.get("type", "unknown")
+            content = event.get("content")
+            
+            # ✅ FIX: Skip response_delta early WITHOUT creating a DB session
+            # (was creating and immediately closing a DB session for every delta - wasteful)
+            if step_type == "response_delta":
+                continue
+            
+            # Capture response text for final message (no DB needed)
+            if step_type == "response" and isinstance(content, str) and content.strip():
+                final_response_text = content
+            
+            # Only create DB session for events that need persistence
             try:
                 db = SessionLocal()
-                step_type = event.get("type", "unknown")
-                content = event.get("content")
                 data_json = None
-                
-                # Skip response_delta events (too granular for persistence)
-                if step_type == "response_delta":
-                    db.close()
-                    continue
                 
                 # Events with structured data
                 if step_type in ("execution_result", "final_result", "tool_call", "tool_result"):
                     data_json = json.dumps(event, ensure_ascii=False)
                     content = None
-                
-                # Capture response text for final message
-                if step_type == "response" and isinstance(content, str) and content.strip():
-                    final_response_text = content
                 
                 step = ChatStep(
                     chat_id=chat_id,
@@ -408,6 +410,8 @@ async def process_with_agent(
                 db.add(step)
                 db.commit()
                 step_index += 1
+            except Exception as e:
+                log.error(f"[{chat_id[:8]}] Error persisting step: {e}")
             finally:
                 try:
                     db.close()
@@ -480,7 +484,14 @@ async def process_with_agent(
     except Exception as e:
         log.error(f"Error processing message for {chat_id}: {e}", exc_info=True)
         try:
+            # Send both error and final_result so frontend can close cleanly
             await websocket.send_json({"type": "error", "content": str(e)})
+            await websocket.send_json({
+                "type": "final_result",
+                "status": "error",
+                "result": {"error": str(e)},
+                "error": str(e)
+            })
         except:
             pass
 

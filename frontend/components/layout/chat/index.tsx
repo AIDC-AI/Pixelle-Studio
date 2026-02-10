@@ -270,15 +270,14 @@ const Chat = () => {
 
       // Async title generation (non-blocking)
       api.generateTitle(input).then(({ title }) => {
-        if (title && title.length <= 10) {
-          updateSessionTitle(session!.id, title);
-        } else if (title && title.length > 10) {
-          updateSessionTitle(session!.id, title.substring(0, 10));
+        if (title) {
+          // Backend already constrains title to 50 chars; just use it directly
+          updateSessionTitle(session!.id, title.trim());
         }
       }).catch((err) => {
         console.error('Failed to generate title:', err);
-        // Use first 10 characters of input as fallback
-        const fallbackTitle = input.substring(0, 10);
+        // Use first 20 characters of input as fallback
+        const fallbackTitle = input.length > 20 ? input.substring(0, 20) + '...' : input;
         updateSessionTitle(session!.id, fallbackTitle);
       });
     }
@@ -294,6 +293,7 @@ const Chat = () => {
     }])
 
     let currentExecCount = 0;
+    let receivedFinalResult = false;
 
     try {
       // 1. Create Chat (backend will auto-select tools)
@@ -607,6 +607,7 @@ const Chat = () => {
           })
         } else if (data.type === 'final_result') {
           // Final result - close connection now
+          receivedFinalResult = true;
           const hadDirectResponse = currentExecCount === -1;
           const hadCodeExecution = currentExecCount > 0;
 
@@ -679,6 +680,24 @@ const Chat = () => {
 
       ws.onclose = () => {
         console.log('WebSocket closed');
+        // If we were still processing and never received a final_result,
+        // the connection was dropped unexpectedly (server restart, timeout, etc.)
+        if (!receivedFinalResult) {
+          // Save any accumulated streaming response as a partial result
+          if (streamingResponse && streamingResponse.trim()) {
+            addMessages(currentSessionId, [{
+              type: 'response',
+              content: streamingResponse.trim(),
+              timestamp: Date.now()
+            }]);
+            setStreamingResponse('');
+          }
+          addMessages(currentSessionId, [{
+            type: 'error',
+            content: '⚠️ Connection lost before task completed. The backend may have restarted or the request timed out. Please try again.',
+            timestamp: Date.now()
+          }]);
+        }
         setIsProcessing(false);
         wsRef.current = null;
       };

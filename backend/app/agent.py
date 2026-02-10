@@ -336,6 +336,8 @@ class SkillAgent:
         return AgentContext(
             user_id=self.user_id,
             session_id=session_id,
+            mcp_server_url=self.mcp_server_url,
+            mcp_server_type=self.mcp_server_type,
         )
     
     async def _execute_tool(self, tool_call: Dict, context: AgentContext) -> str:
