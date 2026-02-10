@@ -42,7 +42,6 @@ doc/
 test_*.*
 
 # Root-level deprecated files
-/docker-compose.yml
 /main.py
 /package-lock.json
 /pyproject.toml

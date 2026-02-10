@@ -1,0 +1,70 @@
+# ============================================================
+# Pixelle-Studio Docker Compose
+#
+# Usage (via start.sh):
+#   ./start.sh -D          Build & start both services
+#   ./start.sh -Df         Build & start frontend only
+#   ./start.sh -Db         Build & start backend only
+#   ./start.sh -Dk         Stop & remove containers
+#   ./start.sh -Dkf        Stop frontend container only
+#   ./start.sh -Dkb        Stop backend container only
+#
+# Or use docker compose directly:
+#   docker compose up --build          Build & start
+#   docker compose up --build -d       Build & start in background
+#   docker compose down                Stop & remove
+#   docker compose logs -f             Follow logs
+#
+# Environment variables (set before running or in .env at project root):
+#   NEXT_PUBLIC_API_BASE    Frontend -> Backend API URL  (default: http://localhost:8001/api)
+#   NEXT_PUBLIC_WS_BASE     Frontend -> Backend WS URL   (default: ws://localhost:8001/ws)
+#   FRONTEND_PORT           Frontend exposed port        (default: 3000)
+#   BACKEND_PORT            Backend exposed port         (default: 8001)
+# ============================================================
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8001/api}
+        NEXT_PUBLIC_WS_BASE: ${NEXT_PUBLIC_WS_BASE:-ws://localhost:8001/ws}
+    container_name: pixelle-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pixelle-backend
+    ports:
+      - "${BACKEND_PORT:-8001}:8001"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=sqlite:///./data/app.db
+    volumes:
+      # Persist database
+      - backend-data:/app/data
+      # Persist generated scripts / uploaded files
+      - backend-scripts:/app/scripts
+      # Persist logs
+      - backend-logs:/app/logs
+      # Persist context storage
+      - backend-storage:/app/storage
+      # Persist skills (user-created)
+      - backend-skills:/app/skills
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+  backend-scripts:
+  backend-logs:
+  backend-storage:
+  backend-skills:
+

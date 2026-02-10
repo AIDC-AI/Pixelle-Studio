@@ -21,7 +21,16 @@
 #   ./start.sh -pd      Start both in production, background
 #   ./start.sh -pk      Kill production services
 #
-# Flags can be combined freely, e.g. -fd, -kfb, -pdb, etc.
+# Docker mode (-D):
+#   ./start.sh -D       Build & start both via docker compose (foreground)
+#   ./start.sh -Dd      Build & start both via docker compose (detached)
+#   ./start.sh -Df      Build & start frontend container only
+#   ./start.sh -Db      Build & start backend container only
+#   ./start.sh -Dk      Stop & remove containers
+#   ./start.sh -Dkf     Stop frontend container only
+#   ./start.sh -Dkb     Stop backend container only
+#
+# Flags can be combined freely, e.g. -fd, -kfb, -pdb, -Ddf, etc.
 # ============================================================
 
 set -e
@@ -38,12 +47,16 @@ PROD_WORKERS="${PROD_WORKERS:-4}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 BACKEND_PORT="${BACKEND_PORT:-8001}"
 
+# Docker compose project name
+COMPOSE_PROJECT="${COMPOSE_PROJECT:-pixelle}"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # ============================================================
@@ -54,15 +67,17 @@ FLAG_BACKEND=false
 FLAG_KILL=false
 FLAG_DAEMON=false
 FLAG_PROD=false
+FLAG_DOCKER=false
 
-while getopts "fbkdp" opt; do
+while getopts "fbkdpD" opt; do
     case $opt in
         f) FLAG_FRONTEND=true ;;
         b) FLAG_BACKEND=true ;;
         k) FLAG_KILL=true ;;
         d) FLAG_DAEMON=true ;;
         p) FLAG_PROD=true ;;
-        *) echo "Usage: $0 [-f] [-b] [-k] [-d] [-p]"; exit 1 ;;
+        D) FLAG_DOCKER=true ;;
+        *) echo "Usage: $0 [-f] [-b] [-k] [-d] [-p] [-D]"; exit 1 ;;
     esac
 done
 
@@ -71,6 +86,71 @@ if [ "$FLAG_FRONTEND" = false ] && [ "$FLAG_BACKEND" = false ]; then
     FLAG_FRONTEND=true
     FLAG_BACKEND=true
 fi
+
+# ============================================================
+# Docker mode
+# ============================================================
+if [ "$FLAG_DOCKER" = true ]; then
+    echo -e "${BLUE}========== DOCKER MODE ==========${NC}"
+    cd "$ROOT_DIR"
+
+    # Check docker compose is available
+    if ! command -v docker &> /dev/null; then
+        echo -e "${RED}Error: docker is not installed${NC}"
+        exit 1
+    fi
+
+    # Determine which services to operate on
+    SERVICES=""
+    [ "$FLAG_FRONTEND" = true ] && SERVICES="$SERVICES frontend"
+    [ "$FLAG_BACKEND" = true ]  && SERVICES="$SERVICES backend"
+
+    if [ "$FLAG_KILL" = true ]; then
+        # ---- Docker kill/stop ----
+        echo -e "${YELLOW}=== Stopping Docker containers ===${NC}"
+        if [ "$FLAG_FRONTEND" = true ] && [ "$FLAG_BACKEND" = true ]; then
+            docker compose -p "$COMPOSE_PROJECT" down
+        else
+            docker compose -p "$COMPOSE_PROJECT" stop $SERVICES
+            docker compose -p "$COMPOSE_PROJECT" rm -f $SERVICES
+        fi
+        echo -e "${GREEN}=== Docker containers stopped ===${NC}"
+        exit 0
+    fi
+
+    # ---- Docker build & start ----
+    echo -e "${BLUE}=== Building & starting Docker containers ===${NC}"
+    echo -e "${CYAN}Services: $SERVICES${NC}"
+
+    if [ "$FLAG_DAEMON" = true ]; then
+        # Detached mode
+        docker compose -p "$COMPOSE_PROJECT" up --build -d $SERVICES
+        echo ""
+        echo -e "${BLUE}============================================${NC}"
+        echo -e "${BLUE}  Docker services started (detached)${NC}"
+        [ "$FLAG_FRONTEND" = true ] && echo -e "${BLUE}  Frontend: http://localhost:${FRONTEND_PORT}${NC}"
+        [ "$FLAG_BACKEND" = true ]  && echo -e "${BLUE}  Backend:  http://localhost:${BACKEND_PORT}${NC}"
+        echo -e "${BLUE}  Stop with: ./start.sh -Dk${NC}"
+        echo -e "${BLUE}  Logs:      docker compose -p $COMPOSE_PROJECT logs -f${NC}"
+        echo -e "${BLUE}============================================${NC}"
+    else
+        # Foreground mode (docker compose up with --build, shows logs)
+        echo ""
+        echo -e "${BLUE}============================================${NC}"
+        echo -e "${BLUE}  Building & starting Docker containers${NC}"
+        [ "$FLAG_FRONTEND" = true ] && echo -e "${BLUE}  Frontend: http://localhost:${FRONTEND_PORT}${NC}"
+        [ "$FLAG_BACKEND" = true ]  && echo -e "${BLUE}  Backend:  http://localhost:${BACKEND_PORT}${NC}"
+        echo -e "${BLUE}  Press Ctrl+C to stop${NC}"
+        echo -e "${BLUE}============================================${NC}"
+        echo ""
+        docker compose -p "$COMPOSE_PROJECT" up --build $SERVICES
+    fi
+    exit 0
+fi
+
+# ============================================================
+# Non-Docker modes below (dev / production)
+# ============================================================
 
 # Show mode banner
 if [ "$FLAG_PROD" = true ]; then
@@ -223,7 +303,7 @@ start_backend_prod_daemon() {
 }
 
 # ============================================================
-# Main logic
+# Main logic (dev / production)
 # ============================================================
 
 # Step 1: Kill targeted services first
