@@ -317,60 +317,39 @@ const Chat = () => {
       // Immediately show "task in progress" status hint (using streamingResponse)
       setStreamingResponse('Task in progress, waiting for response...');
 
+      let lastType = ''
+      let streamingString = ''
+      
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         const _messages: Message[] = []
 
+        if (lastType === 'response_delta' && data.type !== 'response_delta' && !!streamingString && streamingString.trim() !== '') {
+          // if type is not final_resul，add delta to messages
+          if (data.type !== 'final_result') {
+            _messages.push({
+              type: 'response',
+              content: streamingString.trim(),
+              timestamp: Date.now()
+            })
+          }
+          lastType = ''
+          streamingString = ''
+          setStreamingResponse('');
+        }
+
         if (data.type === 'response_delta') {
+          lastType = 'response_delta'
           const deltaContent = data.accumulated || '';
           // Filter code blocks from the content
           const { filtered, state: newParserState } = filterCodeBlocks(deltaContent.trim(), parserState);
           setParserState(newParserState);
           // Update state - show filtered reasoning text
           setStreamingResponse(filtered);
-          // setStreamingResponse(prev => {
-          //   // const newContent = prev + filtered;
-          //   // const trimmedContent = newContent.trim();
-          //   // console.log('prev--->', prev);
-          //   // console.log('filtered2--->', filtered);
-          //   // If this is the first real response after "Processing..." message
-          //   const isLoadingText = prev.includes('Task in progress');
-          //   return isLoadingText ? filtered : filtered;
-          // });
-          // Only accumulate streaming output when there are no tool calls
-          // Backend has already filtered content within <execute> tags, this is a secondary check (quick rollback)
-          // if (!hasToolCallsRef.current) {
-          //   const deltaContent = data.content || '';
-
-          //   // Use functional update to always use the latest state value
-          //   setStreamingResponse(prev => {
-          //     // If current is "task in progress..." hint, replace it when receiving the first real response
-          //     const isLoadingText = prev.includes('Task in progress');
-          //     const newContent = isLoadingText ? deltaContent : (prev + deltaContent);
-          //     const trimmedContent = newContent.trim();
-          //     return newContent;
-          //     // Frontend quick rollback: clear immediately when detecting content that shouldn't be displayed
-          //     if (trimmedContent.includes('{"code') ||
-          //       trimmedContent.includes('{ "code') ||
-          //       trimmedContent.includes('{\'code') ||
-          //       trimmedContent.includes('<execute')) {
-          //       // Clear immediately and mark
-          //       hasToolCallsRef.current = true;
-          //       console.log('[Frontend] Detected tool call pattern, rolling back streaming content');
-          //       return '';
-          //     } else if (trimmedContent === '{' || trimmedContent === '{"') {
-          //       // Standalone { or {" is also suspicious, but don't clear immediately, wait for next character
-          //       return newContent;
-          //     } else {
-          //       // Safe content, display normally
-          //       return newContent;
-          //     }
-          //   });
-          // }
-          // Don't add to messages, let MessageList display streamingResponse in real-time
+          streamingString = filtered;
         } else if (data.type === 'iteration_start') {
           // Clear "task in progress..." hint
-          setStreamingResponse('');
+          // setStreamingResponse('');
           _messages.push({
             type: 'iteration',
             content: `🔄 Starting iteration ${data.iteration}/${data.max_iterations}`,
@@ -395,14 +374,14 @@ const Chat = () => {
           })
         } else if (data.type === 'code') {
           // === Before showing code, save accumulated reasoning text ===
-          if (streamingResponse && streamingResponse.trim()) {
-            _messages.push({
-              type: 'response',
-              content: streamingResponse.trim(),
-              timestamp: Date.now()
-            });
-          }
-          setStreamingResponse('');
+          // if (streamingResponse && streamingResponse.trim()) {
+          //   _messages.push({
+          //     type: 'response',
+          //     content: streamingResponse.trim(),
+          //     timestamp: Date.now()
+          //   });
+          // }
+          // setStreamingResponse('');
           hasToolCallsRef.current = true;
           
           // Handle code generation event
@@ -493,7 +472,8 @@ const Chat = () => {
         } else if (data.type === 'response') {
           // Handle direct response from agent (complete response, non-streaming)
           // If there is accumulated streaming content, use it; otherwise use data.content
-          const finalContent = streamingResponse || data.content;
+          // const finalContent = streamingResponse || data.content;
+          const finalContent = data.content;
           if (finalContent) {
             _messages.push({
               type: 'response',
@@ -502,7 +482,7 @@ const Chat = () => {
             })
           }
           // Clear streaming response
-          setStreamingResponse('');
+          // setStreamingResponse('');
           // Mark that we received a direct response
           // So we don't show duplicate content in final_result
           currentExecCount = -1; // Use -1 as a flag for direct response
@@ -511,15 +491,15 @@ const Chat = () => {
           hasToolCallsRef.current = true;
           
           // === Critical fix: save accumulated reasoning text before clearing streaming response ===
-          if (streamingResponse && streamingResponse.trim()) {
-            _messages.push({
-              type: 'response',
-              content: streamingResponse.trim(),
-              timestamp: Date.now()
-            });
-          }
-          // Clear streaming response
-          setStreamingResponse('');
+          // if (streamingResponse && streamingResponse.trim()) {
+          //   _messages.push({
+          //     type: 'response',
+          //     content: streamingResponse.trim(),
+          //     timestamp: Date.now()
+          //   });
+          // }
+          // // Clear streaming response
+          // setStreamingResponse('');
 
           // Handle tool call event
           const toolName = data.name || '';
@@ -577,7 +557,7 @@ const Chat = () => {
           })
         } else if (data.type === 'thinking') {
           // Clear "Task in progress..." message
-          setStreamingResponse('');
+          // setStreamingResponse('');
           // Handle thinking process from LLM
           _messages.push({
             type: 'thinking',

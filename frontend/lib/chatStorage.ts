@@ -70,12 +70,14 @@ class ChatStorage {
    */
   async saveMessage(sessionId: string, message: Message, messageId?: string): Promise<void> {
     const db = await this.getDB();
-    const messageWithMeta: StoredMessage = {
+    const tx = db.transaction('messages', 'readwrite');
+    const timestamp = Date.now();
+
+    await tx.store.put({
       ...message,
-      id: messageId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: messageId || `msg_${timestamp}_0`,
       sessionId,
-    };
-    await db.put('messages', messageWithMeta);
+    } as StoredMessage);
     
     // Update session timestamp
     await this.updateSessionTimestamp(sessionId);

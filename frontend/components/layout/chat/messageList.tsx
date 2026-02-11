@@ -32,13 +32,13 @@ interface IProps {
 }
 
 // System action type messages
-const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system', 'thinking', 'tool_call', 'tool_result'];
+const SYSTEM_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'iteration', 'log', 'evaluation', 'advice', 'system', 'thinking', 'tool_call', 'tool_result', 'response'];
 
 // Substantial system operations (these should trigger System Process display)
 const SUBSTANTIAL_OPERATION_TYPES = ['code', 'execution_result', 'skill_loaded', 'tool_call'];
 
 // User interaction type messages (not placed in system container)
-const USER_INTERACTION_TYPES = ['user', 'response', 'result', 'output_files', 'error'];
+const USER_INTERACTION_TYPES = ['user', 'result', 'output_files', 'error'];
 
 interface MessageGroup {
     type: 'system_operations' | 'single';

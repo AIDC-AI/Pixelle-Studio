@@ -36,7 +36,15 @@ export function useChatStorage(sessionId?: string) {
   const saveMessage = useCallback(async (sessId: string, msg: Message, messageId?: string) => {
     try {
       // Optimistic update: immediately update UI
-      setMessages(prev => [...prev, msg]);
+      setMessages(prev => {
+        // if type is response_delta，update last item
+        if (prev?.length > 1 && prev?.[prev?.length - 2]?.type === 'response_delta' && msg?.type === 'response_delta') {
+          return [...prev.slice(0, prev?.length - 2), msg];
+        } else {
+          return [...prev, msg];
+        }
+      });
+
       
       // Save to IndexedDB in background (non-blocking for UI)
       chatStorage.saveMessage(sessId, msg, messageId).catch(err => {
