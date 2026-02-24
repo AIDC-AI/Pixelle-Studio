@@ -1,3 +1,15 @@
+# Copyright (C) 2026 AIDC-AI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Modular System Prompt Builder
 Reference: Clawdbot design pattern for clear, maintainable System Prompts.
@@ -289,22 +301,29 @@ class SystemPromptBuilder:
             "- Short commands can be executed directly; write long code to files first",
             "- Use `read_file` to view execution results",
             "",
-            "**Code length limit (important):**",
-            "- **shell_exec code should not exceed 50 lines or 1500 characters**",
-            "- For longer code, **must** use `write_file` + `exec`:",
+            "**Code length limit (CRITICAL - MUST follow):**",
+            "- **shell_exec code MUST NOT exceed 30 lines or 800 characters**",
+            "- **shell_exec code MUST NOT contain emoji or non-ASCII characters** (e.g. 🚗📍⚠️ etc.)",
+            "- Any code that involves formatting, report generation, or rich output with emoji/unicode **MUST** use `write_file` + `exec`",
+            "- For longer or complex code, **MUST** use `write_file` + `exec`:",
             "  ```",
-            "  # Correct: write long code to file first",
+            "  # ✅ Correct: write long code to file first",
             "  write_file(\"script.py\", \"...long code...\")",
             "  exec(\"python script.py\")",
             "  ",
-            "  # Wrong: execute long code directly in shell_exec",
-            "  shell_exec(\"...1000 lines of code...\", shell_type=\"python\")",
+            "  # ❌ Wrong: execute long code directly in shell_exec",
+            "  shell_exec(\"...long code with emoji...\", shell_type=\"python\")",
             "  ```",
-            "- **Reason**: pexpect environment may be unstable with long code, causing buffer issues",
-            "- **Example scenarios**: PDF generation, data processing scripts, complex function definitions",
+            "- **Reason**: pexpect PTY environment is unstable with long code or non-ASCII/emoji characters, causing IO hangs that cannot be recovered",
+            "- **Example scenarios that MUST use write_file + exec**:",
+            "  - Any code > 15 lines",
+            "  - Code with emoji characters (🚗, 📍, ⚠️, etc.)",
+            "  - Code with print statements containing Chinese or formatted output",
+            "  - PDF generation, data processing scripts, complex function definitions",
+            "  - Report generation or formatted text output",
             "",
             "**Code conciseness principle:**",
-            "- Keep shell_exec code concise and clear",
+            "- Keep shell_exec code concise and clear (simple variable assignments, short API calls, quick checks)",
             "- Complex logic should be encapsulated in files",
             "- For code with multiple function definitions, use write_file",
             "- For functions that need to be called multiple times, define them in a file first then import",

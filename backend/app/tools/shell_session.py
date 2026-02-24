@@ -1,3 +1,15 @@
+# Copyright (C) 2026 AIDC-AI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Persistent shell session management - based on pexpect.
 Supports variable persistence and multi-step execution.
@@ -8,6 +20,8 @@ import uuid
 import time
 import json
 import logging
+import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
@@ -15,6 +29,10 @@ from dataclasses import dataclass
 from .security import get_user_workdir
 
 logger = logging.getLogger(__name__)
+
+# Shared thread pool for running blocking pexpect operations
+# This allows asyncio.wait_for() to actually cancel hung pexpect calls
+_pexpect_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pexpect")
 
 
 @dataclass
@@ -531,13 +549,22 @@ class ShellSessionManager:
             start_time = time.time()
             
             try:
-                # Wait for prompt to reappear
-                logger.debug(f"[exec] Waiting for prompt, timeout={timeout} seconds")
-                session.process.expect(session._prompt, timeout=timeout)
-                logger.debug(f"[exec] Received prompt response")
+                # ✅ FIX: Run pexpect.expect in thread executor so asyncio can cancel it
+                # pexpect.expect() is synchronous and blocks the event loop.
+                # By running it in a thread, asyncio.wait_for() can actually timeout.
+                loop = asyncio.get_event_loop()
                 
-                # Get output
-                output = session.process.before
+                def _blocking_expect():
+                    """Run pexpect.expect in a thread to avoid blocking the event loop."""
+                    session.process.expect(session._prompt, timeout=timeout)
+                    return session.process.before
+                
+                logger.debug(f"[exec] Waiting for prompt in thread executor, timeout={timeout} seconds")
+                output = await asyncio.wait_for(
+                    loop.run_in_executor(_pexpect_executor, _blocking_expect),
+                    timeout=timeout + 5  # 5s buffer over pexpect's own timeout
+                )
+                logger.debug(f"[exec] Received prompt response")
                 
                 # Clean output (remove echoed command)
                 lines = output.split('\n')
@@ -567,6 +594,40 @@ class ShellSessionManager:
                     "session_id": session.session_id,
                     "duration_ms": duration_ms
                 }
+            
+            except asyncio.TimeoutError:
+                duration_ms = int((time.time() - start_time) * 1000)
+                duration_sec = duration_ms / 1000
+                
+                # Try to get existing output
+                partial_output = ""
+                try:
+                    partial_output = session.process.before or ""
+                except:
+                    pass
+                
+                session.error_count += 1
+                
+                error_msg = f"Command execution timed out ({timeout} seconds)"
+                logger.error(f"[exec] {session.session_id}: Timeout (asyncio)! Waited {duration_sec:.1f} seconds")
+                logger.error(f"[exec] Partial output (first 500 chars): {str(partial_output)[:500]}")
+                
+                # ✅ FIX: Force kill the hung process to recover the session
+                logger.warning(f"[exec] {session.session_id}: Force killing hung session for recovery")
+                try:
+                    session.process.kill(9)
+                except Exception as kill_err:
+                    logger.error(f"[exec] {session.session_id}: Failed to kill process: {kill_err}")
+                
+                return {
+                    "status": "error",
+                    "error": error_msg,
+                    "output": str(partial_output),
+                    "session_id": session.session_id,
+                    "duration_ms": duration_ms,
+                    "timeout_seconds": timeout,
+                    "suggestion": "Command was stuck and the session has been terminated. It will auto-restart on next call.\nPossible causes:\n1. Code contains emoji/non-ASCII characters (use write_file+exec instead)\n2. Code execution time too long\n3. Infinite loop or waiting for input"
+                }
                 
             except pexpect.TIMEOUT:
                 duration_ms = int((time.time() - start_time) * 1000)
@@ -580,18 +641,25 @@ class ShellSessionManager:
                 
                 session.error_count += 1
                 
-                error_msg = f"⚠️ Command execution timed out ({timeout}  seconds)"
-                logger.error(f"[exec] {session.session_id}: Timeout! Waited {duration_sec:.1f} seconds")
-                logger.error(f"[exec] Partial output (first 500 chars): {partial_output[:500]}")
+                error_msg = f"Command execution timed out ({timeout} seconds)"
+                logger.error(f"[exec] {session.session_id}: Timeout (pexpect)! Waited {duration_sec:.1f} seconds")
+                logger.error(f"[exec] Partial output (first 500 chars): {str(partial_output)[:500]}")
+                
+                # ✅ FIX: Also force kill on pexpect timeout for recovery
+                logger.warning(f"[exec] {session.session_id}: Force killing timed-out session for recovery")
+                try:
+                    session.process.kill(9)
+                except Exception as kill_err:
+                    logger.error(f"[exec] {session.session_id}: Failed to kill process: {kill_err}")
                 
                 return {
                     "status": "error",
                     "error": error_msg,
-                    "output": partial_output,
+                    "output": str(partial_output),
                     "session_id": session.session_id,
                     "duration_ms": duration_ms,
                     "timeout_seconds": timeout,
-                    "suggestion": "Command may be stuck. Possible reasons:\n1. Code execution time too long\n2. Waiting for user input\n3. Infinite loop or insufficient resources\nSuggestion: Check code logic, reduce data volume, or increase timeout parameter"
+                    "suggestion": "Command was stuck and the session has been terminated. It will auto-restart on next call.\nPossible causes:\n1. Code contains emoji/non-ASCII characters (use write_file+exec instead)\n2. Code execution time too long\n3. Infinite loop or waiting for input"
                 }
             
             except pexpect.EOF:
@@ -720,31 +788,52 @@ async def shell_exec(
     """
     try:
         # ✅ Check command length (prevent long code causing pexpect issues)
-        MAX_COMMAND_LENGTH = 1500  # Max characters
-        MAX_COMMAND_LINES = 50     # Max lines
+        MAX_COMMAND_LENGTH = 800   # Max characters (lowered from 1500 for safety)
+        MAX_COMMAND_LINES = 30     # Max lines (lowered from 50 for safety)
         
         command_lines = command.count('\n') + 1
         command_length = len(command)
         
-        if command_length > MAX_COMMAND_LENGTH or command_lines > MAX_COMMAND_LINES:
+        # ✅ Detect emoji and non-ASCII characters (these cause pexpect IO hangs)
+        has_non_ascii = bool(re.search(r'[^\x00-\x7F]', command))
+        # Emoji pattern: covers most common emoji ranges
+        has_emoji = bool(re.search(
+            r'[\U0001F300-\U0001F9FF\U00002702-\U000027B0\U0000FE00-\U0000FE0F'
+            r'\U0000200D\U00002600-\U000026FF\U00002700-\U000027BF]',
+            command
+        ))
+        
+        reject_reason = None
+        if has_emoji:
+            reject_reason = "Code contains emoji characters which cause pexpect IO hangs"
+        elif has_non_ascii and command_length > 500:
+            reject_reason = f"Code contains non-ASCII characters and is too long ({command_length} chars)"
+        elif command_length > MAX_COMMAND_LENGTH or command_lines > MAX_COMMAND_LINES:
+            reject_reason = f"Code too long ({command_length} chars, {command_lines} lines, limit: {MAX_COMMAND_LENGTH}/{MAX_COMMAND_LINES})"
+        
+        if reject_reason:
             logger.warning(
-                f"[shell_exec] Command too long: {command_length} chars, {command_lines} lines "
-                f"(limit: {MAX_COMMAND_LENGTH} chars, {MAX_COMMAND_LINES} lines)"
+                f"[shell_exec] Command rejected: {reject_reason} "
+                f"(chars={command_length}, lines={command_lines}, "
+                f"non_ascii={has_non_ascii}, emoji={has_emoji})"
             )
             return json.dumps({
                 "status": "error",
-                "error": f"⚠️ Code too long for shell_exec execution",
+                "error": f"Code not suitable for shell_exec: {reject_reason}",
                 "details": {
                     "command_length": command_length,
                     "command_lines": command_lines,
                     "max_length": MAX_COMMAND_LENGTH,
-                    "max_lines": MAX_COMMAND_LINES
+                    "max_lines": MAX_COMMAND_LINES,
+                    "has_non_ascii": has_non_ascii,
+                    "has_emoji": has_emoji
                 },
                 "suggestion": (
-                    "Please use write_file + exec for long code:\n"
+                    "Please use write_file + exec for this code:\n"
                     "1. write_file('script.py', '...your code...')\n"
                     "2. exec('python script.py')\n\n"
-                    "This is more stable and avoids pexpect buffer issues."
+                    "This is more stable and avoids pexpect buffer/IO issues with "
+                    "long code or special characters (emoji, Chinese, etc.)."
                 )
             }, ensure_ascii=False)
         
@@ -801,12 +890,27 @@ async def shell_exec(
                 timeout=async_timeout
             )
         except asyncio.TimeoutError:
-            logger.error(f"[shell_exec] asyncio timeout protection triggered! Command execution exceeded {async_timeout}  seconds")
+            logger.error(f"[shell_exec] asyncio timeout protection triggered! Command execution exceeded {async_timeout} seconds")
+            
+            # ✅ FIX: Force close the stuck session for self-recovery
+            logger.warning(f"[shell_exec] Force closing stuck session {session.session_id} for recovery")
+            try:
+                await _session_manager._close_session(session.session_id)
+                logger.info(f"[shell_exec] Successfully closed stuck session {session.session_id}")
+            except Exception as close_err:
+                logger.error(f"[shell_exec] Failed to close stuck session: {close_err}")
+            
             result = {
                 "status": "error",
-                "error": f"⚠️ Command execution severely timed out (>{async_timeout} seconds)",
+                "error": f"Command execution severely timed out (>{async_timeout} seconds). Session has been terminated and will auto-restart.",
                 "session_id": session.session_id,
-                "suggestion": "Command may be completely stuck. Suggestions:\n1. Check for infinite loops\n2. Check if waiting for user input\n3. Try using new_session=True to force create new session"
+                "suggestion": (
+                    "The session was stuck and has been forcefully closed. It will auto-restart on next call.\n"
+                    "Suggestions:\n"
+                    "1. Use write_file + exec instead of shell_exec for long/complex code\n"
+                    "2. Avoid emoji and non-ASCII characters in shell_exec\n"
+                    "3. Check for infinite loops or code waiting for user input"
+                )
             }
         
         # ✅ After execution: detect new files
