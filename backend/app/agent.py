@@ -755,20 +755,24 @@ class SkillAgent:
                                     # Log but don't notify frontend
                                     logger.debug(f"[agent] Skipping file notification: {actual_filename} (notify_frontend={notify_frontend}, is_script={is_script_file})")
                             
-                            # exec/shell_exec: display execution result
-                            elif tool_name in ["exec", "shell_exec"] and status == "success":
-                                stdout = tool_data.get("stdout", "") or tool_data.get("output", "")
-                                stderr = tool_data.get("stderr", "")
-                                if stdout or stderr:
-                                    yield {
-                                        "type": "execution_result",
-                                        "tool": tool_name,
-                                        "stdout": stdout,
-                                        "stderr": stderr,
-                                        "status": status
-                                    }
+                            # exec/shell_exec: display execution result and detect files
+                            # ✅ Process created_files for BOTH success AND error status
+                            # (files may be created before a script error occurs)
+                            elif tool_name in ["exec", "shell_exec"]:
+                                if status == "success":
+                                    stdout = tool_data.get("stdout", "") or tool_data.get("output", "")
+                                    stderr = tool_data.get("stderr", "")
+                                    if stdout or stderr:
+                                        yield {
+                                            "type": "execution_result",
+                                            "tool": tool_name,
+                                            "stdout": stdout,
+                                            "stderr": stderr,
+                                            "status": status
+                                        }
                                 
-                                # ✅ Detect newly created files (from exec/shell_exec return)
+                                # ✅ Detect newly created files regardless of status
+                                # Files may be created/modified even when exec returns an error
                                 created_files = tool_data.get("created_files", [])
                                 for file_info in created_files:
                                     file_name = file_info.get("name", "")

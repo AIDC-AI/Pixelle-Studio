@@ -166,11 +166,14 @@ async def exec_command(
             }, ensure_ascii=False)
         
         else:
-            # ✅ Before execution: record existing files
-            before_files = set()
+            # ✅ Before execution: record existing files with modification times
+            # Using mtime allows detection of OVERWRITTEN files (same name, new content)
+            before_files: Dict[str, float] = {}
             try:
                 if resolved_workdir.exists():
-                    before_files = set(f.name for f in resolved_workdir.iterdir() if f.is_file())
+                    for f in resolved_workdir.iterdir():
+                        if f.is_file():
+                            before_files[f.name] = f.stat().st_mtime
             except Exception as e:
                 logger.debug(f"[exec] Cannot read working directory: {e}")
             
@@ -198,6 +201,10 @@ async def exec_command(
                 
                 logger.info(f"[exec] {session_id}: completed (exit_code: {exit_code}, duration: {duration:.2f}s)")
                 
+                # ✅ Detect new or modified files (works for BOTH success and error cases)
+                # Files may be created before a script error occurs
+                created_files = _detect_changed_files(resolved_workdir, before_files)
+                
                 if exit_code != 0:
                     # Execution failed
                     error_msg = f"Command execution failed (exit code {exit_code})"
@@ -206,35 +213,21 @@ async def exec_command(
                     if stdout:
                         error_msg += f"\n\nSTDOUT:\n{stdout}"
                     
-                    return json.dumps({
+                    result = {
                         "status": "error",
                         "exit_code": exit_code,
                         "stdout": stdout,
                         "stderr": stderr,
                         "duration_ms": int(duration * 1000),
                         "error": error_msg
-                    }, ensure_ascii=False)
-                
-                # ✅ After success: detect newly created files
-                created_files = []
-                try:
-                    if resolved_workdir.exists():
-                        after_files = set(f.name for f in resolved_workdir.iterdir() if f.is_file())
-                        new_file_names = after_files - before_files
-                        
-                        if new_file_names:
-                            for file_name in new_file_names:
-                                file_path = resolved_workdir / file_name
-                                if file_path.exists():
-                                    created_files.append({
-                                        "name": file_name,
-                                        "path": str(file_path),
-                                        "size": file_path.stat().st_size,
-                                        "lines": len(file_path.read_text(errors='ignore').splitlines()) if file_path.suffix in ['.py', '.txt', '.md', '.sh'] else 0
-                                    })
-                                    logger.info(f"[exec] Detected new file: {file_name} ({file_path.stat().st_size} bytes)")
-                except Exception as e:
-                    logger.debug(f"[exec] File detection failed: {e}")
+                    }
+                    
+                    # ✅ Include created files even on error (file may have been created before the error)
+                    if created_files:
+                        result["created_files"] = created_files
+                        logger.info(f"[exec] {session_id}: {len(created_files)} file(s) created despite error exit")
+                    
+                    return json.dumps(result, ensure_ascii=False)
                 
                 # Execution successful
                 result = {
@@ -245,7 +238,7 @@ async def exec_command(
                     "duration_ms": int(duration * 1000)
                 }
                 
-                # ✅ If there are new files, add to result
+                # ✅ If there are new/modified files, add to result
                 if created_files:
                     result["created_files"] = created_files
                 
@@ -494,6 +487,55 @@ async def process_manage(
             "status": "error",
             "error": f"Unknown action: {action}"
         }, ensure_ascii=False)
+
+
+def _detect_changed_files(workdir: Path, before_files: Dict[str, float]) -> list:
+    """
+    Detect new or modified files in the working directory.
+    
+    Compares file modification times (mtime) instead of just filenames,
+    so both NEW files and OVERWRITTEN files are detected.
+    
+    Args:
+        workdir: Working directory to scan
+        before_files: Dict of {filename: mtime} captured before execution
+    
+    Returns:
+        List of dicts with file info for new/modified non-script files
+    """
+    created_files = []
+    try:
+        if not workdir.exists():
+            return created_files
+        
+        for f in workdir.iterdir():
+            if not f.is_file():
+                continue
+            
+            file_name = f.name
+            current_mtime = f.stat().st_mtime
+            
+            # Check if file is new or was modified during execution
+            is_new = file_name not in before_files
+            is_modified = (not is_new) and (current_mtime > before_files[file_name])
+            
+            if is_new or is_modified:
+                # Skip intermediate script files
+                if any(file_name.endswith(ext) for ext in ['.py', '.sh', '.js', '.ts']):
+                    continue
+                
+                created_files.append({
+                    "name": file_name,
+                    "path": str(f),
+                    "size": f.stat().st_size,
+                    "lines": 0
+                })
+                action = "new" if is_new else "modified"
+                logger.info(f"[exec] Detected {action} file: {file_name} ({f.stat().st_size} bytes)")
+    except Exception as e:
+        logger.debug(f"[exec] File detection failed: {e}")
+    
+    return created_files
 
 
 def _is_python_script_command(command: str) -> bool:

@@ -868,11 +868,14 @@ async def shell_exec(
         )
         logger.info(f"[shell_exec] Got session: {session.session_id}, workdir={session.workdir}")
         
-        # ✅ Before execution: record existing files
-        before_files = set()
+        # ✅ Before execution: record existing files with modification times
+        # Using mtime allows detection of OVERWRITTEN files (same name, new content)
+        before_files: dict = {}
         try:
             if context.script_dir.exists():
-                before_files = set(f.name for f in context.script_dir.iterdir() if f.is_file())
+                for f in context.script_dir.iterdir():
+                    if f.is_file():
+                        before_files[f.name] = f.stat().st_mtime
         except Exception as e:
             logger.debug(f"[shell_exec] Cannot read working directory: {e}")
         
@@ -913,25 +916,34 @@ async def shell_exec(
                 )
             }
         
-        # ✅ After execution: detect new files
-        after_files = set()
+        # ✅ After execution: detect new or modified files (using mtime comparison)
         created_files = []
         try:
             if context.script_dir.exists():
-                after_files = set(f.name for f in context.script_dir.iterdir() if f.is_file())
-                new_file_names = after_files - before_files
-                
-                if new_file_names:
-                    for file_name in new_file_names:
-                        file_path = context.script_dir / file_name
-                        if file_path.exists():
-                            created_files.append({
-                                "name": file_name,
-                                "path": str(file_path),
-                                "size": file_path.stat().st_size,
-                                "lines": len(file_path.read_text(errors='ignore').splitlines()) if file_path.suffix in ['.py', '.txt', '.md', '.sh'] else 0
-                            })
-                            logger.info(f"[shell_exec] Detected new file: {file_name} ({file_path.stat().st_size} bytes)")
+                for f in context.script_dir.iterdir():
+                    if not f.is_file():
+                        continue
+                    
+                    file_name = f.name
+                    current_mtime = f.stat().st_mtime
+                    
+                    # Check if file is new or was modified during execution
+                    is_new = file_name not in before_files
+                    is_modified = (not is_new) and (current_mtime > before_files[file_name])
+                    
+                    if is_new or is_modified:
+                        # Skip intermediate script files
+                        if any(file_name.endswith(ext) for ext in ['.py', '.sh', '.js', '.ts']):
+                            continue
+                        
+                        created_files.append({
+                            "name": file_name,
+                            "path": str(f),
+                            "size": f.stat().st_size,
+                            "lines": 0
+                        })
+                        action = "new" if is_new else "modified"
+                        logger.info(f"[shell_exec] Detected {action} file: {file_name} ({f.stat().st_size} bytes)")
         except Exception as e:
             logger.debug(f"[shell_exec] File detection failed: {e}")
         
