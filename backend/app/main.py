@@ -1,5 +1,5 @@
 """
-MCP Workflow Backend - Simplified with Single Agent Architecture.
+Pixelle-Studio Backend - Simplified with Single Agent Architecture.
 
 This is a chat-based interface where a single agent handles all user requests,
 using skill guidance when appropriate.
@@ -43,7 +43,7 @@ from app.routes import mcp_servers, users, sessions, subagents
 # DB models (sqlite persistence)
 from app.database.models import SessionLocal, ChatSession, ChatTurn, ChatStep
 
-app = FastAPI(title="MCP Workflow API", version="2.0.0")
+app = FastAPI(title="Pixelle-Studio API", version="2.0.0")
 
 # Include routers
 app.include_router(mcp_servers.router)

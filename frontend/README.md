@@ -1,4 +1,4 @@
-# MCP Workflow Demo
+# Pixelle-Studio Demo
 
 This is an MCP (Model Context Protocol) workflow demo application built with **Next.js 16 + React 19 + TypeScript**.
 

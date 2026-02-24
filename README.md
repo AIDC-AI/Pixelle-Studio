@@ -1,4 +1,4 @@
-# MCP Workflow Demo - README
+# Pixelle-Studio - README
 
 ## Project Overview
 
