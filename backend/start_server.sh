@@ -31,6 +31,7 @@ echo ""
 
 # Start uvicorn using .venv Python
 # --reload-dir app only watches app directory, avoiding restarts from scripts directory changes
-# --reload-exclude "_bootstrap" prevents reload when exec creates mcp_bootstrap.py
-.venv/bin/python3 -m uvicorn app.main:app --reload --reload-dir app --reload-dir skills --reload-exclude "_bootstrap" --host 0.0.0.0 --port 8001
+# --reload-exclude "*/_bootstrap/*" prevents reload when exec creates mcp_bootstrap.py
+# Note: the glob pattern must use wildcards to match full paths (fnmatch matching)
+.venv/bin/python3 -m uvicorn app.main:app --reload --reload-dir app --reload-dir skills --reload-exclude "*/_bootstrap/*" --host 0.0.0.0 --port 8001
 

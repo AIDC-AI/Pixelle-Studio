@@ -47,12 +47,24 @@ const inferLangFromPath = (path: string): string | null => {
     return ext ? langMap[ext] || null : null;
 };
 
+// Parse arguments: backend may send as JSON string or parsed object
+const parseArgs = (args: any): Record<string, any> | null => {
+    if (!args) return null;
+    if (typeof args === 'object' && !Array.isArray(args)) return args;
+    if (typeof args === 'string') {
+        try { return JSON.parse(args); } catch { return null; }
+    }
+    return null;
+};
+
 const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     if (!toolCall) return null;
 
-    const hasArguments = toolCall.arguments && Object.keys(toolCall.arguments).length > 0;
+    // Parse arguments once (handles both string and object formats)
+    const parsedArgs = useMemo(() => parseArgs(toolCall.arguments), [toolCall.arguments]);
+    const hasArguments = parsedArgs !== null && Object.keys(parsedArgs).length > 0;
     const hasResult = toolCall.result !== undefined;
 
     // Format JSON string, handle possible parsing errors
@@ -70,31 +82,31 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
 
     // Parse smart rendering info for code-bearing tools
     const codeRenderInfo = useMemo(() => {
-        if (isResult || !hasArguments || !toolCall.arguments) return null;
+        if (isResult || !hasArguments || !parsedArgs) return null;
         const config = CODE_TOOLS[toolCall.name];
         if (!config) return null;
 
-        const codeContent = toolCall.arguments[config.codeField];
+        const codeContent = parsedArgs[config.codeField];
         if (!codeContent || typeof codeContent !== 'string') return null;
 
         // Determine language
         let lang = config.defaultLang;
-        if (config.langField && toolCall.arguments[config.langField]) {
-            lang = toolCall.arguments[config.langField];
+        if (config.langField && parsedArgs[config.langField]) {
+            lang = parsedArgs[config.langField];
         }
-        if (config.pathField && toolCall.arguments[config.pathField]) {
-            const inferred = inferLangFromPath(toolCall.arguments[config.pathField]);
+        if (config.pathField && parsedArgs[config.pathField]) {
+            const inferred = inferLangFromPath(parsedArgs[config.pathField]);
             if (inferred) lang = inferred;
         }
 
         // Collect remaining args (non-code fields)
         const restArgs: Record<string, any> = {};
-        for (const [k, v] of Object.entries(toolCall.arguments)) {
+        for (const [k, v] of Object.entries(parsedArgs)) {
             if (k !== config.codeField) restArgs[k] = v;
         }
 
         return { code: codeContent, language: lang, restArgs };
-    }, [toolCall, isResult, hasArguments]);
+    }, [toolCall, isResult, hasArguments, parsedArgs]);
 
     // Render plain JSON code block
     const renderJsonBlock = (code: string, title: string) => (
@@ -103,6 +115,7 @@ const ToolCallItem: React.FC<IProps> = ({ toolCall, isResult = false }) => {
             <CodeHighlighter 
                 language="json"
                 code={code}
+                customStyle={{ fontSize: '12px' }}
             />
         </div>
     );
