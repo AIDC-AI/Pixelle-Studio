@@ -1,11 +1,6 @@
 # backend/Dockerfile
 FROM python:3.11-slim
 
-# 1. Configure mirror source for apt-get (optional, comment out if network is good)
-# Using Aliyun Debian mirror source
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-    sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
-
 # 2. Install system dependencies and Node.js (backend scripts need node for PPT generation)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
@@ -18,9 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /app
-
-# 4. Configure npm mirror source (optional, comment out if network is good)
-RUN npm config set registry https://registry.npmmirror.com || true
 
 # 5. Copy dependency files and install Python dependencies
 # Use --frozen to ensure strict installation from lock file

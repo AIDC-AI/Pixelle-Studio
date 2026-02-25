@@ -3,9 +3,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Configure npm mirror source (optional, comment out if network is good)
-RUN npm config set registry https://registry.npmmirror.com
-
 # Copy dependency files
 COPY package.json package-lock.json* ./
 
