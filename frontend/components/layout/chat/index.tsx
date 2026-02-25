@@ -15,6 +15,7 @@
 import { Message, ExecutionResult, OutputFile } from "@/types/message";
 import { useEffect, useState, useRef, useCallback, lazy, Suspense, useMemo } from "react";
 import { api } from "@/lib/api";
+import { API_BASE } from "@/lib/data";
 import { useApp } from "@/context";
 import { sessionAPI } from "@/lib/sessionApi";
 import { chatStorage } from "@/lib/chatStorage";
@@ -417,13 +418,15 @@ const Chat = () => {
 
           // Convert file path to HTTP URL
           // /Users/.../backend/scripts/1/2026-02-04/test.pdf -> /files/1/2026-02-04/test.pdf
+          // Derive the base URL from API_BASE (strip trailing /api)
+          const filesBaseUrl = API_BASE.replace(/\/api\/?$/, '');
           let fileUrl = '';
           const scriptsMatch = filePath.match(/scripts\/(.+)$/);
           if (scriptsMatch) {
-            fileUrl = `http://localhost:8001/files/${scriptsMatch[1]}`;
+            fileUrl = `${filesBaseUrl}/files/${scriptsMatch[1]}`;
           } else {
             // If path format doesn't match, try using relative_path directly
-            fileUrl = `http://localhost:8001/files/${relativePath}`;
+            fileUrl = `${filesBaseUrl}/files/${relativePath}`;
           }
 
           // Create OutputFile object
