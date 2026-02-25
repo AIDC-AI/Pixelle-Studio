@@ -231,6 +231,7 @@ shell_exec("print(df.describe())", shell_type="python")  # df 仍然存在！
 
 - **Python 3.10+** 以及 [uv](https://docs.astral.sh/uv/getting-started/installation/)（Python 包管理器）
 - **Node.js 20+** 以及 npm
+- **Docker & Docker Compose**（可选，用于容器化部署）
 
 ### 方式一：一键启动
 
@@ -248,7 +249,53 @@ cp backend/.env.example backend/.env
 ./start.sh
 ```
 
-### 方式二：分步启动
+### 方式二：Docker Compose 部署（推荐用于生产环境）
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/AIDC-AI/Pixelle-Studio.git
+cd Pixelle-Studio
+
+# 2. 配置环境变量
+cp .env.example .env
+# 编辑 .env，填入你的 API Key：
+# OPENAI_API_KEY=your-api-key
+
+# 3. 构建并启动所有服务
+docker compose up -d
+
+# 4. 查看日志（可选）
+docker compose logs -f
+```
+
+启动后访问 👉 **http://localhost:3000**
+
+<details>
+<summary><b>📦 Docker Compose 常用命令</b></summary>
+
+<br>
+
+```bash
+docker compose up -d            # 后台启动所有服务
+docker compose up               # 前台启动（直接查看日志）
+docker compose down             # 停止所有服务
+docker compose logs -f          # 查看所有日志
+docker compose logs -f backend  # 仅查看后端日志
+docker compose up --build       # 重新构建镜像并启动
+docker compose ps               # 查看运行中的服务状态
+```
+
+**数据持久化**：以下数据通过 Docker Volume 持久化存储：
+- `backend-data` — SQLite 数据库
+- `backend-scripts` — 生成的文件（PDF/PPT/Excel/HTML 等）
+- `backend-skills` — 用户自定义技能
+- `backend-logs` — 应用日志
+
+清除所有数据：`docker compose down -v`
+
+</details>
+
+### 方式三：分步启动
 
 ```bash
 # 后端
@@ -272,9 +319,14 @@ npm run dev           # 启动开发服务器（端口 3000）
 |------|------|--------|
 | `OPENAI_API_KEY` | OpenAI API Key | 必填 |
 | `OPENAI_BASE_URL` | API 地址 | `https://api.openai.com/v1` |
-| `LLM_MODEL` | 使用的模型 | `gpt-4o` |
+| `OPENAI_MODEL` | 使用的模型 | `gpt-4o` |
 | `FRONTEND_PORT` | 前端端口 | `3000` |
 | `BACKEND_PORT` | 后端端口 | `8001` |
+| `NEXT_PUBLIC_API_BASE` | 前端连接后端 API 地址 | `http://localhost:8001/api` |
+| `NEXT_PUBLIC_WS_BASE` | 前端连接后端 WebSocket 地址 | `ws://localhost:8001/ws` |
+| `JWT_SECRET` | JWT 签名密钥 | 自动生成 |
+
+> 💡 完整的可配置环境变量列表请参考 `.env.example` 文件。
 
 ---
 
@@ -308,7 +360,8 @@ Pixelle-Studio/
 │   │   └── ui/                # 通用 UI 组件
 │   ├── hooks/                 # React Hooks
 │   ├── lib/                   # API 客户端
-│   └── types/                 # TypeScript 类型定义
+│   ├── types/                 # TypeScript 类型定义
+│   └── Dockerfile             # 前端容器镜像
 │
 ├── backend/                   # 后端 (Python + FastAPI)
 │   ├── app/
@@ -321,8 +374,11 @@ Pixelle-Studio/
 │   ├── skills/                # 技能库
 │   │   ├── default/           # 预置技能 (PDF/PPT/Excel/搜索...)
 │   │   └── <user_id>/         # 用户自定义技能
-│   └── scripts/               # 生成的文件存储
+│   ├── scripts/               # 生成的文件存储
+│   └── Dockerfile             # 后端容器镜像
 │
+├── docker-compose.yml         # Docker Compose 编排配置
+├── .env.example               # 环境变量模板
 ├── assets/                    # README 素材
 └── start.sh                   # 一键启动脚本
 ```
@@ -335,7 +391,7 @@ Pixelle-Studio/
 
 **前端**：Next.js 16 · React 19 · TypeScript · Tailwind CSS
 
-**基础设施**：SQLite · MCP Protocol
+**基础设施**：SQLite · MCP Protocol · Docker Compose
 
 ---
 

@@ -1,12 +1,38 @@
+# Dependencies
 node_modules
+
+# Build output
 .next
+out
+
+# Git
 .git
 .gitignore
+
+# Documentation
 README.md
+LICENSE
+NOTICE
+
+# System files
 .DS_Store
+Thumbs.db
+
+# Logs
 *.log
+
+# Environment files
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
+# IDE
+.vscode/
+.idea/
+
+# Docker files (not needed in context)
+.dockerignore
+Dockerfile
+docker-compose.yml

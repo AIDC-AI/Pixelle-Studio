@@ -17,8 +17,8 @@ COPY . .
 
 # Set build-time environment variables (important: if Next.js code uses ENV, pass them at build time or expose via next.config.js at runtime)
 # Note: placeholder values here, actual deployment typically has browser directly request backend URL
-ARG NEXT_PUBLIC_API_BASE
-ARG NEXT_PUBLIC_WS_BASE
+ARG NEXT_PUBLIC_API_BASE=http://localhost:8001/api
+ARG NEXT_PUBLIC_WS_BASE=ws://localhost:8001/ws
 ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
 ENV NEXT_PUBLIC_WS_BASE=${NEXT_PUBLIC_WS_BASE}
 

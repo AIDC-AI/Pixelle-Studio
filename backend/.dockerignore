@@ -11,8 +11,6 @@ dist
 build
 .venv
 venv/
-*.pyc
-*.pyo
 
 # Node
 node_modules/
@@ -27,7 +25,8 @@ logs/
 *.sqlite
 app.db
 
-# Environment files (note: .env may be needed, but usually passed via env_file)
+# Environment files (passed via docker compose env_file)
+.env
 .env.local
 .env.*.local
 
@@ -49,15 +48,20 @@ Thumbs.db
 
 # Documentation
 README.md
-*.md
-!SKILL.md
+LICENSE
+NOTICE
 
 # Tests and scripts
 tests/
 test_*.py
 *_test.py
 
-# Storage directories (mounted at runtime)
+# Storage directories (mounted at runtime via volumes)
 storage/
 scripts/
-!scripts/default/
+!scripts/.gitkeep
+
+# Docker files (not needed in context)
+.dockerignore
+Dockerfile
+docker-compose.yml

@@ -31,6 +31,7 @@ mcp-server-test/
 .next
 
 .env
+!.env.example
 work_dir/
 .DS_Store/
 .vscode

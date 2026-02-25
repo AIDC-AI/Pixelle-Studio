@@ -231,6 +231,7 @@ Seamlessly connect external tools via the [Model Context Protocol](https://model
 
 - **Python 3.10+** and [uv](https://docs.astral.sh/uv/getting-started/installation/) (Python package manager)
 - **Node.js 20+** and npm
+- **Docker & Docker Compose** (optional, for containerized deployment)
 
 ### Option 1: One-Command Start
 
@@ -248,7 +249,53 @@ cp backend/.env.example backend/.env
 ./start.sh
 ```
 
-### Option 2: Manual Start
+### Option 2: Docker Compose (Recommended for Deployment)
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/AIDC-AI/Pixelle-Studio.git
+cd Pixelle-Studio
+
+# 2. Configure environment variables
+cp .env.example .env
+# Edit .env and fill in your API key:
+# OPENAI_API_KEY=your-api-key
+
+# 3. Build and start all services
+docker compose up -d
+
+# 4. View logs (optional)
+docker compose logs -f
+```
+
+Then visit 👉 **http://localhost:3000**
+
+<details>
+<summary><b>📦 Docker Compose Commands Reference</b></summary>
+
+<br>
+
+```bash
+docker compose up -d            # Start all services in background
+docker compose up               # Start in foreground (see logs directly)
+docker compose down             # Stop all services
+docker compose logs -f          # Follow all logs
+docker compose logs -f backend  # Follow backend logs only
+docker compose up --build       # Rebuild images and start
+docker compose ps               # Show running services status
+```
+
+**Data Persistence**: The following data is persisted through Docker volumes:
+- `backend-data` — SQLite database
+- `backend-scripts` — Generated files (PDF/PPT/Excel/HTML etc.)
+- `backend-skills` — User-defined skills
+- `backend-logs` — Application logs
+
+To reset all data: `docker compose down -v`
+
+</details>
+
+### Option 3: Manual Start
 
 ```bash
 # Backend
@@ -272,9 +319,14 @@ Then visit 👉 **http://localhost:3000**
 |----------|-------------|---------|
 | `OPENAI_API_KEY` | OpenAI API Key | Required |
 | `OPENAI_BASE_URL` | API Base URL | `https://api.openai.com/v1` |
-| `LLM_MODEL` | Model to use | `gpt-4o` |
+| `OPENAI_MODEL` | Model to use | `gpt-4o` |
 | `FRONTEND_PORT` | Frontend port | `3000` |
 | `BACKEND_PORT` | Backend port | `8001` |
+| `NEXT_PUBLIC_API_BASE` | Frontend → Backend API URL | `http://localhost:8001/api` |
+| `NEXT_PUBLIC_WS_BASE` | Frontend → Backend WebSocket URL | `ws://localhost:8001/ws` |
+| `JWT_SECRET` | JWT signing secret | Auto-generated |
+
+> 💡 See `.env.example` for the full list of configurable environment variables.
 
 ---
 
@@ -308,7 +360,8 @@ Pixelle-Studio/
 │   │   └── ui/                # Shared UI components
 │   ├── hooks/                 # React Hooks
 │   ├── lib/                   # API clients
-│   └── types/                 # TypeScript type definitions
+│   ├── types/                 # TypeScript type definitions
+│   └── Dockerfile             # Frontend container image
 │
 ├── backend/                   # Backend (Python + FastAPI)
 │   ├── app/
@@ -321,8 +374,11 @@ Pixelle-Studio/
 │   ├── skills/                # Skills library
 │   │   ├── default/           # Built-in skills (PDF/PPT/Excel/Search...)
 │   │   └── <user_id>/         # User-defined skills
-│   └── scripts/               # Generated file storage
+│   ├── scripts/               # Generated file storage
+│   └── Dockerfile             # Backend container image
 │
+├── docker-compose.yml         # Docker Compose orchestration
+├── .env.example               # Environment variable template
 ├── assets/                    # README assets
 └── start.sh                   # One-command start script
 ```
@@ -335,7 +391,7 @@ Pixelle-Studio/
 
 **Frontend**: Next.js 16 · React 19 · TypeScript · Tailwind CSS
 
-**Infrastructure**: SQLite · MCP Protocol
+**Infrastructure**: SQLite · MCP Protocol · Docker Compose
 
 ---
 
