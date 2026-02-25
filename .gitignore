@@ -9,7 +9,6 @@ wheels/
 # Virtual environments
 .venv
 backend/scripts/
-scripts/
 files/
 
 # Logs
@@ -55,5 +54,6 @@ backend/diagnose_file_created_event.py
 
 # Skills iteration data
 backend/skills/*/
+!backend/skills/default/
 
 *.log

@@ -378,7 +378,7 @@ async def process_with_agent(
             db.close()
 
         agent = SkillAgent(
-            max_turns=20, 
+            # max_turns uses config.agent_max_turns by default (env: AGENT_MAX_TURNS)
             history_messages=history_messages,
             mcp_server_url=mcp_server_url,
             mcp_server_type=mcp_server_type,

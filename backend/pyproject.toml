@@ -1,39 +1,70 @@
 [project]
-name = "mcp-workflow-backend"
+name = "pixelle-studio-backend"
 version = "0.1.0"
-description = "Backend for Pixelle Studio Demo"
+description = "Backend for Pixelle Studio - AI Agent Workspace"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  # Web framework
   "fastapi",
   "uvicorn",
   "websockets",
+
+  # LLM / AI
   "openai",
+  "anthropic>=0.49.0",
+  "openai-agents>=0.0.3",
+  "langsmith>=0.6.0",
+
+  # MCP protocol
   "mcp",
-  "aiofiles",
-  "pytest",
-  "pytest-asyncio",
-  "aiohttp",
-  "pandas",
-  "openpyxl",
-  "sentence-transformers>=5.2.0",
+
+  # Database & ORM
   "sqlalchemy",
   "pydantic[email]",
+
+  # Auth
   "bcrypt",
   "python-jose[cryptography]",
+
+  # HTTP clients
+  "httpx",
+  "aiohttp",
+  "aiofiles",
+
+  # Data processing
+  "pandas",
+  "openpyxl",
+  "numpy",
+
+  # Document generation
   "python-pptx",
-  "openai-agents>=0.0.3",
-  "langsmith==0.6.0",
-  "anthropic==0.49.0",
-  "pypdfium2>=5.3.0",
-  "dataclasses>=0.8",
-  "pypdf>=6.6.2",
-  "pdf2image>=1.17.0",
-  "pillow>=12.1.0",
-  "pdfplumber>=0.11.9",
   "reportlab>=4.4.9",
   "fpdf>=1.7.2",
-  "pexpect>=4.9.0",
+
+  # PDF processing
+  "pypdfium2>=5.3.0",
+  "pypdf>=6.6.2",
+  "pdfplumber>=0.11.9",
+  "pdf2image>=1.17.0",
   "pytesseract>=0.3.13",
+
+  # Image processing
+  "pillow>=12.1.0",
   "matplotlib>=3.10.8",
+
+  # Tool search / embedding
+  "sentence-transformers>=5.2.0",
+
+  # Shell session
+  "pexpect>=4.9.0",
+
+  # Environment
+  "python-dotenv",
+]
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-asyncio",
 ]

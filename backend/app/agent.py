@@ -71,6 +71,43 @@ logger.info(f"LLM_TIMEOUT: {LLM_TIMEOUT}s")
 logger.info(f"LLM_MAX_TOKENS: {LLM_MAX_TOKENS}")
 
 
+def _is_network_error(exc: Exception) -> bool:
+    """
+    Check if an exception is a transient network error that should trigger failover.
+    
+    These errors typically occur when the API gateway drops the connection during
+    long streaming responses (e.g. httpx.ReadError, ConnectionError, etc.)
+    """
+    error_type = type(exc).__name__
+    error_msg = str(exc).lower()
+    
+    # Check by exception type name
+    network_error_types = [
+        "ReadError",          # httpx.ReadError - connection dropped during streaming
+        "WriteError",         # httpx.WriteError
+        "ConnectError",       # httpx.ConnectError
+        "RemoteProtocolError",# httpcore.RemoteProtocolError
+        "ConnectionError",    # General connection error
+        "ConnectionResetError",
+        "BrokenPipeError",
+    ]
+    if error_type in network_error_types:
+        return True
+    
+    # Check by error message patterns
+    network_patterns = [
+        "read error",
+        "connection reset",
+        "connection closed",
+        "broken pipe",
+        "peer closed",
+        "network",
+        "eof occurred",
+        "remotedisconnected",
+    ]
+    return any(p in error_msg for p in network_patterns)
+
+
 class SkillAgent:
     """
     Agent that handles user requests using native OpenAI API with enhanced stability.
@@ -83,7 +120,7 @@ class SkillAgent:
     
     def __init__(
         self, 
-        max_turns: int = 20, 
+        max_turns: int = None, 
         history_messages: Optional[List[Dict[str, str]]] = None,
         mcp_server_url: Optional[str] = None,
         mcp_server_type: str = "sse",
@@ -113,7 +150,7 @@ class SkillAgent:
         self.model_fallbacks = config.get_model_chain(DEFAULT_MODEL)
         
         # Agent config
-        self.max_turns = max_turns
+        self.max_turns = max_turns if max_turns is not None else config.agent_max_turns
         self.history_messages = history_messages or []
         self.mcp_server_url = mcp_server_url
         self.mcp_server_type = mcp_server_type
@@ -327,6 +364,12 @@ class SkillAgent:
                         last_error = e
                         break  # Break out of thinking level loop
                     
+                    elif _is_network_error(e):
+                        # Network error (ReadError, connection reset, etc.) - try next model
+                        logger.warning(f"[Agent] Network error ({error_type}), trying next model...")
+                        last_error = e
+                        break  # Break out of thinking level loop
+                    
                     else:
                         # Other errors - raise directly
                         raise e
@@ -509,9 +552,19 @@ class SkillAgent:
             # Agent loop
             MAX_TURNS = self.max_turns
             
+            TURN_WARNING_THRESHOLD = max(MAX_TURNS - 5, int(MAX_TURNS * 0.8))
+            
             while turn_count < MAX_TURNS:
                 turn_count += 1
-                logger.info(f"[Agent] Turn #{turn_count}")
+                logger.info(f"[Agent] Turn #{turn_count}/{MAX_TURNS}")
+                
+                # Warn when approaching turn limit
+                if turn_count == TURN_WARNING_THRESHOLD:
+                    logger.warning(f"[Agent] Approaching turn limit: {turn_count}/{MAX_TURNS}")
+                    yield {
+                        "type": "status",
+                        "content": f"⚠️ Approaching turn limit ({turn_count}/{MAX_TURNS}). Please wrap up the current task."
+                    }
                 
                 # === Log status ===
                 self.session_logger.log_status(f"Turn {turn_count} started", turn=turn_count)
@@ -845,12 +898,20 @@ class SkillAgent:
                 logger.info(f"[Agent] No more actions, finishing turn {turn_count}")
                 break
             
+            # Check if we exited due to turn limit
+            if turn_count >= MAX_TURNS:
+                logger.warning(f"[Agent] Turn limit reached: {turn_count}/{MAX_TURNS}")
+                yield {
+                    "type": "status",
+                    "content": f"⚠️ Turn limit reached ({MAX_TURNS}). The task may be incomplete. You can continue by sending a follow-up message."
+                }
+            
             # Final response
             clean_answer = context.last_response_text  # No need to clean anymore
             
             # === Log session end ===
             self.session_logger.log_session_end(
-                status="success",
+                status="success" if turn_count < MAX_TURNS else "turn_limit",
                 total_turns=turn_count
             )
             

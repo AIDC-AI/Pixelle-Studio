@@ -45,6 +45,9 @@ class AgentConfig:
         self.thinking_levels = ['high', 'medium', 'low', 'off']
         self.default_thinking_level = os.getenv("DEFAULT_THINKING_LEVEL", "medium")
         
+        # Agent turn limit configuration
+        self.agent_max_turns = int(os.getenv("AGENT_MAX_TURNS", "50"))
+        
         # Failover configuration
         self.enable_auth_failover = os.getenv("ENABLE_AUTH_FAILOVER", "true").lower() == "true"
         self.enable_model_failover = os.getenv("ENABLE_MODEL_FAILOVER", "true").lower() == "true"
@@ -137,6 +140,7 @@ class AgentConfig:
             "enable_auth_failover": self.enable_auth_failover,
             "enable_model_failover": self.enable_model_failover,
             "enable_thinking_failover": self.enable_thinking_failover,
+            "agent_max_turns": self.agent_max_turns,
         }
 
 

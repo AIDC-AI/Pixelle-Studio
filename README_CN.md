@@ -227,7 +227,12 @@ shell_exec("print(df.describe())", shell_type="python")  # df 仍然存在！
 
 ## 🚀 快速开始
 
-### 方式一：开发模式
+### 环境要求
+
+- **Python 3.10+** 以及 [uv](https://docs.astral.sh/uv/getting-started/installation/)（Python 包管理器）
+- **Node.js 20+** 以及 npm
+
+### 方式一：一键启动
 
 ```bash
 # 1. 克隆项目
@@ -239,32 +244,24 @@ cp backend/.env.example backend/.env
 # 编辑 backend/.env，填入你的 API Key：
 # OPENAI_API_KEY=your-api-key
 
-# 3. 一键启动（前后端同时启动）
+# 3. 一键启动（首次运行会自动安装依赖）
 ./start.sh
 ```
 
-### 方式二：Docker 部署
-
-```bash
-# 一键启动
-./start.sh -D
-
-# 或直接使用 docker compose
-docker compose up --build
-```
-
-### 方式三：分步启动
+### 方式二：分步启动
 
 ```bash
 # 后端
 cd backend
-uv sync           # 安装依赖
-./start_server.sh  # 启动服务（端口 8001）
+uv sync              # 安装 Python 依赖（自动创建 .venv）
+npm install          # 安装 Node.js 依赖（用于 PPT/文档生成技能）
+cp .env.example .env  # 配置环境变量
+.venv/bin/python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 # 前端（新终端）
 cd frontend
-npm install        # 安装依赖
-npm run dev        # 启动开发服务器（端口 3000）
+npm install           # 安装 Node.js 依赖
+npm run dev           # 启动开发服务器（端口 3000）
 ```
 
 启动后访问 👉 **http://localhost:3000**
@@ -327,7 +324,6 @@ Pixelle-Studio/
 │   └── scripts/               # 生成的文件存储
 │
 ├── assets/                    # README 素材
-├── docker-compose.yml         # Docker 编排
 └── start.sh                   # 一键启动脚本
 ```
 
@@ -337,9 +333,9 @@ Pixelle-Studio/
 
 **后端**：Python 3.10+ · FastAPI · OpenAI API · WebSocket · SQLAlchemy · pexpect
 
-**前端**：Next.js 16 · React 19 · TypeScript · Tailwind CSS · Ant Design
+**前端**：Next.js 16 · React 19 · TypeScript · Tailwind CSS
 
-**基础设施**：Docker · SQLite · MCP Protocol
+**基础设施**：SQLite · MCP Protocol
 
 ---
 
@@ -370,4 +366,3 @@ Pixelle-Studio/
   <a href="https://github.com/AIDC-AI/Pixelle-Studio/issues">报告问题</a> ·
   <a href="https://github.com/AIDC-AI/Pixelle-Studio/issues">功能建议</a>
 </p>
-

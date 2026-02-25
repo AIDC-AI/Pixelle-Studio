@@ -227,7 +227,12 @@ Seamlessly connect external tools via the [Model Context Protocol](https://model
 
 ## 🚀 Quick Start
 
-### Option 1: Development Mode
+### Prerequisites
+
+- **Python 3.10+** and [uv](https://docs.astral.sh/uv/getting-started/installation/) (Python package manager)
+- **Node.js 20+** and npm
+
+### Option 1: One-Command Start
 
 ```bash
 # 1. Clone the repo
@@ -239,31 +244,23 @@ cp backend/.env.example backend/.env
 # Edit backend/.env and add your API key:
 # OPENAI_API_KEY=your-api-key
 
-# 3. One-command start (both frontend & backend)
+# 3. One-command start (auto-installs dependencies on first run)
 ./start.sh
 ```
 
-### Option 2: Docker Deployment
-
-```bash
-# One-command start
-./start.sh -D
-
-# Or use docker compose directly
-docker compose up --build
-```
-
-### Option 3: Manual Start
+### Option 2: Manual Start
 
 ```bash
 # Backend
 cd backend
-uv sync             # Install dependencies
-./start_server.sh   # Start server (port 8001)
+uv sync             # Install Python dependencies (creates .venv automatically)
+npm install         # Install Node.js dependencies (for PPT/document generation skills)
+cp .env.example .env  # Configure environment variables
+.venv/bin/python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 # Frontend (new terminal)
 cd frontend
-npm install          # Install dependencies
+npm install          # Install Node.js dependencies
 npm run dev          # Start dev server (port 3000)
 ```
 
@@ -327,7 +324,6 @@ Pixelle-Studio/
 │   └── scripts/               # Generated file storage
 │
 ├── assets/                    # README assets
-├── docker-compose.yml         # Docker orchestration
 └── start.sh                   # One-command start script
 ```
 
@@ -337,9 +333,9 @@ Pixelle-Studio/
 
 **Backend**: Python 3.10+ · FastAPI · OpenAI API · WebSocket · SQLAlchemy · pexpect
 
-**Frontend**: Next.js 16 · React 19 · TypeScript · Tailwind CSS · Ant Design
+**Frontend**: Next.js 16 · React 19 · TypeScript · Tailwind CSS
 
-**Infrastructure**: Docker · SQLite · MCP Protocol
+**Infrastructure**: SQLite · MCP Protocol
 
 ---
 

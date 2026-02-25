@@ -11,6 +11,6 @@
 # limitations under the License.
 
 """
-MCP-Workflow Backend Application
+Pixelle-Studio Backend Application
 """
 

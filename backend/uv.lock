@@ -1787,7 +1787,7 @@ wheels = [
 ]
 
 [[package]]
-name = "mcp-workflow-backend"
+name = "pixelle-studio-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -15,9 +15,11 @@
 from typing import Optional, Tuple
 
 # Model context window configuration (tokens)
+# Keys are matched as substrings against the model name for flexibility
+# (e.g. "us.anthropic.claude-sonnet-4-20250514-v1:0" matches "claude-sonnet-4")
 MODEL_CONTEXT_WINDOWS = {
-    "gpt-4o": 128_000,
     "gpt-4o-mini": 128_000,
+    "gpt-4o": 128_000,
     "gpt-4-turbo": 128_000,
     "gpt-4": 8_192,
     "gpt-3.5-turbo": 16_384,
@@ -30,9 +32,33 @@ MODEL_CONTEXT_WINDOWS = {
     "gemini-1.5-pro": 1_000_000,
 }
 
+# Default context window when model is not recognized
+DEFAULT_CONTEXT_WINDOW = 128_000
+
 # Context window thresholds
 CONTEXT_WINDOW_HARD_MIN = 8_000  # Hard minimum (must compress below this)
 CONTEXT_WINDOW_WARN_BELOW = 16_000  # Warning threshold
+
+
+def _get_context_window(model: str) -> int:
+    """
+    Get the context window size for a model.
+    
+    Supports exact match and substring matching to handle provider-prefixed
+    model names like "us.anthropic.claude-sonnet-4-20250514-v1:0".
+    """
+    # Try exact match first
+    if model in MODEL_CONTEXT_WINDOWS:
+        return MODEL_CONTEXT_WINDOWS[model]
+    
+    # Try substring match (check if any known model name is contained in the model string)
+    model_lower = model.lower()
+    for known_model, window_size in MODEL_CONTEXT_WINDOWS.items():
+        if known_model.lower() in model_lower:
+            return window_size
+    
+    # Default fallback
+    return DEFAULT_CONTEXT_WINDOW
 
 
 def estimate_token_count(text: str) -> int:
@@ -81,8 +107,9 @@ def evaluate_context_window_guard(
         - warning_message: Warning message (if any)
         - stats: Statistics
     """
-    # Get model's context window size
-    context_window = MODEL_CONTEXT_WINDOWS.get(model, 16_384)
+    # Get model's context window size (use substring matching for provider-prefixed names
+    # like "us.anthropic.claude-sonnet-4-20250514-v1:0")
+    context_window = _get_context_window(model)
     
     # Estimate currently used tokens
     total_text = system_prompt
