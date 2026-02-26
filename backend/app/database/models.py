@@ -65,6 +65,7 @@ class ChatSession(Base):
 
     session_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     uid = Column(Integer, nullable=True, index=True)  # User ID for multi-tenancy
+    title = Column(String, nullable=True)  # Session title (synced from frontend)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -166,6 +167,7 @@ def _migrate_add_column(engine, table_name: str, column_name: str, column_type: 
 
 try:
     _migrate_add_column(engine, "mcp_servers", "headers", "TEXT", "NULL")
+    _migrate_add_column(engine, "chat_sessions", "title", "VARCHAR", "NULL")
 except Exception as e:
     print(f"[Database] Migration check (non-critical): {e}")
 

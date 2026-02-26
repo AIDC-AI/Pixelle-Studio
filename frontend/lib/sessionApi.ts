@@ -10,19 +10,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const ACTIVE_SESSION_ID_KEY = 'active_session_id'
+const ACTIVE_SESSION_ID_PREFIX = 'active_session_id'
+
+/**
+ * Get the storage key for the active session ID, scoped by user.
+ */
+function getKey(uid?: number): string {
+    if (uid) {
+        return `${ACTIVE_SESSION_ID_PREFIX}_${uid}`;
+    }
+    return ACTIVE_SESSION_ID_PREFIX;
+}
 
 export const sessionAPI = {
-    // get active session id
-    getActiveSessionId: (): string => {
+    // get active session id (user-scoped)
+    getActiveSessionId: (uid?: number): string => {
         if (typeof window === 'undefined') {
             return ''
         }
-        return localStorage.getItem(ACTIVE_SESSION_ID_KEY) || '';
+        return localStorage.getItem(getKey(uid)) || '';
     },
-    // set active session id
-    setActiveSessionId: (id: string): void => {
+    // set active session id (user-scoped)
+    setActiveSessionId: (id: string, uid?: number): void => {
         if (typeof window === 'undefined') return;
-        localStorage.setItem(ACTIVE_SESSION_ID_KEY, id);
+        localStorage.setItem(getKey(uid), id);
+    },
+    // clear active session id on logout
+    clearActiveSessionId: (uid?: number): void => {
+        if (typeof window === 'undefined') return;
+        localStorage.removeItem(getKey(uid));
+        // Also clear the legacy key (without uid)
+        localStorage.removeItem(ACTIVE_SESSION_ID_PREFIX);
     }
 };

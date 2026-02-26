@@ -602,6 +602,288 @@ async def get_file(filename: str):
 
 
 # ============================================================================
+# User Sessions API - Cross-browser session persistence
+# ============================================================================
+
+class UpdateSessionTitleRequest(BaseModel):
+    title: str
+    session_id: str  # Backend session ID
+
+
+@app.get("/api/user-sessions")
+async def list_user_sessions(uid: int):
+    """
+    List all sessions for a user with titles.
+    Returns sessions ordered by most recent first.
+    """
+    db = SessionLocal()
+    try:
+        sessions = (
+            db.query(ChatSession)
+            .filter(ChatSession.uid == uid)
+            .order_by(ChatSession.updated_at.desc())
+            .all()
+        )
+        result = []
+        for s in sessions:
+            # Get first turn's user_message as fallback title
+            first_turn = (
+                db.query(ChatTurn)
+                .filter(ChatTurn.session_id == s.session_id)
+                .order_by(ChatTurn.created_at.asc())
+                .first()
+            )
+            fallback_title = None
+            if first_turn and first_turn.user_message:
+                msg = first_turn.user_message[:30]
+                fallback_title = msg + ("..." if len(first_turn.user_message) > 30 else "")
+            
+            turn_count = (
+                db.query(ChatTurn)
+                .filter(ChatTurn.session_id == s.session_id)
+                .count()
+            )
+            result.append({
+                "session_id": s.session_id,
+                "title": s.title or fallback_title or "New Chat",
+                "uid": s.uid,
+                "turn_count": turn_count,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+            })
+        return result
+    finally:
+        db.close()
+
+
+@app.get("/api/user-sessions/{session_id}/messages")
+async def get_session_messages(session_id: str):
+    """
+    Reconstruct messages for a session from ChatTurn data.
+    Returns messages in the format the frontend expects.
+    """
+    db = SessionLocal()
+    try:
+        session = db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        turns = (
+            db.query(ChatTurn)
+            .filter(ChatTurn.session_id == session_id)
+            .order_by(ChatTurn.created_at.asc())
+            .all()
+        )
+        
+        messages = []
+        for turn in turns:
+            # User message
+            ts = int(turn.created_at.timestamp() * 1000) if turn.created_at else 0
+            
+            # Add user message
+            user_msg = {
+                "type": "user",
+                "content": turn.user_message,
+                "timestamp": ts,
+            }
+            # If there were uploaded files, include them
+            if turn.file_urls_json:
+                try:
+                    file_urls = json.loads(turn.file_urls_json)
+                    file_names = json.loads(turn.file_names_json) if turn.file_names_json else []
+                    if file_urls:
+                        user_msg["outputFiles"] = [
+                            {"file_name": fn or url.split("/")[-1], "file_url": url, "file_size": 0}
+                            for url, fn in zip(file_urls, file_names + [""] * len(file_urls))
+                        ]
+                except Exception:
+                    pass
+            messages.append(user_msg)
+            
+            # Reconstruct intermediate steps from ChatStep
+            steps = (
+                db.query(ChatStep)
+                .filter(ChatStep.chat_id == turn.chat_id)
+                .order_by(ChatStep.step_index.asc())
+                .all()
+            )
+            
+            for step in steps:
+                step_ts = int(step.created_at.timestamp() * 1000) if step.created_at else ts + 1
+                step_data = None
+                if step.data_json:
+                    try:
+                        step_data = json.loads(step.data_json)
+                    except Exception:
+                        pass
+                
+                if step.step_type == "code":
+                    code_content = step.content or (step_data.get("code") if step_data else "")
+                    messages.append({
+                        "type": "code",
+                        "content": code_content,
+                        "timestamp": step_ts,
+                        "codeData": {
+                            "code": code_content,
+                            "executionCount": step_data.get("execution_count", 1) if step_data else 1,
+                        }
+                    })
+                elif step.step_type == "execution_result":
+                    exec_result = step_data or {}
+                    output_files = exec_result.get("output_files", [])
+                    messages.append({
+                        "type": "execution_result",
+                        "content": exec_result,
+                        "timestamp": step_ts,
+                        "executionResult": {
+                            "status": exec_result.get("status", ""),
+                            "stdout": exec_result.get("stdout", ""),
+                            "stderr": exec_result.get("stderr", ""),
+                            "result": exec_result.get("result"),
+                            "output_files": output_files,
+                        }
+                    })
+                    if output_files:
+                        messages.append({
+                            "type": "output_files",
+                            "content": f"{len(output_files)} file(s) generated",
+                            "timestamp": step_ts + 1,
+                            "outputFiles": output_files,
+                        })
+                elif step.step_type == "tool_call":
+                    tool_data = step_data or {}
+                    messages.append({
+                        "type": "tool_call",
+                        "content": tool_data.get("name", step.content or ""),
+                        "timestamp": step_ts,
+                        "toolCall": {
+                            "name": tool_data.get("name", step.content or ""),
+                            "arguments": tool_data.get("arguments", {}),
+                            "call_id": tool_data.get("call_id"),
+                        }
+                    })
+                elif step.step_type == "tool_result":
+                    tool_data = step_data or {}
+                    # Skip execute_code results and 'unknown' results
+                    if tool_data.get("name") not in ("execute_code", "unknown"):
+                        messages.append({
+                            "type": "tool_result",
+                            "content": tool_data.get("result", step.content or ""),
+                            "timestamp": step_ts,
+                            "toolResult": {
+                                "name": tool_data.get("name", ""),
+                                "result": tool_data.get("result", step.content or ""),
+                                "call_id": tool_data.get("call_id"),
+                            }
+                        })
+                elif step.step_type == "skill_loaded":
+                    messages.append({
+                        "type": "skill_loaded",
+                        "content": step.content or "",
+                        "timestamp": step_ts,
+                        "skillName": step.content or "",
+                    })
+                elif step.step_type == "thinking":
+                    messages.append({
+                        "type": "thinking",
+                        "content": step.content or "",
+                        "timestamp": step_ts,
+                    })
+                elif step.step_type == "file_created":
+                    file_data = step_data or {}
+                    messages.append({
+                        "type": "output_files",
+                        "content": f"File created: {file_data.get('file_name', '')}",
+                        "timestamp": step_ts,
+                        "outputFiles": [{
+                            "file_name": file_data.get("file_name", ""),
+                            "file_url": file_data.get("file_url", ""),
+                            "file_size": file_data.get("file_size", 0),
+                        }] if file_data.get("file_name") else [],
+                    })
+                elif step.step_type == "response":
+                    if step.content and step.content.strip():
+                        messages.append({
+                            "type": "response",
+                            "content": step.content,
+                            "timestamp": step_ts,
+                        })
+                elif step.step_type == "final_result":
+                    result_data = step_data or {}
+                    if result_data.get("result") or result_data.get("error"):
+                        messages.append({
+                            "type": "result",
+                            "content": result_data.get("result") or result_data.get("error", ""),
+                            "timestamp": step_ts,
+                        })
+                # Skip status, iteration_start, iteration_end etc. for reconstruction
+            
+            # If no steps reconstructed an assistant response, use turn.assistant_message
+            has_response = any(
+                m["type"] in ("response", "result") 
+                for m in messages 
+                if m.get("timestamp", 0) > ts
+            )
+            if not has_response and turn.assistant_message:
+                messages.append({
+                    "type": "response",
+                    "content": turn.assistant_message,
+                    "timestamp": ts + 1,
+                })
+        
+        return {
+            "session_id": session_id,
+            "title": session.title,
+            "messages": messages,
+        }
+    finally:
+        db.close()
+
+
+@app.put("/api/user-sessions/title")
+async def update_session_title(request: UpdateSessionTitleRequest):
+    """
+    Update the title of a session (save to backend for cross-browser access).
+    """
+    db = SessionLocal()
+    try:
+        session = db.query(ChatSession).filter(
+            ChatSession.session_id == request.session_id
+        ).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        session.title = request.title
+        session.updated_at = datetime.utcnow()
+        db.commit()
+        
+        return {"success": True, "session_id": request.session_id, "title": request.title}
+    finally:
+        db.close()
+
+
+@app.delete("/api/user-sessions/{session_id}")
+async def delete_user_session(session_id: str):
+    """
+    Delete a session and all its turns/steps.
+    """
+    db = SessionLocal()
+    try:
+        session = db.query(ChatSession).filter(
+            ChatSession.session_id == session_id
+        ).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        db.delete(session)
+        db.commit()
+        
+        return {"success": True, "session_id": session_id}
+    finally:
+        db.close()
+
+
+# ============================================================================
 # Health Check
 # ============================================================================
 

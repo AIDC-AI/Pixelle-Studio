@@ -16,6 +16,7 @@ import { createContext, Dispatch, SetStateAction, useContext, useEffect, useRef,
 import { sessionAPI } from '@/lib/sessionApi';
 import { UserResponse } from '@/types/user';
 import { userAPI } from '@/lib/userApi';
+import { chatStorage } from '@/lib/chatStorage';
 import { useRouter, usePathname } from 'next/navigation';
 import { MCPTool } from '@/types/server';
 import { Toast } from 'radix-ui';
@@ -51,7 +52,7 @@ type IProps = {
 
     login: (email: string, password: string) => Promise<void>
     register: (username: string, email: string, password: string) => Promise<boolean>
-    logout: () => void
+    logout: () => Promise<void>
 
     showToast: (type: ToastType, text: string) => void
     hideToast: () => void
@@ -87,6 +88,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 userAPI.setToken(res.token.access_token)
                 setToken(res.token.access_token)
                 setUser(res.user)
+                // Switch IndexedDB to user-scoped database
+                await chatStorage.switchUser(res.user.uid)
+                // Load user-scoped active session ID
+                const savedSessionId = sessionAPI.getActiveSessionId(res.user.uid)
+                setActiveSessionId(savedSessionId || '')
             }
         } catch (error) {
             showToast(ToastType.ERROR, (error as Error)?.message || "Login failed!")
@@ -110,11 +116,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return false
     } 
 
-    const logout = () => {
+    const logout = async () => {
         try {
+            // Clear active session for current user before clearing user state
+            sessionAPI.clearActiveSessionId(user?.uid)
             setUser(null)
             setToken(null)
+            setActiveSessionId('')
             userAPI.logout()
+            // Close user-scoped IndexedDB on logout
+            await chatStorage.onLogout()
             showToast(ToastType.SUCCESS, "Logged out successfully!")
         } catch (error) {
             showToast(ToastType.ERROR, (error as Error)?.message || "Logout failed!")
@@ -136,14 +147,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const getCurrentUser = async () => {
-        const user = await userAPI.getCurrentUser()
-        if (!!user) {
-            setUser(user)
-            setToken(userAPI.getToken())
-        } else {
+        try {
+            const fetchedUser = await userAPI.getCurrentUser()
+            if (!!fetchedUser) {
+                setUser(fetchedUser)
+                setToken(userAPI.getToken())
+                // Switch IndexedDB to user-scoped database
+                await chatStorage.switchUser(fetchedUser.uid)
+                // Load user-scoped active session ID
+                const savedSessionId = sessionAPI.getActiveSessionId(fetchedUser.uid)
+                if (savedSessionId) {
+                    setActiveSessionId(savedSessionId)
+                }
+            } else {
+                userAPI.clearToken()
+                setUser(null)
+                setToken(null)
+                await chatStorage.onLogout()
+            }
+        } catch {
             userAPI.clearToken()
             setUser(null)
             setToken(null)
+            await chatStorage.onLogout()
         }
     }
 
@@ -181,15 +207,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     useEffect(() => {
-        setActiveSessionId(sessionAPI.getActiveSessionId())
-        
         // Initialize: if token exists, fetch user info
+        // Active session ID will be loaded after user is authenticated (user-scoped)
         const initAuth = async () => {
             if (userAPI.isAuthenticated() && !user) {
                 await getCurrentUser()
             }
         }
         initAuth()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
     
     useEffect(() => {

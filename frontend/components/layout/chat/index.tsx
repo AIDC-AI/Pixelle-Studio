@@ -153,7 +153,7 @@ const Chat = () => {
 
   const saveActiveSessionId = (id: string) => {
     setActiveSessionId(id)
-    sessionAPI.setActiveSessionId(id)
+    sessionAPI.setActiveSessionId(id, user?.uid)
   }
 
   // Stop inference
@@ -711,7 +711,8 @@ const Chat = () => {
   useEffect(() => {
     (
       async () => {
-        await loadSessions()
+        // Pass uid so sessions can be synced from backend
+        await loadSessions(user?.uid)
       }
     )()
 
@@ -725,7 +726,8 @@ const Chat = () => {
       // Reset parser state
       setParserState(createParserState());
     }
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid])
 
   const isLeftDragging = dragStateRef.current.isDragging === 'left';
   const isPreviewDragging = dragStateRef.current.isDragging === 'preview';

@@ -13,10 +13,15 @@
 /**
  * Chat Storage Hook
  * Provides convenient chat history management functionality
+ * 
+ * Enhanced with backend sync for cross-browser persistence:
+ * - On initial load, fetches session list from backend and syncs to IndexedDB
+ * - When opening a session with no local messages, fetches from backend
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { chatStorage } from '@/lib/chatStorage';
+import { api } from '@/lib/api';
 import { Message } from '@/types/message';
 import { Session } from '@/types/session';
 
@@ -27,15 +32,40 @@ export function useChatStorage(sessionId?: string) {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Load messages
+  // Load messages - first try IndexedDB, then fallback to backend
   const loadMessages = useCallback(async (sessId: string) => {
     if (!sessId) return;
     
     setMessagesLoading(true);
     setError(null);
     try {
-      const msgs = await chatStorage.getMessages(sessId);
-      setMessages(msgs);
+      // First try local IndexedDB
+      const localMsgs = await chatStorage.getMessages(sessId);
+      if (localMsgs.length > 0) {
+        setMessages(localMsgs);
+        setMessagesLoading(false);
+        return;
+      }
+      
+      // No local messages - find the backend session ID
+      const session = await chatStorage.getSession(sessId);
+      if (session?.backendSessionId) {
+        try {
+          const backendData = await api.getSessionMessages(session.backendSessionId);
+          if (backendData.messages && backendData.messages.length > 0) {
+            // Save to local IndexedDB for future access
+            await chatStorage.importMessagesFromBackend(sessId, backendData.messages);
+            setMessages(backendData.messages);
+          } else {
+            setMessages([]);
+          }
+        } catch (err) {
+          console.warn('Failed to load messages from backend, using empty:', err);
+          setMessages([]);
+        }
+      } else {
+        setMessages([]);
+      }
     } catch (err) {
       setError(err as Error);
       console.error('Failed to load messages:', err);
@@ -98,13 +128,28 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // Load session list
-  const loadSessions = useCallback(async () => {
+  // Load session list - sync from backend then merge with local
+  const loadSessions = useCallback(async (uid?: number) => {
     setSessionsLoading(true);
     setError(null);
     try {
-      const sess = await chatStorage.getSessions();
-      setSessions(sess);
+      // First load local sessions
+      let localSessions = await chatStorage.getSessions();
+      
+      // If user is logged in, sync from backend
+      if (uid) {
+        try {
+          const backendSessions = await api.getUserSessions(uid);
+          if (backendSessions && backendSessions.length > 0) {
+            // Merge backend sessions into local IndexedDB
+            localSessions = await chatStorage.syncSessionsFromBackend(backendSessions);
+          }
+        } catch (err) {
+          console.warn('Failed to sync sessions from backend, using local only:', err);
+        }
+      }
+      
+      setSessions(localSessions);
     } catch (err) {
       setError(err as Error);
       console.error('Failed to load sessions:', err);
@@ -126,11 +171,23 @@ export function useChatStorage(sessionId?: string) {
     }
   }, []);
 
-  // Delete session
+  // Delete session (both local and backend)
   const deleteSession = useCallback(async (sessId: string) => {
     try {
+      // Find backend session ID before deleting locally
+      const session = await chatStorage.getSession(sessId);
+      const backendSessionId = session?.backendSessionId;
+      
+      // Delete from local IndexedDB
       await chatStorage.deleteSession(sessId);
       setSessions((prev) => prev.filter((s) => s.id !== sessId));
+      
+      // Also delete from backend (fire and forget)
+      if (backendSessionId) {
+        api.deleteUserSession(backendSessionId).catch(err => {
+          console.warn('Failed to delete session from backend:', err);
+        });
+      }
     } catch (err) {
       setError(err as Error);
       console.error('Failed to delete session:', err);
@@ -143,13 +200,21 @@ export function useChatStorage(sessionId?: string) {
     return sessions.find((s) => s.id === id) || null
   }, [sessions]);
 
-  // Update session title
+  // Update session title (both local and backend)
   const updateSessionTitle = useCallback(async (sessId: string, title: string) => {
     try {
       await chatStorage.updateSessionTitle(sessId, title);
       setSessions((prev) =>
         prev.map((s) => (s.id === sessId ? { ...s, title } : s))
       );
+      
+      // Also save to backend (fire and forget)
+      const session = await chatStorage.getSession(sessId);
+      if (session?.backendSessionId) {
+        api.updateSessionTitle(session.backendSessionId, title).catch(err => {
+          console.warn('Failed to save title to backend:', err);
+        });
+      }
     } catch (err) {
       setError(err as Error);
       console.error('Failed to update session title:', err);

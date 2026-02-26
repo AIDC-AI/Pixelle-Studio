@@ -11,6 +11,7 @@
 // limitations under the License.
 
 import { Skill } from '@/types/skill';
+import { Message } from '@/types/message';
 import { API_BASE, WS_BASE } from './data';
 
 export interface ChatResponse {
@@ -108,5 +109,66 @@ export const api = {
             throw new Error(error.detail || 'Failed to delete skill');
         }
         return response.json();
-    }
+    },
+
+    // ==================== User Sessions API (cross-browser persistence) ====================
+
+    /**
+     * Get all sessions for a user from backend
+     */
+    getUserSessions: async (uid: number): Promise<Array<{
+        session_id: string;
+        title: string;
+        uid: number;
+        turn_count: number;
+        created_at: string | null;
+        updated_at: string | null;
+    }>> => {
+        const res = await fetch(`${API_BASE}/user-sessions?uid=${uid}`);
+        if (!res.ok) {
+            throw new Error('Failed to fetch user sessions');
+        }
+        return res.json();
+    },
+
+    /**
+     * Get messages for a session from backend (reconstructed from turn/step data)
+     */
+    getSessionMessages: async (sessionId: string): Promise<{
+        session_id: string;
+        title: string | null;
+        messages: Message[];
+    }> => {
+        const res = await fetch(`${API_BASE}/user-sessions/${sessionId}/messages`);
+        if (!res.ok) {
+            throw new Error('Failed to fetch session messages');
+        }
+        return res.json();
+    },
+
+    /**
+     * Update session title on backend
+     */
+    updateSessionTitle: async (sessionId: string, title: string): Promise<void> => {
+        const res = await fetch(`${API_BASE}/user-sessions/title`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, title }),
+        });
+        if (!res.ok) {
+            console.error('Failed to save session title to backend');
+        }
+    },
+
+    /**
+     * Delete a session on backend
+     */
+    deleteUserSession: async (sessionId: string): Promise<void> => {
+        const res = await fetch(`${API_BASE}/user-sessions/${sessionId}`, {
+            method: 'DELETE',
+        });
+        if (!res.ok) {
+            console.error('Failed to delete session from backend');
+        }
+    },
 };

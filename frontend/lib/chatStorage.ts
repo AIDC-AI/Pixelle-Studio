@@ -13,13 +13,16 @@
 /**
  * Chat history storage utility
  * Uses IndexedDB (idb) for local caching
+ * 
+ * User-scoped: each user gets their own IndexedDB database (ChatDB_{uid})
+ * to prevent data leakage between different user logins.
  */
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { Message } from '@/types/message';
 import { Session } from '@/types/session';
 
-const DB_NAME = 'ChatDB';
+const DB_NAME_PREFIX = 'ChatDB';
 const DB_VERSION = 1;
 
 // Define database schema
@@ -49,13 +52,68 @@ export interface StoredMessage extends Message {
 
 class ChatStorage {
   private dbPromise: Promise<IDBPDatabase<ChatDB>> | null = null;
+  private currentUid: number | null = null;
 
   /**
-   * Get database instance
+   * Get the database name for the current user
+   */
+  private getDBName(uid?: number): string {
+    const id = uid ?? this.currentUid;
+    if (id) {
+      return `${DB_NAME_PREFIX}_${id}`;
+    }
+    return DB_NAME_PREFIX;
+  }
+
+  /**
+   * Switch to a user-scoped database.
+   * Must be called after login with the user's uid.
+   */
+  async switchUser(uid: number): Promise<void> {
+    // If same user, do nothing
+    if (this.currentUid === uid && this.dbPromise) {
+      return;
+    }
+
+    // Close existing DB connection
+    await this.closeDB();
+
+    this.currentUid = uid;
+    // Pre-initialize the new DB
+    await this.getDB();
+  }
+
+  /**
+   * Close the current DB connection.
+   * Should be called on logout.
+   */
+  async closeDB(): Promise<void> {
+    if (this.dbPromise) {
+      try {
+        const db = await this.dbPromise;
+        db.close();
+      } catch {
+        // Ignore close errors
+      }
+      this.dbPromise = null;
+    }
+  }
+
+  /**
+   * Clear all data and close DB. Called on logout.
+   */
+  async onLogout(): Promise<void> {
+    await this.closeDB();
+    this.currentUid = null;
+  }
+
+  /**
+   * Get database instance (user-scoped)
    */
   private async getDB(): Promise<IDBPDatabase<ChatDB>> {
     if (!this.dbPromise) {
-      this.dbPromise = openDB<ChatDB>(DB_NAME, DB_VERSION, {
+      const dbName = this.getDBName();
+      this.dbPromise = openDB<ChatDB>(dbName, DB_VERSION, {
         upgrade(db) {
           // Create message store
           if (!db.objectStoreNames.contains('messages')) {
@@ -258,6 +316,74 @@ class ChatStorage {
     await Promise.all([
       db.clear('messages'),
       db.clear('sessions'),
+    ]);
+  }
+
+  // ==================== Sync from Backend ====================
+
+  /**
+   * Sync sessions from backend data.
+   * Merges backend sessions into IndexedDB (backend is source of truth for cross-browser).
+   */
+  async syncSessionsFromBackend(backendSessions: Array<{
+    session_id: string;
+    title: string;
+    created_at: string | null;
+    updated_at: string | null;
+  }>): Promise<Session[]> {
+    const db = await this.getDB();
+    const localSessions = await this.getSessions();
+    
+    // Build a map of local sessions by backendSessionId
+    const localByBackendId = new Map<string, Session>();
+    for (const s of localSessions) {
+      if (s.backendSessionId) {
+        localByBackendId.set(s.backendSessionId, s);
+      }
+    }
+    
+    // For each backend session, either merge or create locally
+    for (const bs of backendSessions) {
+      const existing = localByBackendId.get(bs.session_id);
+      if (existing) {
+        // Update title if backend has a newer one
+        if (bs.title && bs.title !== existing.title) {
+          existing.title = bs.title;
+          await db.put('sessions', existing);
+        }
+      } else {
+        // Create a new local session entry for this backend session
+        const newSession: Session = {
+          id: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          title: bs.title || 'New Chat',
+          timestamp: bs.updated_at ? new Date(bs.updated_at).getTime() : Date.now(),
+          backendSessionId: bs.session_id,
+        };
+        await db.put('sessions', newSession);
+      }
+    }
+    
+    // Return updated session list
+    return this.getSessions();
+  }
+
+  /**
+   * Import messages from backend reconstruction.
+   * Only imports if local session has no messages (cache miss).
+   */
+  async importMessagesFromBackend(sessionId: string, messages: Message[]): Promise<void> {
+    const db = await this.getDB();
+    const tx = db.transaction('messages', 'readwrite');
+    
+    await Promise.all([
+      ...messages.map((message, index) =>
+        tx.store.put({
+          ...message,
+          id: `backend_${sessionId}_${index}`,
+          sessionId,
+        } as StoredMessage)
+      ),
+      tx.done,
     ]);
   }
 
