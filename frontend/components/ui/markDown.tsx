@@ -13,6 +13,7 @@
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import CodeHighlighter from "./codeHighlighter";
 
 interface IProps {
@@ -31,6 +32,7 @@ const MarkDown: React.FC<IProps> = (props) => {
     };
 
     return <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
         components={{
             // Use div instead of p tag wrapper
             p: ({ children }) => <div className="text-gray-700 leading-relaxed mb-3 last:mb-0">{children}</div>,
@@ -95,6 +97,28 @@ const MarkDown: React.FC<IProps> = (props) => {
                 <blockquote className="border-l-4 border-blue-500 pl-4 py-2 my-3 bg-blue-50 rounded-r-lg italic text-gray-700 text-sm">
                     {children}
                 </blockquote>
+            ),
+            table: ({ children }) => (
+                <div className="overflow-x-auto my-3">
+                    <table className="min-w-full border-collapse border border-gray-300 text-xs">
+                        {children}
+                    </table>
+                </div>
+            ),
+            thead: ({ children }) => (
+                <thead className="bg-gray-100">{children}</thead>
+            ),
+            tbody: ({ children }) => (
+                <tbody>{children}</tbody>
+            ),
+            tr: ({ children }) => (
+                <tr className="border-b border-gray-200 even:bg-gray-50">{children}</tr>
+            ),
+            th: ({ children }) => (
+                <th className="border border-gray-300 px-3 py-1.5 text-left font-semibold text-gray-700 whitespace-nowrap">{children}</th>
+            ),
+            td: ({ children }) => (
+                <td className="border border-gray-300 px-3 py-1.5 text-gray-600">{children}</td>
             ),
         }}
     >

@@ -122,7 +122,11 @@ Agent 读取原始 Excel → 数据清洗与结构化 → 使用 **Excel 原生�
 **为什么更准确？** 传统 AI 工具在 Python 里算好数字再填入表格，数据一变就全废了。Pixelle Studio 坚持用 **Excel 原生公式驱动**，生成的报表是"活"的 —— 修改源数据，所有汇总、增长率、图表自动联动更新。
 
 <p align="center">
-  <img src="assets/files.png" alt="Excel 数据分析与报表" width="100%">
+  <img src="assets/sales_data_analysis.png" alt="Excel 数据分析与报表" width="100%">
+</p>
+
+<p align="center">
+  <img src="assets/sales_data_analysis2.png" alt="财务分析报告" width="100%">
 </p>
 
 ### 4️⃣ HTML 小游戏 & 互动内容
@@ -274,14 +278,11 @@ shell_exec("print(df.describe())", shell_type="python")  # df 仍然存在！
 git clone https://github.com/AIDC-AI/Pixelle-Studio.git
 cd Pixelle-Studio
 
-# 2. 配置环境变量
-cp backend/.env.example backend/.env
-# 编辑 backend/.env，填入你的 API Key：
-# OPENAI_API_KEY=your-api-key
-
-# 3. 一键启动（首次运行会自动安装依赖）
+# 2. 一键启动（首次运行会自动安装依赖）
 ./start.sh
 ```
+
+> 💡 启动后打开 **http://localhost:3000**，点击右上角 ⚙️ **Settings** 按钮配置你的 **API Key**、**Base URL** 和 **模型**。
 
 ### 方式二：Docker Compose 部署（推荐用于生产环境）
 
@@ -290,19 +291,14 @@ cp backend/.env.example backend/.env
 git clone https://github.com/AIDC-AI/Pixelle-Studio.git
 cd Pixelle-Studio
 
-# 2. 配置环境变量
-cp .env.example .env
-# 编辑 .env，填入你的 API Key：
-# OPENAI_API_KEY=your-api-key
-
-# 3. 构建并启动所有服务
+# 2. 构建并启动所有服务
 docker compose up -d
 
-# 4. 查看日志（可选）
+# 3. 查看日志（可选）
 docker compose logs -f
 ```
 
-启动后访问 👉 **http://localhost:3000**
+启动后访问 👉 **http://localhost:3000**，点击右上角 ⚙️ **Settings** 配置你的 API Key。
 
 <details>
 <summary><b>📦 Docker Compose 常用命令</b></summary>
@@ -336,7 +332,6 @@ docker compose ps               # 查看运行中的服务状态
 cd backend
 uv sync              # 安装 Python 依赖（自动创建 .venv）
 npm install          # 安装 Node.js 依赖（用于 PPT/文档生成技能）
-cp .env.example .env  # 配置环境变量
 .venv/bin/python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 # 前端（新终端）
@@ -345,22 +340,21 @@ npm install           # 安装 Node.js 依赖
 npm run dev           # 启动开发服务器（端口 3000）
 ```
 
-启动后访问 👉 **http://localhost:3000**
+启动后访问 👉 **http://localhost:3000**，点击右上角 ⚙️ **Settings** 配置你的 API Key。
 
-### 环境变量
+### 配置说明
+
+**LLM 设置**（API Key、Base URL、模型）通过 Web 界面右上角 ⚙️ **Settings** 面板按用户配置 —— 无需环境变量文件。
+
+**基础设施变量**（仅在 Docker 或自定义部署时需要）：
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `OPENAI_API_KEY` | OpenAI API Key | 必填 |
-| `OPENAI_BASE_URL` | API 地址 | `https://api.openai.com/v1` |
-| `OPENAI_MODEL` | 使用的模型 | `gpt-4o` |
 | `FRONTEND_PORT` | 前端端口 | `3000` |
 | `BACKEND_PORT` | 后端端口 | `8001` |
 | `NEXT_PUBLIC_API_BASE` | 前端连接后端 API 地址 | `http://localhost:8001/api` |
 | `NEXT_PUBLIC_WS_BASE` | 前端连接后端 WebSocket 地址 | `ws://localhost:8001/ws` |
 | `JWT_SECRET` | JWT 签名密钥 | 自动生成 |
-
-> 💡 完整的可配置环境变量列表请参考 `.env.example` 文件。
 
 ---
 
@@ -412,7 +406,6 @@ Pixelle-Studio/
 │   └── Dockerfile             # 后端容器镜像
 │
 ├── docker-compose.yml         # Docker Compose 编排配置
-├── .env.example               # 环境变量模板
 ├── assets/                    # README 素材
 └── start.sh                   # 一键启动脚本
 ```

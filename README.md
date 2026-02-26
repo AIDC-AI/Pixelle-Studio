@@ -121,7 +121,11 @@ Agent reads raw Excel → data cleaning & structuring → uses **native Excel fo
 **Why more accurate?** Traditional AI tools calculate numbers in Python and paste them into cells — change the data, and everything breaks. Pixelle Studio insists on **native Excel formula-driven** output, producing "living" spreadsheets — edit the source data, and all summaries, growth rates, and charts update automatically.
 
 <p align="center">
-  <img src="assets/files.png" alt="Excel Data Analysis & Reporting" width="100%">
+  <img src="assets/sales_data_analysis.png" alt="Excel Data Analysis & Reporting" width="100%">
+</p>
+
+<p align="center">
+  <img src="assets/sales_data_analysis2.png" alt="Financial Analysis Report" width="100%">
 </p>
 
 ### 4️⃣ HTML Games & Interactive Content
@@ -274,14 +278,11 @@ Seamlessly connect external tools via the [Model Context Protocol](https://model
 git clone https://github.com/AIDC-AI/Pixelle-Studio.git
 cd Pixelle-Studio
 
-# 2. Configure environment variables
-cp backend/.env.example backend/.env
-# Edit backend/.env and add your API key:
-# OPENAI_API_KEY=your-api-key
-
-# 3. One-command start (auto-installs dependencies on first run)
+# 2. One-command start (auto-installs dependencies on first run)
 ./start.sh
 ```
+
+> 💡 After starting, open **http://localhost:3000**, click the ⚙️ **Settings** button in the top-right corner to configure your **API Key**, **Base URL**, and **Model**.
 
 ### Option 2: Docker Compose (Recommended for Deployment)
 
@@ -290,19 +291,14 @@ cp backend/.env.example backend/.env
 git clone https://github.com/AIDC-AI/Pixelle-Studio.git
 cd Pixelle-Studio
 
-# 2. Configure environment variables
-cp .env.example .env
-# Edit .env and fill in your API key:
-# OPENAI_API_KEY=your-api-key
-
-# 3. Build and start all services
+# 2. Build and start all services
 docker compose up -d
 
-# 4. View logs (optional)
+# 3. View logs (optional)
 docker compose logs -f
 ```
 
-Then visit 👉 **http://localhost:3000**
+Then visit 👉 **http://localhost:3000** and configure your API Key in ⚙️ **Settings**.
 
 <details>
 <summary><b>📦 Docker Compose Commands Reference</b></summary>
@@ -336,7 +332,6 @@ To reset all data: `docker compose down -v`
 cd backend
 uv sync             # Install Python dependencies (creates .venv automatically)
 npm install         # Install Node.js dependencies (for PPT/document generation skills)
-cp .env.example .env  # Configure environment variables
 .venv/bin/python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 # Frontend (new terminal)
@@ -345,22 +340,21 @@ npm install          # Install Node.js dependencies
 npm run dev          # Start dev server (port 3000)
 ```
 
-Then visit 👉 **http://localhost:3000**
+Then visit 👉 **http://localhost:3000** and configure your API Key in ⚙️ **Settings**.
 
-### Environment Variables
+### Configuration
+
+**LLM Settings** (API Key, Base URL, Model) are configured per-user through the ⚙️ **Settings** panel in the web UI — no environment files needed.
+
+**Infrastructure variables** (only needed for Docker or custom deployments):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API Key | Required |
-| `OPENAI_BASE_URL` | API Base URL | `https://api.openai.com/v1` |
-| `OPENAI_MODEL` | Model to use | `gpt-4o` |
 | `FRONTEND_PORT` | Frontend port | `3000` |
 | `BACKEND_PORT` | Backend port | `8001` |
 | `NEXT_PUBLIC_API_BASE` | Frontend → Backend API URL | `http://localhost:8001/api` |
 | `NEXT_PUBLIC_WS_BASE` | Frontend → Backend WebSocket URL | `ws://localhost:8001/ws` |
 | `JWT_SECRET` | JWT signing secret | Auto-generated |
-
-> 💡 See `.env.example` for the full list of configurable environment variables.
 
 ---
 
@@ -412,7 +406,6 @@ Pixelle-Studio/
 │   └── Dockerfile             # Backend container image
 │
 ├── docker-compose.yml         # Docker Compose orchestration
-├── .env.example               # Environment variable template
 ├── assets/                    # README assets
 └── start.sh                   # One-command start script
 ```
