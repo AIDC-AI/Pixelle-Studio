@@ -46,7 +46,8 @@ class ExecutionOrchestrator:
     def __init__(
         self,
         context_manager: ContextManager,
-        config: Optional[ExecutionConfig] = None
+        config: Optional[ExecutionConfig] = None,
+        user_llm_config: Optional[Dict[str, str]] = None
     ):
         """
         Initialize the orchestrator.
@@ -54,9 +55,11 @@ class ExecutionOrchestrator:
         Args:
             context_manager: Context manager for storing execution history
             config: Configuration for orchestration
+            user_llm_config: User-specific LLM configuration (api_key, base_url, model_name)
         """
         self.context_manager = context_manager
         self.config = config or ExecutionConfig()
+        self.user_llm_config = user_llm_config or {}
         
         # Initialize evaluators
         self.error_evaluator = RuntimeErrorEvaluator()
@@ -390,11 +393,21 @@ class ExecutionOrchestrator:
         try:
             from openai import AsyncOpenAI
             
-            # Use the same LLM configuration
-            client = AsyncOpenAI(
-                api_key="REDACTED_API_KEY",
-                base_url="https://REDACTED_BASE_URL_HOST/v1"
-            )
+            # Use user-specific LLM configuration only (no env-var fallback)
+            api_key = self.user_llm_config.get("api_key")
+            base_url = self.user_llm_config.get("base_url")
+            
+            if not api_key:
+                return {
+                    "type": "image_error",
+                    "error": "No API key configured",
+                    "note": "Please configure your LLM API key in Settings (⚙️)"
+                }
+            
+            client_kwargs = {"api_key": api_key}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            client = AsyncOpenAI(**client_kwargs)
             
             # If it's a local file, we need to convert to base64 or upload
             # For simplicity, we'll assume the URL is accessible
@@ -418,8 +431,8 @@ class ExecutionOrchestrator:
                     
                     image_url_for_api = f"data:{mime_type};base64,{image_data}"
             
-            # Call vision API
-            vision_model = "gpt-4o"
+            # Call vision API - use user's model or default to gpt-4o
+            vision_model = self.user_llm_config.get("model_name") or "gpt-4o"
             response = await client.chat.completions.create(
                 model=vision_model,  # Use a vision-capable model
                 messages=[

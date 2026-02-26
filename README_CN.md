@@ -3,7 +3,15 @@
 </p>
 
 <p align="center">
-  <strong>🚀 用自然语言驱动一切 —— 您的 AI 智能工作台</strong>
+  <strong>🚀 用自然语言定义工作流，零代码打造 AI 文件处理专家</strong>
+</p>
+
+<p align="center">
+  <code>📄 全格式文档处理</code>&nbsp;&nbsp;
+  <code>🧠 自然语言定义 SOP</code>&nbsp;&nbsp;
+  <code>🔌 一键接入外部工具</code>&nbsp;&nbsp;
+  <code>🛡️ 三重容错稳定运行</code>&nbsp;&nbsp;
+  <code>⚡ 智能省 Token</code>
 </p>
 
 <p align="center">
@@ -19,9 +27,9 @@
 
 ---
 
-**Pixelle Studio** 是一个开源的 AI Agent 智能工作台。只需用自然语言描述你的需求，Agent 就能自动调用工具、执行代码、生成文档，帮你完成从数据分析到旅行规划的各种复杂任务。
+**Pixelle Studio** 是一个开源的 AI Agent 工作台，专注于**专家级文件处理**。只需用**自然语言描述**你的工作流程，就能将日常任务 SOP 转化为 AI 可理解、可执行的技能 —— 告别复杂的变量传递和开发门槛。一键接入外部工具（MCP），稳定生成 PDF、PPT、Excel 等各类文档，三重容错永不中断，渐进式加载智能省 Token。
 
-> 💡 **不只是聊天机器人** —— 它能真正地思考、执行、创造。
+> 💡 **不只是聊天机器人** —— 用自然语言教会 AI 你的工作方式，零代码让它成为你的文件处理专家。
 
 <p align="center">
   <img src="assets/main.png" alt="Pixelle Studio 主界面" width="100%">
@@ -34,16 +42,30 @@
 <table>
 <tr>
 <td width="33%" align="center">
-<h3>📄 全格式文档处理</h3>
-<p>PDF、Excel、PPT、Word、Markdown、HTML<br>—— 智能生成 & 实时预览</p>
+<h3>📄 专家级文件处理</h3>
+<p>PDF、Excel、PPT、Word、Markdown、HTML<br>—— 全格式生成、预览、下载</p>
 </td>
 <td width="33%" align="center">
-<h3>🧠 自定义技能系统</h3>
-<p>将你的 SOP / 经验封装成 Skill<br>大幅提升任务成功率</p>
+<h3>🧠 自然语言定义 SOP 技能</h3>
+<p>用自然语言描述工作流，零代码转化为 AI Skill<br>—— 告别复杂开发，人人都能定制 Agent</p>
 </td>
 <td width="33%" align="center">
-<h3>🔌 MCP 外部工具集成</h3>
-<p>一键接入搜索引擎、地图、视频等<br>外部能力，拓展 Agent 边界</p>
+<h3>🔌 一键接入外部工具</h3>
+<p>搜索引擎、地图、视频等 MCP 工具<br>—— 秒级扩展 Agent 能力边界</p>
+</td>
+</tr>
+<tr>
+<td width="33%" align="center">
+<h3>🛡️ 三重容错稳定运行</h3>
+<p>Auth → Model → Thinking 三层 Failover<br>—— 服务永不中断，任务永不丢失</p>
+</td>
+<td width="33%" align="center">
+<h3>⚡ 智能省 Token</h3>
+<p>渐进式技能加载节省 90%+ Token<br>—— 智能上下文压缩，永不溢出</p>
+</td>
+<td width="33%" align="center">
+<h3>🖥️ 持久化代码执行</h3>
+<p>内置 PTY 终端，变量跨调用保持<br>—— 多步执行，崩溃自动恢复</p>
 </td>
 </tr>
 </table>
@@ -54,7 +76,7 @@
 |------|:---:|:---:|
 | 文档生成 (PDF/PPT/Excel) | ❌ 仅生成文本 | ✅ 直接生成文件并预览 |
 | 代码执行 | ❌ 或需要插件 | ✅ 内置持久化终端，多步执行 |
-| 自定义技能 | ❌ | ✅ 将 SOP 封装为可执行 Skill |
+| 自定义技能 | ❌ | ✅ 自然语言描述即可，零代码定义 Skill |
 | 外部工具 (MCP) | ❌ 封闭生态 | ✅ 开放协议，按需接入 |
 | 上下文管理 | ❌ 被动截断 | ✅ 智能压缩，自动管理 |
 | 多模型容错 | ❌ 单模型 | ✅ 三层 Failover 机制 |
@@ -91,7 +113,19 @@ Agent 自动组合多个 Skill → 网络搜索 → 内容抓取 → 结构化�
   <img src="assets/deep-research with ppt generation.png" alt="深度研究 + PPT 生成" width="100%">
 </p>
 
-### 3️⃣ HTML 小游戏 & 互动内容
+### 3️⃣ Excel 数据分析与报表生成
+
+> 💬 *"我有一份公司全年销售数据，帮我按季度汇总各产品线收入，计算同比增长率，异常数据用红色标注，生成财务分析报表。"*
+
+Agent 读取原始 Excel → 数据清洗与结构化 → 使用 **Excel 原生公式**（`SUM`/`VLOOKUP`/增长率公式，非 Python 硬编码）计算汇总 → 条件格式自动标注异常值 → `recalc.py` 校验零公式错误 → 输出专业级财务报表
+
+**为什么更准确？** 传统 AI 工具在 Python 里算好数字再填入表格，数据一变就全废了。Pixelle Studio 坚持用 **Excel 原生公式驱动**，生成的报表是"活"的 —— 修改源数据，所有汇总、增长率、图表自动联动更新。
+
+<p align="center">
+  <img src="assets/files.png" alt="Excel 数据分析与报表" width="100%">
+</p>
+
+### 4️⃣ HTML 小游戏 & 互动内容
 
 > 💬 *"帮我写一个贪吃蛇小游戏"*
 
@@ -101,7 +135,7 @@ Agent 直接编写 HTML/CSS/JS → 生成可运行的游戏文件 → 内置预�
   <img src="assets/files-html.png" alt="HTML 小游戏" width="100%">
 </p>
 
-### 4️⃣ 自定义你自己的 Skill
+### 5️⃣ 自定义你自己的 Skill
 
 不只是使用预置技能 —— 你可以创建自己的 Skill，让 Agent 掌握你特有的工作流：
 

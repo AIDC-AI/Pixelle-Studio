@@ -123,6 +123,7 @@ class ChatResponse(BaseModel):
 
 class GenerateTitleRequest(BaseModel):
     message: str  # User's first message
+    user_id: Optional[int] = None  # User ID to load their API key
     
 
 class GenerateTitleResponse(BaseModel):
@@ -135,11 +136,42 @@ async def generate_title(request: GenerateTitleRequest):
     from openai import AsyncOpenAI
     from app.llm_adapter import DEFAULT_MODEL
     
+    # Load user-specific API key (no env-var fallback)
+    api_key = None
+    base_url = None
+    model = DEFAULT_MODEL
+    if request.user_id:
+        db_title = SessionLocal()
+        try:
+            from app.database.models import User as DBUser
+            from app.utils.security import decrypt_value
+            db_user = db_title.query(DBUser).filter(DBUser.uid == request.user_id).first()
+            if db_user:
+                if db_user.llm_api_key_encrypted:
+                    try:
+                        api_key = decrypt_value(db_user.llm_api_key_encrypted)
+                    except Exception:
+                        pass
+                if db_user.llm_base_url:
+                    base_url = db_user.llm_base_url
+                if db_user.llm_model_name:
+                    model = db_user.llm_model_name
+        finally:
+            db_title.close()
+    
+    if not api_key:
+        # No API key available – use simple truncation fallback
+        fallback_title = request.message[:15] + "..." if len(request.message) > 15 else request.message
+        return {"title": fallback_title}
+    
     try:
-        client = AsyncOpenAI()
+        client_kwargs = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        client = AsyncOpenAI(**client_kwargs)
         
         response = await client.chat.completions.create(
-            model=DEFAULT_MODEL,
+            model=model,
             messages=[
                 {
                     "role": "system", 
@@ -177,7 +209,7 @@ async def generate_title(request: GenerateTitleRequest):
         # Log token usage
         usage = response.usage
         if usage:
-            log.info(f"[TokenUsage][generate_title] model={DEFAULT_MODEL} prompt_tokens={usage.prompt_tokens} completion_tokens={usage.completion_tokens} total_tokens={usage.total_tokens}")
+            log.info(f"[TokenUsage][generate_title] model={model} prompt_tokens={usage.prompt_tokens} completion_tokens={usage.completion_tokens} total_tokens={usage.total_tokens}")
             
         log.info(f"Generated title: {title} for message: {request.message[:50]}...")
         return {"title": title}
@@ -377,12 +409,72 @@ async def process_with_agent(
         finally:
             db.close()
 
+        # Load user-specific LLM configuration (if set)
+        user_llm_config = {}
+        user_context_config = {}
+        if user_id:
+            db2 = SessionLocal()
+            try:
+                from app.database.models import User as DBUser
+                from app.utils.security import decrypt_value
+                db_user = db2.query(DBUser).filter(DBUser.uid == user_id).first()
+                if db_user:
+                    # LLM credentials
+                    if db_user.llm_api_key_encrypted:
+                        try:
+                            user_llm_config["api_key"] = decrypt_value(db_user.llm_api_key_encrypted)
+                        except Exception as e:
+                            log.warning(f"Failed to decrypt user API key: {e}")
+                    if db_user.llm_base_url:
+                        user_llm_config["base_url"] = db_user.llm_base_url
+                    if db_user.llm_model_name:
+                        user_llm_config["model_name"] = db_user.llm_model_name
+                    # Context / advanced settings
+                    if db_user.context_compaction_enabled is not None:
+                        user_context_config["context_compaction_enabled"] = db_user.context_compaction_enabled.lower() == "true"
+                    if db_user.context_keep_recent is not None:
+                        user_context_config["context_keep_recent"] = db_user.context_keep_recent
+                    if db_user.context_min_messages is not None:
+                        user_context_config["context_min_messages"] = db_user.context_min_messages
+                    if db_user.default_thinking_level:
+                        user_context_config["default_thinking_level"] = db_user.default_thinking_level
+                    if db_user.agent_max_turns is not None:
+                        user_context_config["agent_max_turns"] = db_user.agent_max_turns
+                    if db_user.model_fallbacks:
+                        user_context_config["model_fallbacks"] = db_user.model_fallbacks
+            finally:
+                db2.close()
+
+        # ── Guard: user MUST have configured their own API key ──
+        if not user_llm_config.get("api_key"):
+            log.warning(f"User {user_id} has no API key configured – aborting chat")
+            await websocket.send_json({
+                "type": "error",
+                "content": (
+                    "⚠️ API Key is not configured.\n\n"
+                    "Please click the ⚙️ Settings button in the top-right corner to add your API Key, Base URL, and model name before starting a conversation."
+                ),
+            })
+            # Mark the turn as failed so it doesn't stay "running" forever
+            db_mark = SessionLocal()
+            try:
+                turn = db_mark.query(ChatTurn).filter(ChatTurn.chat_id == chat_id).first()
+                if turn:
+                    turn.status = "error"
+                    turn.assistant_message = "API Key not configured"
+                    turn.updated_at = datetime.utcnow()
+                    db_mark.commit()
+            finally:
+                db_mark.close()
+            return
+
         agent = SkillAgent(
-            # max_turns uses config.agent_max_turns by default (env: AGENT_MAX_TURNS)
             history_messages=history_messages,
             mcp_server_url=mcp_server_url,
             mcp_server_type=mcp_server_type,
-            user_id=user_id
+            user_id=user_id,
+            user_llm_config=user_llm_config,
+            user_context_config=user_context_config if user_context_config else None
         )
         
         step_index = 0

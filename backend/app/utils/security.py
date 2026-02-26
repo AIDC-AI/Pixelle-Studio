@@ -11,7 +11,10 @@
 # limitations under the License.
 
 import bcrypt
+import base64
+import hashlib
 from jose import JWTError, jwt
+from cryptography.fernet import Fernet
 from datetime import datetime, timedelta
 from typing import Optional
 import os
@@ -21,6 +24,12 @@ _DEFAULT_JWT_SECRET = "pixelle-jwt-secret-key-for-development-only-2024"
 SECRET_KEY = os.environ.get("JWT_SECRET", _DEFAULT_JWT_SECRET)  # Production should use environment variables
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 
+
+# Encryption key for sensitive data (API keys etc.)
+# Derived from JWT_SECRET to avoid requiring a separate env var
+_ENCRYPTION_SECRET = os.environ.get("ENCRYPTION_SECRET", SECRET_KEY)
+_FERNET_KEY = base64.urlsafe_b64encode(hashlib.sha256(_ENCRYPTION_SECRET.encode()).digest())
+_fernet = Fernet(_FERNET_KEY)
 
 def _truncate_password(password: str) -> bytes:
     """Truncate password to 72 bytes for bcrypt compatibility"""
@@ -62,3 +71,32 @@ def decode_access_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+# ============================================================================
+# Symmetric encryption for sensitive data (API keys)
+# ============================================================================
+
+def encrypt_value(plaintext: str) -> str:
+    """Encrypt a plaintext string using Fernet symmetric encryption.
+    Returns a base64-encoded ciphertext string safe for DB storage."""
+    if not plaintext:
+        return ""
+    return _fernet.encrypt(plaintext.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_value(ciphertext: str) -> str:
+    """Decrypt a Fernet-encrypted string back to plaintext."""
+    if not ciphertext:
+        return ""
+    return _fernet.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
+
+
+def mask_api_key(api_key: str) -> str:
+    """Mask an API key for safe display: show only first 4 and last 4 chars.
+    e.g. 'sk-abc123...xyz9' """
+    if not api_key:
+        return ""
+    if len(api_key) <= 12:
+        return api_key[:2] + "*" * (len(api_key) - 4) + api_key[-2:]
+    return api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:]

@@ -88,3 +88,51 @@ class LoginResponse(BaseModel):
     message: str
     user: UserResponse
     token: Token
+
+
+# ============================================================================
+# User LLM Settings Schemas
+# ============================================================================
+
+class LLMSettingsUpdate(BaseModel):
+    """Request to save user's custom LLM configuration."""
+    api_key: Optional[str] = None       # Plaintext API key (encrypted before storage)
+    base_url: Optional[str] = None      # Custom OpenAI-compatible base URL
+    model_name: Optional[str] = None    # Custom model name
+    # Advanced / context management settings
+    context_compaction_enabled: Optional[bool] = None
+    context_keep_recent: Optional[int] = None
+    context_min_messages: Optional[int] = None
+    default_thinking_level: Optional[str] = None   # high / medium / low / off
+    agent_max_turns: Optional[int] = None
+    model_fallbacks: Optional[str] = None           # comma-separated
+
+
+class LLMSettingsResponse(BaseModel):
+    """Response with user's LLM configuration (API key masked for security)."""
+    api_key_set: bool = False             # Whether an API key is configured
+    api_key_masked: Optional[str] = None  # Masked API key for display (e.g. sk-ab****xyz9)
+    base_url: Optional[str] = None
+    model_name: Optional[str] = None
+    # Advanced settings (with system defaults as fallback)
+    context_compaction_enabled: bool = True
+    context_keep_recent: int = 10
+    context_min_messages: int = 15
+    default_thinking_level: str = "medium"
+    agent_max_turns: int = 50
+    model_fallbacks: Optional[str] = None
+
+
+class LLMTestRequest(BaseModel):
+    """Request to test LLM connectivity."""
+    api_key: str
+    base_url: Optional[str] = None
+    model_name: Optional[str] = None
+
+
+class LLMTestResponse(BaseModel):
+    """Response from LLM connectivity test."""
+    success: bool
+    message: str
+    model_used: Optional[str] = None
+    latency_ms: Optional[int] = None

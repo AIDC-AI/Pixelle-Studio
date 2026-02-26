@@ -40,8 +40,9 @@ class ScriptAdvisor:
         """Initialize the script advisor."""
         self.llm_client = llm_client
         
+        # No env-var fallback – client must be provided by caller with user's API key
         if self.llm_client is None:
-            self.llm_client = AsyncOpenAI()
+            raise RuntimeError("No LLM client provided. User must configure their API key in Settings.")
     
     async def generate_revision_advice(
         self,

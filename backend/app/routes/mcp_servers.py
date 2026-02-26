@@ -172,7 +172,7 @@ async def _check_builtin_server_status(server_config: dict) -> dict:
         aggregator = MCPAggregator()
         
         try:
-            tools = await asyncio.wait_for(aggregator.fetch_tools(config), timeout=3.0)
+            tools = await asyncio.wait_for(aggregator.fetch_tools(config), timeout=8.0)
             response_time = (time.time() - start_time) * 1000
             return {
                 "status": "connected",
@@ -184,7 +184,7 @@ async def _check_builtin_server_status(server_config: dict) -> dict:
             response_time = (time.time() - start_time) * 1000
             return {
                 "status": "error",
-                "message": "Connection timeout (3s)",
+                "message": "Connection timeout (8s)",
                 "response_time": round(response_time, 2),
                 "tools": []
             }

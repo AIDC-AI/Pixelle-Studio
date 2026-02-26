@@ -51,9 +51,6 @@ def _log_llm_usage(response, call_type: str, model: str):
         logger.debug(f"Failed to log LLM usage: {e}")
 
 # LLM Configuration - read from environment variables, supports custom configuration
-# LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://REDACTED_BASE_URL_HOST/v1")
-# LLM_API_KEY = os.getenv("LLM_API_KEY", "REDACTED_API_KEY")
-# LLM_MODEL = os.getenv("LLM_MODEL", "us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 

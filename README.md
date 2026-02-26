@@ -3,7 +3,15 @@
 </p>
 
 <p align="center">
-  <strong>🚀 Drive Everything with Natural Language — Your AI-Powered Workspace</strong>
+  <strong>🚀 Define Workflows in Natural Language — Your Zero-Code AI File Expert</strong>
+</p>
+
+<p align="center">
+  <code>📄 Full-Format Docs</code>&nbsp;&nbsp;
+  <code>🧠 Natural-Language SOPs</code>&nbsp;&nbsp;
+  <code>🔌 One-Click Tools</code>&nbsp;&nbsp;
+  <code>🛡️ Rock-Solid Stability</code>&nbsp;&nbsp;
+  <code>⚡ Token-Smart</code>
 </p>
 
 <p align="center">
@@ -19,9 +27,9 @@
 
 ---
 
-**Pixelle Studio** is an open-source AI Agent workspace. Just describe what you need in natural language — the Agent will automatically invoke tools, execute code, and generate documents to accomplish complex tasks from data analysis to travel planning.
+**Pixelle Studio** is an open-source AI Agent workspace built for **expert-level file processing**. Simply **describe your workflow in natural language** to turn daily task SOPs into AI-executable Skills — no complex variable passing or coding knowledge required. Plug in external tools via MCP, and let the Agent reliably generate PDFs, PPTs, Excel files, and more — with three-layer failover for rock-solid stability and progressive loading to save tokens.
 
-> 💡 **More than a chatbot** — it can truly think, execute, and create.
+> 💡 **Not just a chatbot** — teach AI your workflow in plain language, zero-code your way to an expert file processing agent.
 
 <p align="center">
   <img src="assets/main.png" alt="Pixelle Studio Main Interface" width="100%">
@@ -34,16 +42,30 @@
 <table>
 <tr>
 <td width="33%" align="center">
-<h3>📄 Full-Format Document Processing</h3>
-<p>PDF, Excel, PPT, Word, Markdown, HTML<br>— Smart generation & live preview</p>
+<h3>📄 Expert File Processing</h3>
+<p>PDF, Excel, PPT, Word, Markdown, HTML<br>— Generate, preview & download any format</p>
 </td>
 <td width="33%" align="center">
-<h3>🧠 Custom Skills System</h3>
-<p>Package your SOPs / expertise into Skills<br>— Dramatically boost task success rates</p>
+<h3>🧠 Natural-Language SOP Skills</h3>
+<p>Describe workflows in plain language, zero-code<br>— Turn anyone into an Agent expert, no dev skills needed</p>
 </td>
 <td width="33%" align="center">
-<h3>🔌 MCP Tool Integration</h3>
-<p>One-click access to search engines, maps,<br>video & more — extend your Agent's reach</p>
+<h3>🔌 One-Click Tool Integration</h3>
+<p>Plug in search, maps, video & more via MCP<br>— Extend your Agent's reach in seconds</p>
+</td>
+</tr>
+<tr>
+<td width="33%" align="center">
+<h3>🛡️ Rock-Solid Stability</h3>
+<p>Three-layer failover: Auth → Model → Thinking<br>— Service never stops, tasks never break</p>
+</td>
+<td width="33%" align="center">
+<h3>⚡ Token-Smart Engine</h3>
+<p>Progressive skill loading saves 90%+ tokens<br>— Smart context compression, never overflow</p>
+</td>
+<td width="33%" align="center">
+<h3>🖥️ Persistent Execution</h3>
+<p>Built-in PTY terminal with variable persistence<br>— Multi-step code execution, auto-recovery</p>
 </td>
 </tr>
 </table>
@@ -54,7 +76,7 @@
 |---------|:---:|:---:|
 | Document Generation (PDF/PPT/Excel) | ❌ Text-only output | ✅ Generate files with live preview |
 | Code Execution | ❌ Or plugin-dependent | ✅ Built-in persistent terminal, multi-step |
-| Custom Skills | ❌ | ✅ Turn SOPs into executable Skills |
+| Custom Skills | ❌ | ✅ Natural language to define Skills, zero-code |
 | External Tools (MCP) | ❌ Closed ecosystem | ✅ Open protocol, plug & play |
 | Context Management | ❌ Passive truncation | ✅ Smart compression, auto-managed |
 | Multi-Model Failover | ❌ Single model | ✅ Three-layer failover mechanism |
@@ -90,7 +112,19 @@ Agent combines multiple Skills → web search → content scraping → structure
   <img src="assets/deep-research with ppt generation.png" alt="Deep Research + PPT Generation" width="100%">
 </p>
 
-### 3️⃣ HTML Games & Interactive Content
+### 3️⃣ Excel Data Analysis & Report Generation
+
+> 💬 *"I have a yearly sales dataset. Summarize revenue by product line per quarter, calculate YoY growth rates, highlight anomalies in red, and generate a financial analysis report."*
+
+Agent reads raw Excel → data cleaning & structuring → uses **native Excel formulas** (`SUM`/`VLOOKUP`/growth rate formulas, not Python-hardcoded values) for summaries → conditional formatting to flag anomalies → `recalc.py` verifies zero formula errors → outputs a professional financial report
+
+**Why more accurate?** Traditional AI tools calculate numbers in Python and paste them into cells — change the data, and everything breaks. Pixelle Studio insists on **native Excel formula-driven** output, producing "living" spreadsheets — edit the source data, and all summaries, growth rates, and charts update automatically.
+
+<p align="center">
+  <img src="assets/files.png" alt="Excel Data Analysis & Reporting" width="100%">
+</p>
+
+### 4️⃣ HTML Games & Interactive Content
 
 > 💬 *"Build me a Snake game"*
 
@@ -100,7 +134,7 @@ Agent writes HTML/CSS/JS → generates a runnable game file → built-in preview
   <img src="assets/files-html.png" alt="HTML Snake Game" width="100%">
 </p>
 
-### 4️⃣ Create Your Own Skills
+### 5️⃣ Create Your Own Skills
 
 Don't just use built-in skills — create your own to teach the Agent your unique workflows:
 

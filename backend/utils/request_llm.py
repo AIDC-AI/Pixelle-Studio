@@ -17,10 +17,6 @@ import os
 from openai import AsyncOpenAI
 
 # # Read LLM configuration from environment variables
-# LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://REDACTED_BASE_URL_HOST/v1")
-# LLM_API_KEY = os.getenv("LLM_API_KEY", "REDACTED_API_KEY")
-# LLM_MODEL = os.getenv("LLM_MODEL", "us.anthropic.claude-sonnet-4-20250514-v1:0")
-
 
 async def main(req_path: str):
     client = AsyncOpenAI()

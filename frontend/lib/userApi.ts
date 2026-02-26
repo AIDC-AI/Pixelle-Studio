@@ -10,7 +10,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { UserResponse, CreateUserRequest, UpdateUserRequest, Token } from '@/types/user';
+import { UserResponse, CreateUserRequest, UpdateUserRequest, Token, LLMSettings, LLMSettingsUpdate, LLMTestRequest, LLMTestResponse } from '@/types/user';
 import { API_BASE, AUTH_TOKEN_KEY, getAuthHeaders } from './data';
  
 export const userAPI = {
@@ -127,5 +127,57 @@ export const userAPI = {
     // Logout
     logout() {
         this.clearToken();
+    },
+
+    // ==================== LLM Settings API ====================
+
+    // Get current user's LLM settings
+    async getLLMSettings(): Promise<LLMSettings> {
+        const response = await fetch(`${API_BASE}/users/me/llm-settings`, {
+            headers: getAuthHeaders()
+        });
+        if (!response.ok) {
+            throw new Error('Failed to fetch LLM settings');
+        }
+        return response.json();
+    },
+
+    // Update current user's LLM settings
+    async updateLLMSettings(settings: LLMSettingsUpdate): Promise<LLMSettings> {
+        const response = await fetch(`${API_BASE}/users/me/llm-settings`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(settings)
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to update LLM settings');
+        }
+        return response.json();
+    },
+
+    // Clear all LLM settings
+    async deleteLLMSettings(): Promise<void> {
+        const response = await fetch(`${API_BASE}/users/me/llm-settings`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        if (!response.ok) {
+            throw new Error('Failed to clear LLM settings');
+        }
+    },
+
+    // Test LLM connectivity
+    async testLLMConnection(request: LLMTestRequest): Promise<LLMTestResponse> {
+        const response = await fetch(`${API_BASE}/users/me/llm-settings/test`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(request)
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Connection test failed');
+        }
+        return response.json();
     }
 };

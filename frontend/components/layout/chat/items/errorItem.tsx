@@ -12,31 +12,52 @@
 
 'use client';
 
-import { AlertTriangle, XCircle } from 'lucide-react';
+import { AlertTriangle, XCircle, Settings } from 'lucide-react';
 
 interface IProps {
     content?: string;
+    onOpenSettings?: () => void;
 }
 
 const ErrorItem: React.FC<IProps> = (props) => {
-    const { content = '' } = props;
+    const { content = '', onOpenSettings } = props;
+
+    // Detect API-key-missing message so we can show a helpful action button
+    const isApiKeyMissing = content.includes('API Key') && content.includes('Settings');
 
     return (
         <div 
-            className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg"
+            className={`flex items-start gap-2 p-3 border rounded-lg ${
+                isApiKeyMissing 
+                    ? 'bg-amber-50 border-amber-300' 
+                    : 'bg-red-50 border-red-200'
+            }`}
             style={{ boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.08)' }}
         >
-            <div className="flex items-center justify-center w-6 h-6 rounded bg-red-100 text-red-600 shrink-0">
-                <XCircle className="w-3.5 h-3.5" />
+            <div className={`flex items-center justify-center w-6 h-6 rounded shrink-0 ${
+                isApiKeyMissing ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'
+            }`}>
+                {isApiKeyMissing ? <Settings className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-xs font-medium text-red-700">Error</span>
-                    <AlertTriangle className="w-3 h-3 text-red-500" />
+                    <span className={`text-xs font-medium ${isApiKeyMissing ? 'text-amber-700' : 'text-red-700'}`}>
+                        {isApiKeyMissing ? 'Configuration Required' : 'Error'}
+                    </span>
+                    <AlertTriangle className={`w-3 h-3 ${isApiKeyMissing ? 'text-amber-500' : 'text-red-500'}`} />
                 </div>
-                <p className="text-red-600 text-xs whitespace-pre-wrap break-words">
+                <p className={`text-xs whitespace-pre-wrap break-words ${isApiKeyMissing ? 'text-amber-700' : 'text-red-600'}`}>
                     {content}
                 </p>
+                {isApiKeyMissing && onOpenSettings && (
+                    <button
+                        onClick={onOpenSettings}
+                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-md transition-colors"
+                    >
+                        <Settings className="w-3 h-3" />
+                        Open Settings
+                    </button>
+                )}
             </div>
         </div>
     );

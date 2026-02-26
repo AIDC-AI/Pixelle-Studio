@@ -39,3 +39,43 @@ export interface UpdateUserRequest {
   email?: string;
   password?: string;
 }
+
+// LLM Settings
+export interface LLMSettings {
+  api_key_set: boolean;
+  api_key_masked: string | null;
+  base_url: string | null;
+  model_name: string | null;
+  // Advanced / context management settings (always returned with defaults)
+  context_compaction_enabled: boolean;
+  context_keep_recent: number;
+  context_min_messages: number;
+  default_thinking_level: string;
+  agent_max_turns: number;
+  model_fallbacks: string | null;
+}
+
+export interface LLMSettingsUpdate {
+  api_key?: string;
+  base_url?: string;
+  model_name?: string;
+  context_compaction_enabled?: boolean;
+  context_keep_recent?: number;
+  context_min_messages?: number;
+  default_thinking_level?: string;
+  agent_max_turns?: number;
+  model_fallbacks?: string;
+}
+
+export interface LLMTestRequest {
+  api_key: string;
+  base_url?: string;
+  model_name?: string;
+}
+
+export interface LLMTestResponse {
+  success: boolean;
+  message: string;
+  model_used?: string;
+  latency_ms?: number;
+}

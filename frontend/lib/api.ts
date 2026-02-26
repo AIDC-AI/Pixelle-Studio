@@ -24,11 +24,11 @@ export interface GenerateTitleResponse {
 }
 
 export const api = {
-    generateTitle: async (message: string): Promise<GenerateTitleResponse> => {
+    generateTitle: async (message: string, userId?: number): Promise<GenerateTitleResponse> => {
         const res = await fetch(`${API_BASE}/generate-title`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ message, user_id: userId ?? null }),
         });
         return res.json();
     },

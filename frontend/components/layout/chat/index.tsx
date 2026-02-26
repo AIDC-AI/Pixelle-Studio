@@ -27,6 +27,7 @@ import { DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_PREVIEW_WIDTH_PERCENT, MAX_LEFT_PANEL
 import { createParserState, filterCodeBlocks } from '@/utils/codeBlockFilter';
 import User from "@/components/ui/user";
 import LogoutButton from "@/components/ui/logoutButton";
+import SettingsModal from "@/components/ui/settingsModal";
 
 // Dynamically import large components
 const LeftPanel = lazy(() => import("../leftPanel"));
@@ -74,6 +75,9 @@ const Chat = () => {
 
   // File preview state
   const [previewFile, setPreviewFile] = useState<OutputFile | null>(null);
+
+  // Settings modal state
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
 
   // WebSocket reference, used to stop inference
   const wsRef = useRef<WebSocket | null>(null);
@@ -282,7 +286,7 @@ const Chat = () => {
       session = await handleNewSession(input)
 
       // Async title generation (non-blocking)
-      api.generateTitle(input).then(({ title }) => {
+      api.generateTitle(input, user?.uid).then(({ title }) => {
         if (title) {
           // Backend already constrains title to 50 chars; just use it directly
           updateSessionTitle(session!.id, title.trim());
@@ -338,7 +342,7 @@ const Chat = () => {
         const _messages: Message[] = []
 
         if (lastType === 'response_delta' && data.type !== 'response_delta' && !!streamingString && streamingString.trim() !== '') {
-          // if type is not final_resul，add delta to messages
+          // if type is not final_result, add delta to messages
           if (data.type !== 'final_result') {
             _messages.push({
               type: 'response',
@@ -797,6 +801,13 @@ const Chat = () => {
             <span className="font-semibold text-md text-gray-900 truncate">{session?.title || ''}</span>
           </div>
           <div className="absolute right-6 flex items-center gap-4">
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+              title="LLM Settings"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
             <User />
             <LogoutButton />
           </div>
@@ -816,6 +827,7 @@ const Chat = () => {
                 messages={messages}
                 currentScript={currentScript}
                 onFilePreview={setPreviewFile}
+                onOpenSettings={() => setSettingsOpen(true)}
                 streamingResponse={streamingResponse}
                 isLoading={messagesLoading}
                 isCodeBlock={parserState.inCodeBlock}
@@ -863,6 +875,12 @@ const Chat = () => {
         </div>
       </div>
       {/* {skillEditored && <SkillEditor />} */}
+      
+      {/* Settings Modal */}
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   );
 };

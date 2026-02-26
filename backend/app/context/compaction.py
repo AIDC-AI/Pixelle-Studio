@@ -88,7 +88,7 @@ async def generate_summary(
         Summary text
     """
     if client is None:
-        client = AsyncOpenAI()
+        raise RuntimeError("No LLM client provided for compaction. User must configure their API key in Settings.")
     
     # Build summary request
     messages_text = ""

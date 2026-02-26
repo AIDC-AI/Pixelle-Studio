@@ -125,7 +125,9 @@ class SkillAgent:
         mcp_server_url: Optional[str] = None,
         mcp_server_type: str = "sse",
         user_id: Optional[int] = None,
-        auth_store: Optional[AuthStore] = None
+        auth_store: Optional[AuthStore] = None,
+        user_llm_config: Optional[Dict[str, str]] = None,
+        user_context_config: Optional[Dict[str, Any]] = None
     ):
         """
         Initialize the agent.
@@ -137,20 +139,44 @@ class SkillAgent:
             mcp_server_type: Type of MCP server ("sse" or "http")
             user_id: User ID for isolation and personalization
             auth_store: Authentication store for failover (optional)
+            user_llm_config: User-specific LLM config dict with keys: api_key, base_url, model_name
+            user_context_config: User-specific context / advanced settings
         """
-        # Authentication config
-        self.auth_store = auth_store or AuthStore.from_env()
+        # User-specific LLM configuration (REQUIRED – no env-var fallback)
+        self.user_llm_config = user_llm_config or {}
+        self.user_context_config = user_context_config or {}
+        
+        # Authentication config – only used when user provides their own key
+        self.auth_store = auth_store or AuthStore()
         self.current_auth_profile = None
         
         # Client will be lazily initialized
         self.client = None
         
-        # Model config
-        self.model = DEFAULT_MODEL
-        self.model_fallbacks = config.get_model_chain(DEFAULT_MODEL)
+        # Model config - user config takes priority
+        self.model = self.user_llm_config.get("model_name") or DEFAULT_MODEL
         
-        # Agent config
-        self.max_turns = max_turns if max_turns is not None else config.agent_max_turns
+        # Model fallbacks - user override or system default
+        user_fallbacks_str = self.user_context_config.get("model_fallbacks")
+        if user_fallbacks_str:
+            user_fallback_list = [m.strip() for m in user_fallbacks_str.split(",") if m.strip()]
+            seen = set()
+            chain = []
+            for m in [self.model] + user_fallback_list:
+                if m not in seen:
+                    seen.add(m)
+                    chain.append(m)
+            self.model_fallbacks = chain
+        else:
+            self.model_fallbacks = config.get_model_chain(self.model)
+        
+        # Agent config - user override or explicit param or system default
+        if max_turns is not None:
+            self.max_turns = max_turns
+        elif "agent_max_turns" in self.user_context_config:
+            self.max_turns = self.user_context_config["agent_max_turns"]
+        else:
+            self.max_turns = config.agent_max_turns
         self.history_messages = history_messages or []
         self.mcp_server_url = mcp_server_url
         self.mcp_server_type = mcp_server_type
@@ -172,8 +198,15 @@ class SkillAgent:
         self.session_logger: Optional[SessionLogger] = None
     
     async def _init_client_with_failover(self) -> AsyncOpenAI:
-        """Initialize LLM client with failover"""
-        # Get proxy config
+        """
+        Initialize LLM client.
+        
+        ONLY user-configured API keys are used.  Environment variables are
+        intentionally ignored so that credentials are never leaked through
+        shell configuration.  If no user key is present the caller
+        (process_with_agent) should already have blocked the request.
+        """
+        # Get proxy config (proxy settings are infrastructure, not credentials)
         http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
         https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
         
@@ -186,59 +219,25 @@ class SkillAgent:
             }
             logger.info(f"[Agent] Using proxy: {https_proxy or http_proxy}")
         
-        if not config.enable_auth_failover:
-            # Failover disabled, use default config
-            logger.info("[Agent] Auth failover disabled, using default config")
-            return AsyncOpenAI(timeout=LLM_TIMEOUT, http_client=httpx.AsyncClient(**httpx_config) if httpx_config else None)
+        # --- User-specific LLM configuration (REQUIRED) ---
+        user_api_key = self.user_llm_config.get("api_key")
+        user_base_url = self.user_llm_config.get("base_url")
         
-        candidates = self.auth_store.get_candidates("openai")
+        if not user_api_key:
+            raise RuntimeError(
+                "No API key configured. Please go to Settings and add your API Key."
+            )
         
-        if not candidates:
-            logger.warning("[Agent] No auth profiles available, using default")
-            return AsyncOpenAI(timeout=LLM_TIMEOUT)
-        
-        last_error = None
-        
-        for profile in candidates:
-            try:
-                # Try using current config
-                client = AsyncOpenAI(
-                    api_key=profile.api_key,
-                    base_url=profile.base_url,
-                    timeout=LLM_TIMEOUT,
-                    http_client=httpx.AsyncClient(**httpx_config) if httpx_config else None
-                )
-                
-                # Simple test (no actual API call, just initialization)
-                logger.info(f"[Agent] Using auth profile: {profile.id}")
-                self.current_auth_profile = profile
-                self.auth_store.mark_success(profile.id)
-                return client
-                
-            except Exception as e:
-                error_msg = str(e).lower()
-                
-                # Classify error
-                if "401" in error_msg or "unauthorized" in error_msg:
-                    reason = "auth_error"
-                elif "429" in error_msg or "rate_limit" in error_msg:
-                    reason = "rate_limit"
-                elif "402" in error_msg or "quota" in error_msg:
-                    reason = "billing_error"
-                else:
-                    reason = "unknown"
-                
-                # Record failure
-                self.auth_store.mark_failure(profile.id, reason)
-                logger.warning(f"[Agent] Auth profile {profile.id} failed: {reason}")
-                last_error = e
-                
-                # Continue to next
-                continue
-        
-        # All configs failed, use default
-        logger.error(f"[Agent] All auth profiles failed: {last_error}")
-        return AsyncOpenAI(timeout=LLM_TIMEOUT, http_client=httpx.AsyncClient(**httpx_config) if httpx_config else None)
+        logger.info(f"[Agent] Using user-specific LLM config (model={self.model})")
+        client_kwargs = {
+            "api_key": user_api_key,
+            "timeout": LLM_TIMEOUT,
+        }
+        if user_base_url:
+            client_kwargs["base_url"] = user_base_url
+        if httpx_config:
+            client_kwargs["http_client"] = httpx.AsyncClient(**httpx_config)
+        return AsyncOpenAI(**client_kwargs)
     
     async def _call_llm_with_failover(
         self,
@@ -507,7 +506,11 @@ class SkillAgent:
             self.session_logger.log_message("user", full_user_message, turn=0)
         
             # === Context Window Guard ===
-            if config.context_compaction_enabled:
+            # Resolve per-user context settings with system defaults
+            _compaction_enabled = self.user_context_config.get("context_compaction_enabled", config.context_compaction_enabled)
+            _keep_recent = self.user_context_config.get("context_keep_recent", config.context_keep_recent)
+            
+            if _compaction_enabled:
                 should_block, warning, stats = evaluate_context_window_guard(
                     model=self.model,
                     messages=messages,
@@ -525,10 +528,10 @@ class SkillAgent:
                     # Execute compaction (skip system and current user messages)
                     history_to_compact = messages[1:-1]  # Exclude system and last user message
                     
-                    if len(history_to_compact) > config.context_keep_recent:
+                    if len(history_to_compact) > _keep_recent:
                         compacted_history = await compact_history(
                             history_to_compact,
-                            keep_recent=config.context_keep_recent,
+                            keep_recent=_keep_recent,
                             client=self.client
                         )
                         
@@ -579,9 +582,13 @@ class SkillAgent:
                     tool_calls_accumulator: Dict[int, Dict] = {}
                     turn_usage = None  # Track token usage for this turn
                 
+                    # Resolve thinking level: user override > system default
+                    _thinking_level = self.user_context_config.get("default_thinking_level", config.default_thinking_level)
+                    
                     async for event in self._call_llm_with_failover(
                         messages=messages,
-                        tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None
+                        tools=TOOL_SCHEMAS if TOOL_SCHEMAS else None,
+                        thinking_level=_thinking_level
                     ):
                         # Capture usage event
                         if event["type"] == "usage":

@@ -38,6 +38,7 @@ interface IProps {
     currentScript?: string | null
     shouldScrollToBottom?: boolean
     onFilePreview?: (file: OutputFile) => void
+    onOpenSettings?: () => void
     streamingResponse?: string
     isLoading?: boolean
     isCodeBlock?: boolean
@@ -64,8 +65,9 @@ const MessageItem = memo<{
     groupIndex: number;
     isLast: boolean;
     onFilePreview?: (file: OutputFile) => void;
+    onOpenSettings?: () => void;
     onHeightMeasured?: (index: number, height: number) => void;
-}>(({ group, groupIndex, isLast, onFilePreview, onHeightMeasured }) => {
+}>(({ group, groupIndex, isLast, onFilePreview, onOpenSettings, onHeightMeasured }) => {
     const itemRef = useRef<HTMLDivElement>(null);
     
     // Measure height
@@ -93,7 +95,7 @@ const MessageItem = memo<{
             case 'result':
                 return <ResultItem content={msg.content} />
             case 'error':
-                return <ErrorItem content={msg.content} />
+                return <ErrorItem content={msg.content} onOpenSettings={onOpenSettings} />
             case 'code':
                 return (
                     <CodeItem 
@@ -123,7 +125,7 @@ const MessageItem = memo<{
                 return <ToolCallItem toolCall={msg.toolResult} isResult={true} />
         }
         return null;
-    }, [onFilePreview]);
+    }, [onFilePreview, onOpenSettings]);
 
     const getMessageClass = useCallback((msg: Message) => {
         if (msg.type === 'user') {
@@ -191,7 +193,7 @@ const MessageItem = memo<{
 MessageItem.displayName = 'MessageItem';
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, onFilePreview, streamingResponse, isLoading, isCodeBlock } = props;  
+    const { messages, currentScript, onFilePreview, onOpenSettings, streamingResponse, isLoading, isCodeBlock } = props;  
     
     const { activeSessionId } = useApp()
     
@@ -375,6 +377,7 @@ const MessageList: React.FC<IProps> = (props) => {
                             groupIndex={groupIndex}
                             isLast={groupIndex === groupedMessages.length - 1}
                             onFilePreview={onFilePreview}
+                            onOpenSettings={onOpenSettings}
                         />
                     );
                 })}

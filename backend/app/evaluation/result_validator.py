@@ -33,8 +33,9 @@ class ResultValidator:
         self.llm_client = llm_client
         self.llm_model = llm_model
         
+        # No env-var fallback – client must be provided by caller with user's API key
         if self.llm_client is None:
-            self.llm_client = AsyncOpenAI()
+            raise RuntimeError("No LLM client provided. User must configure their API key in Settings.")
         
         if self.llm_model is None:
             from app.llm_adapter import DEFAULT_MODEL

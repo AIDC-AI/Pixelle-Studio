@@ -46,6 +46,20 @@ class User(Base):
     username = Column(String, unique=True, nullable=False, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
     password = Column(String, nullable=False)  # hashed password
+    
+    # User-specific LLM configuration (encrypted API key)
+    llm_api_key_encrypted = Column(Text, nullable=True)   # Fernet-encrypted API key
+    llm_base_url = Column(String, nullable=True)           # Custom OpenAI-compatible base URL
+    llm_model_name = Column(String, nullable=True)         # Custom model name (e.g. gpt-4o, claude-3.5-sonnet)
+    
+    # Advanced / context management settings (per-user overrides, NULL = use system default)
+    context_compaction_enabled = Column(String, nullable=True)   # "true" / "false"
+    context_keep_recent = Column(Integer, nullable=True)         # e.g. 10
+    context_min_messages = Column(Integer, nullable=True)        # e.g. 15
+    default_thinking_level = Column(String, nullable=True)       # high/medium/low/off
+    agent_max_turns = Column(Integer, nullable=True)             # e.g. 50
+    model_fallbacks = Column(String, nullable=True)              # comma-separated model names
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -168,6 +182,17 @@ def _migrate_add_column(engine, table_name: str, column_name: str, column_type: 
 try:
     _migrate_add_column(engine, "mcp_servers", "headers", "TEXT", "NULL")
     _migrate_add_column(engine, "chat_sessions", "title", "VARCHAR", "NULL")
+    # User LLM configuration columns
+    _migrate_add_column(engine, "users", "llm_api_key_encrypted", "TEXT", "NULL")
+    _migrate_add_column(engine, "users", "llm_base_url", "VARCHAR", "NULL")
+    _migrate_add_column(engine, "users", "llm_model_name", "VARCHAR", "NULL")
+    # Advanced / context management columns
+    _migrate_add_column(engine, "users", "context_compaction_enabled", "VARCHAR", "NULL")
+    _migrate_add_column(engine, "users", "context_keep_recent", "INTEGER", "NULL")
+    _migrate_add_column(engine, "users", "context_min_messages", "INTEGER", "NULL")
+    _migrate_add_column(engine, "users", "default_thinking_level", "VARCHAR", "NULL")
+    _migrate_add_column(engine, "users", "agent_max_turns", "INTEGER", "NULL")
+    _migrate_add_column(engine, "users", "model_fallbacks", "VARCHAR", "NULL")
 except Exception as e:
     print(f"[Database] Migration check (non-critical): {e}")
 
