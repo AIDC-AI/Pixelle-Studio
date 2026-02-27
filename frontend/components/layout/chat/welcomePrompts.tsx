@@ -37,14 +37,14 @@ export const WELCOME_PROMPTS: WelcomePrompt[] = [
         icon: <Presentation className="w-5 h-5" />,
         category: 'PPT Design',
         description: 'Create professional presentation slides',
-        prompt: 'Design a professional PPT presentation about "2024 AI Technology Trends" with a cover page, table of contents, 3 content slides with charts, and a summary page. Use modern, clean design with professional color scheme.',
+        prompt: 'Design a professional PPT presentation about "2025 AI Technology Trends" with a cover page, table of contents, 3 content slides with charts, and a summary page. Use modern, clean design with professional color scheme.',
         hasFile: false,
     },
     {
         icon: <FileText className="w-5 h-5" />,
         category: 'PDF Report',
         description: 'Generate formatted PDF documents',
-        prompt: 'Generate a quarterly sales analysis report in PDF format, including a title page, executive summary, data charts with analysis, and conclusion with recommendations. Use professional typography and layout.',
+        prompt: 'Generate a quarterly sales analysis report in PDF format in 1 page, including a title page, executive summary, data charts with analysis, and conclusion with recommendations. Use professional typography and layout.',
         hasFile: false,
     },
     {
