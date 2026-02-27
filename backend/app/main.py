@@ -269,6 +269,24 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
     
     log.debug("Websocket accepted")
 
+    # Heartbeat task to keep the WebSocket connection alive during long processing.
+    # Without this, browsers or proxies may close idle connections.
+    heartbeat_task = None
+    processing_done = asyncio.Event()
+    
+    async def _heartbeat_loop():
+        """Send periodic heartbeat messages to prevent connection timeout."""
+        try:
+            while not processing_done.is_set():
+                await asyncio.sleep(15)  # Send heartbeat every 15 seconds
+                if not processing_done.is_set():
+                    try:
+                        await websocket.send_json({"type": "heartbeat", "timestamp": int(datetime.utcnow().timestamp())})
+                    except Exception:
+                        break  # Connection already closed
+        except asyncio.CancelledError:
+            pass
+
     try:
         # Load pending turn from DB and process
         db = SessionLocal()
@@ -296,6 +314,9 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
         finally:
             db.close()
 
+        # Start heartbeat task before processing
+        heartbeat_task = asyncio.create_task(_heartbeat_loop())
+
         await process_with_agent(websocket, chat_id, session_id, user_message, file_urls, file_names, user_id)
     
     except WebSocketDisconnect:
@@ -306,6 +327,15 @@ async def websocket_endpoint(websocket: WebSocket, chat_id: str):
             await websocket.send_json({"type": "error", "content": str(e)})
         except:
             pass
+    finally:
+        # Stop heartbeat task
+        processing_done.set()
+        if heartbeat_task:
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
 
 
 async def process_with_agent(
@@ -381,13 +411,50 @@ async def process_with_agent(
                         except json.JSONDecodeError:
                             pass
 
-                # Append generated files info to assistant message
+                # Extract key tool calls for context (skills loaded, tools used)
+                tool_call_steps = (
+                    db.query(ChatStep)
+                    .filter(ChatStep.chat_id == t.chat_id)
+                    .filter(ChatStep.step_type.in_(["tool_call", "skill_loaded"]))
+                    .all()
+                )
+                skills_loaded = []
+                tool_names_used = set()
+                for step in tool_call_steps:
+                    if step.step_type == "skill_loaded" and step.content:
+                        skills_loaded.append(step.content)
+                    elif step.data_json:
+                        try:
+                            td = json.loads(step.data_json)
+                            if td.get("name"):
+                                tool_names_used.add(td["name"])
+                        except json.JSONDecodeError:
+                            pass
+
+                # Build enriched assistant message with execution context
+                context_parts = []
+                
+                # Add task completion status
+                if t.status == "incomplete" or t.status == "error":
+                    context_parts.append(f"[Task Status: {t.status}]")
+                
+                # Add the original response text
                 if assistant_text:
-                    if generated_files:
-                        assistant_text += "\n\n## Generated Files:\n"
-                        for fname in generated_files:
-                            assistant_text += f"- {fname}\n"
-                    history_messages.append({"role": "assistant", "content": assistant_text})
+                    context_parts.append(assistant_text)
+                
+                # Add skills used
+                if skills_loaded:
+                    context_parts.append(f"\n## Skills Used: {', '.join(skills_loaded)}")
+                
+                # Add generated files
+                if generated_files:
+                    context_parts.append("\n## Generated Files:")
+                    for fname in generated_files:
+                        context_parts.append(f"- {fname}")
+                
+                # Build the final history entry (always include, even if sparse)
+                enriched_text = "\n".join(context_parts) if context_parts else f"[Task completed with status: {t.status or 'unknown'}]"
+                history_messages.append({"role": "assistant", "content": enriched_text})
             
             # Load first enabled MCP server for tool calls
             from app.database.models import MCPServer as DBMCPServer
@@ -476,6 +543,7 @@ async def process_with_agent(
         
         step_index = 0
         final_response_text: Optional[str] = None
+        generated_files_tracker: List[str] = []  # Track files created during this turn
         async for event in agent.run(
             user_message=get_full_message(user_message or "", file_urls or [], file_names or []),
             session_id=chat_id[:8]
@@ -495,6 +563,17 @@ async def process_with_agent(
             # Capture response text for final message (no DB needed)
             if step_type == "response" and isinstance(content, str) and content.strip():
                 final_response_text = content
+            
+            # Track generated files for enriching assistant_message later
+            if step_type == "execution_result":
+                for f in (event.get("output_files") or []):
+                    fname = f.get("file_name") if isinstance(f, dict) else str(f)
+                    if fname and fname not in generated_files_tracker:
+                        generated_files_tracker.append(fname)
+            elif step_type == "file_created":
+                fname = event.get("relative_path") or event.get("actual_filename") or ""
+                if fname and fname not in generated_files_tracker:
+                    generated_files_tracker.append(fname)
             
             # Only create DB session for events that need persistence
             try:
@@ -577,6 +656,13 @@ async def process_with_agent(
                                 )
                                 cleaned_fallback = re.sub(r'\n{3,}', '\n\n', cleaned_fallback).strip()
                                 turn.assistant_message = cleaned_fallback if cleaned_fallback else final_response_text
+                        
+                        # Enrich assistant_message with generated files for better multi-turn context
+                        if generated_files_tracker and turn.assistant_message:
+                            files_summary = "\n\n## Generated Files:\n" + "\n".join(f"- {f}" for f in generated_files_tracker)
+                            turn.assistant_message = turn.assistant_message.rstrip() + files_summary
+                        elif generated_files_tracker and not turn.assistant_message:
+                            turn.assistant_message = "Task completed.\n\n## Generated Files:\n" + "\n".join(f"- {f}" for f in generated_files_tracker)
                         turn.updated_at = datetime.utcnow()
                         db.commit()
                 finally:
@@ -726,10 +812,46 @@ def _find_preview_screenshots(pptx_path: Path) -> list[Path]:
     
     During PPTX generation, html2pptx.js saves .preview.jpg alongside each
     slide HTML file. This function finds those screenshots in the same directory.
+    
+    Only returns screenshots that were modified within ±120 seconds of the PPTX
+    file's modification time, to avoid mixing screenshots from different tasks
+    or previous retry attempts that share the same directory.
     """
     pptx_dir = pptx_path.parent
-    screenshots = sorted(pptx_dir.glob("*.preview.jpg"))
-    return screenshots
+    all_screenshots = sorted(pptx_dir.glob("*.preview.jpg"))
+    
+    if not all_screenshots:
+        return []
+    
+    # Filter by modification time proximity to the PPTX file
+    pptx_mtime = pptx_path.stat().st_mtime
+    TIME_WINDOW = 120  # seconds
+    
+    filtered = [
+        s for s in all_screenshots
+        if abs(s.stat().st_mtime - pptx_mtime) <= TIME_WINDOW
+    ]
+    
+    if filtered:
+        log.info(f"Filtered screenshots: {len(filtered)} of {len(all_screenshots)} "
+                 f"within ±{TIME_WINDOW}s of {pptx_path.name}")
+        return filtered
+    
+    # Fallback: if no screenshots match the time window (e.g. file was copied),
+    # use the N most recent screenshots where N = number of slides in the PPTX
+    try:
+        from pptx import Presentation
+        prs = Presentation(str(pptx_path))
+        slide_count = len(prs.slides)
+        # Sort all screenshots by modification time (newest first) and take N
+        by_mtime = sorted(all_screenshots, key=lambda p: p.stat().st_mtime, reverse=True)
+        fallback = sorted(by_mtime[:slide_count])  # Re-sort by name for display order
+        log.info(f"Fallback: using {len(fallback)} most recent screenshots "
+                 f"(slide count={slide_count}) of {len(all_screenshots)} total")
+        return fallback
+    except Exception:
+        # If PPTX can't be read, return all (original behavior)
+        return all_screenshots
 
 
 def _stitch_screenshots(screenshot_paths: list[Path], gap: int = 16) -> str:

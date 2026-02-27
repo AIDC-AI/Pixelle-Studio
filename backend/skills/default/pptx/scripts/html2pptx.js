@@ -33,18 +33,45 @@ const PT_PER_PX = 0.75;
 const PX_PER_IN = 96;
 const EMU_PER_IN = 914400;
 
-// Helper: Get body dimensions and check for overflow
+// Helper: Get body dimensions and check for overflow, with diagnostic breakdown
 async function getBodyDimensions(page) {
   const bodyDimensions = await page.evaluate(() => {
     const body = document.body;
     const style = window.getComputedStyle(body);
+    const PT_PER_PX = 0.75;
 
-    return {
+    const dims = {
       width: parseFloat(style.width),
       height: parseFloat(style.height),
       scrollWidth: body.scrollWidth,
       scrollHeight: body.scrollHeight
     };
+
+    // Collect diagnostic info about vertical space usage
+    const spaceBreakdown = [];
+    const allElements = body.querySelectorAll('*');
+    for (const el of allElements) {
+      const rect = el.getBoundingClientRect();
+      if (rect.height === 0 || rect.width === 0) continue;
+      const bottomPt = rect.bottom * PT_PER_PX;
+      const tag = el.tagName.toLowerCase();
+      const cls = el.className ? `.${String(el.className).split(' ').join('.')}` : '';
+      const id = el.id ? `#${el.id}` : '';
+      const label = `<${tag}${id}${cls}>`;
+      // Only track elements whose bottom edge is near or past the body height
+      if (bottomPt > dims.height * PT_PER_PX * 0.85) {
+        spaceBreakdown.push({
+          label,
+          topPt: (rect.top * PT_PER_PX).toFixed(1),
+          heightPt: (rect.height * PT_PER_PX).toFixed(1),
+          bottomPt: bottomPt.toFixed(1)
+        });
+      }
+    }
+    // Sort by bottom edge descending
+    spaceBreakdown.sort((a, b) => parseFloat(b.bottomPt) - parseFloat(a.bottomPt));
+
+    return { ...dims, spaceBreakdown: spaceBreakdown.slice(0, 8) };
   });
 
   const errors = [];
@@ -55,11 +82,26 @@ async function getBodyDimensions(page) {
   const heightOverflowPt = heightOverflowPx * PT_PER_PX;
 
   if (widthOverflowPt > 0 || heightOverflowPt > 0) {
+    const bodyHeightPt = bodyDimensions.height * PT_PER_PX;
+    const scrollHeightPt = bodyDimensions.scrollHeight * PT_PER_PX;
     const directions = [];
     if (widthOverflowPt > 0) directions.push(`${widthOverflowPt.toFixed(1)}pt horizontally`);
     if (heightOverflowPt > 0) directions.push(`${heightOverflowPt.toFixed(1)}pt vertically`);
-    const reminder = heightOverflowPt > 0 ? ' (Remember: leave 0.5" margin at bottom of slide)' : '';
-    errors.push(`HTML content overflows body by ${directions.join(' and ')}${reminder}`);
+
+    let msg = `HTML content overflows body by ${directions.join(' and ')}`;
+    msg += ` (body: ${bodyHeightPt.toFixed(0)}pt, content: ${scrollHeightPt.toFixed(0)}pt)`;
+
+    // Add diagnostic breakdown for vertical overflow
+    if (heightOverflowPt > 0 && bodyDimensions.spaceBreakdown && bodyDimensions.spaceBreakdown.length > 0) {
+      msg += '\n  Elements near/past bottom edge (top -> bottom in pt):';
+      for (const item of bodyDimensions.spaceBreakdown) {
+        const overflowMark = parseFloat(item.bottomPt) > bodyHeightPt ? ' ** OVERFLOWS **' : '';
+        msg += `\n    ${item.label}: top=${item.topPt}, h=${item.heightPt}, bottom=${item.bottomPt}${overflowMark}`;
+      }
+      msg += `\n  FIX: Reduce height/padding/margin/font-size of elements marked ** OVERFLOWS **, or reduce number of items.`;
+    }
+
+    errors.push(msg);
   }
 
   return { ...bodyDimensions, errors };
@@ -105,10 +147,13 @@ function validateTextBoxPosition(slideData, bodyDimensions) {
           return '';
         };
         const textPrefix = getText().substring(0, 50) + (getText().length > 50 ? '...' : '');
+        const needToShrinkBy = (minBottomMargin - distanceFromBottom).toFixed(2);
 
         errors.push(
           `Text box "${textPrefix}" ends too close to bottom edge ` +
-          `(${distanceFromBottom.toFixed(2)}" from bottom, minimum ${minBottomMargin}" required)`
+          `(${distanceFromBottom.toFixed(2)}" from bottom, minimum ${minBottomMargin}" required). ` +
+          `FIX: Move this element up by ${needToShrinkBy}" or reduce its content/font-size. ` +
+          `Element position: y=${el.position.y.toFixed(2)}", h=${el.position.h.toFixed(2)}", fontSize=${fontSize}pt`
         );
       }
     }

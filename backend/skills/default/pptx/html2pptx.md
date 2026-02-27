@@ -20,6 +20,31 @@ Every HTML slide must include proper body dimensions:
 - **4:3**: `width: 720pt; height: 540pt`
 - **16:10**: `width: 720pt; height: 450pt`
 
+### ⚠️ Sizing Constraints (Read First!)
+
+The validator enforces strict body overflow rules. Content that exceeds the body height will be **rejected with an error**. To prevent overflow on the first attempt:
+
+- **Max header**: 50pt height (with `box-sizing: border-box`)
+- **Max content padding**: 15pt top/bottom
+- **Max body font**: 11-13pt (never exceed 14pt for body text)
+- **Max header font**: 22pt (for slide headers, not cover titles)
+- **Max items per slide**: 3-4 with header (5 for simple lists)
+- **Always use** `display: flex` on body and `flex-direction: column` on containers
+- **Always use** `box-sizing: border-box` on elements with explicit width/height + padding
+- **Never use** `position: absolute` on headers — use flexbox column layout
+- **Never use** `<h1>` inside header divs (browser default margins cause overflow) — use `<p>` with explicit styles
+- **Never use** `margin-top` on content div to offset below header — use flex column layout
+
+### Common Overflow Mistakes
+
+| Mistake | Why it overflows | Fix |
+|---------|-----------------|-----|
+| `<h1>` in header div | h1 has ~21pt default margin top+bottom | Use `<p>` with `margin: 0` |
+| `position: absolute` header + `margin-top` content | margin-top doesn't shrink available height | Use flex column container |
+| Header `height: 50pt` + `padding: 15pt` | Total = 80pt, not 50pt | Add `box-sizing: border-box` |
+| 4+ cards with 15pt padding each | 4 × (15+15+text) easily exceeds 289pt | Use 10pt padding, 3 cards |
+| Font-size 18pt for body text | Large text + line-height = tall elements | Use 11-13pt max |
+
 ### Supported Elements
 
 - `<p>`, `<h1>`-`<h6>` - Text with styling
@@ -49,8 +74,12 @@ Every HTML slide must include proper body dimensions:
 
 ### Styling
 
-- Use `display: flex` on body to prevent margin collapse from breaking overflow validation
-- Use `margin` for spacing (padding included in size)
+- **REQUIRED**: Use `display: flex` on body to prevent margin collapse from breaking overflow validation
+- **REQUIRED**: Use a `flex-direction: column` container (`<div class="container">`) wrapping header + content
+- **REQUIRED**: Use `box-sizing: border-box` on any element with explicit width/height and padding
+- **REQUIRED**: Use `margin: 0` on all `<p>`, `<h3>` tags inside cards/items (reset browser defaults)
+- Use `margin` for spacing between items (padding is for internal space)
+- Use `flex: 1` on the content area to automatically fill remaining space after header
 - Inline formatting: Use `<b>`, `<i>`, `<u>` tags OR `<span>` with CSS styles
   - `<span>` supports: `font-weight: bold`, `font-style: italic`, `text-decoration: underline`, `color: #rrggbb`
   - `<span>` does NOT support: `margin`, `padding` (not supported in PowerPoint text runs)
@@ -58,6 +87,20 @@ Every HTML slide must include proper body dimensions:
 - Flexbox works - positions calculated from rendered layout
 - Use hex colors with `#` prefix in CSS
 - **Text alignment**: Use CSS `text-align` (`center`, `right`, etc.) when needed as a hint to PptxGenJS for text formatting if text lengths are slightly off
+
+**Recommended slide structure pattern:**
+```html
+<body>
+<div class="container"> <!-- width:100%; height:100%; flex-direction:column -->
+  <div class="header">  <!-- fixed height:50pt; box-sizing:border-box -->
+    <p>Title</p>         <!-- NOT <h1> — use <p> with margin:0 -->
+  </div>
+  <div class="content">  <!-- flex:1 — takes remaining space automatically -->
+    <!-- content items here -->
+  </div>
+</div>
+</body>
+```
 
 ### Shape Styling (DIV elements only)
 
@@ -151,29 +194,38 @@ const bgPath = await createGradientBackground("gradient-bg.png");
 html { background: #ffffff; }
 body {
   width: 720pt; height: 405pt; margin: 0; padding: 0;
-  background: #f5f5f5; font-family: Arial, sans-serif;
+  background: #ffffff; font-family: Arial, sans-serif;
   display: flex;
 }
-.content { margin: 30pt; padding: 40pt; background: #ffffff; border-radius: 8pt; }
-h1 { color: #2d3748; font-size: 32pt; }
-.box {
-  background: #70ad47; padding: 20pt; border: 3px solid #5a8f37;
-  border-radius: 12pt; box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.25);
+.container { width: 100%; height: 100%; display: flex; flex-direction: column; }
+.header {
+  background: #2d3748; color: #fff; height: 50pt;
+  display: flex; align-items: center; padding: 0 30pt;
+  box-sizing: border-box;
 }
+.header p { font-size: 22pt; font-weight: bold; margin: 0; color: #fff; }
+.content { flex: 1; padding: 15pt 25pt; }
+.box {
+  background: #70ad47; padding: 10pt; border: 2px solid #5a8f37;
+  border-radius: 8pt; box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.25);
+  margin-bottom: 8pt;
+}
+.box p { margin: 0; font-size: 13pt; color: #fff; }
 </style>
 </head>
 <body>
-<div class="content">
-  <h1>Recipe Title</h1>
-  <ul>
-    <li><b>Item:</b> Description</li>
-  </ul>
-  <p>Text with <b>bold</b>, <i>italic</i>, <u>underline</u>.</p>
-  <div id="chart" class="placeholder" style="width: 350pt; height: 200pt;"></div>
-
-  <!-- Text MUST be in <p> tags -->
-  <div class="box">
-    <p>5</p>
+<div class="container">
+  <div class="header"><p>Recipe Title</p></div>
+  <div class="content">
+    <ul>
+      <li><b>Item:</b> Description</li>
+    </ul>
+    <p>Text with <b>bold</b>, <i>italic</i>, <u>underline</u>.</p>
+    <div id="chart" class="placeholder" style="width: 100%; height: 180pt; background: #f0f0f0; border: 1pt dashed #ccc;"></div>
+    <!-- Text MUST be in <p> tags -->
+    <div class="box">
+      <p>Summary point here</p>
+    </div>
   </div>
 </div>
 </body>

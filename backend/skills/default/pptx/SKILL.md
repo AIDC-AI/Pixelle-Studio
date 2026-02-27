@@ -147,18 +147,210 @@ When creating a new PowerPoint presentation from scratch, use the **html2pptx** 
 - **Full-slide layout**: Let the featured content (chart/table) take up the entire slide for maximum impact and readability
 - **NEVER vertically stack**: Do not place charts/tables below text in a single column - this causes poor readability and layout issues
 
+### ⚠️ CRITICAL: Slide Content Sizing Constraints
+
+> **Content MUST fit within the slide body on the FIRST attempt.**
+> Iteratively shrinking elements wastes many turns and tokens.
+> When in doubt, use SMALLER sizes — it is always easier to increase than to debug overflow.
+> **ALWAYS use `box-sizing: border-box` on elements with explicit width/height + padding.**
+
+#### Usable Space Quick Reference (16:9 = 720pt × 405pt)
+
+The html2pptx validator enforces TWO rules:
+1. **Body overflow**: `scrollHeight` must not exceed `body height` (405pt)
+2. **Bottom margin**: Text elements with font > 12pt must be ≥ 0.5" (36pt) from bottom edge
+
+| Layout Type | Max Content Height | Notes |
+|-------------|-------------------|-------|
+| No header, no padding | **369pt** | 405 - 36 (bottom safe zone) |
+| Header (50pt) only | **319pt** | 405 - 50 - 36 |
+| Header (50pt) + padding (15pt×2) | **289pt** | Most common layout |
+| Header (50pt) + padding (20pt×2) | **279pt** | With generous padding |
+
+#### Compact Sizing Rules (MANDATORY)
+
+| Element | Max Size | Notes |
+|---------|----------|-------|
+| Header bar | **50pt** height (incl. padding) | font-size ≤ 22pt |
+| Content padding | **15pt** top/bottom, **20pt** left/right | |
+| Element spacing | **8pt** margin-bottom | Between items |
+| Card/item padding | **10pt** all sides | |
+| Slide header font | **20-22pt** | NOT cover title |
+| Cover title font | **36-40pt** | Cover slides only |
+| Body text font | **11-13pt** | Never exceed 14pt |
+| Key point heading | **14pt** bold | Inside cards/items |
+| Items per slide | **3-4 max** | With header; 5 max for simple list |
+
+#### ABSOLUTE DON'TS
+
+- ❌ **NEVER** use `margin-top` on `.content` to push below header — use `flex-direction: column` container instead
+- ❌ **NEVER** set header `height` with separate `padding` (it adds up!) — include padding IN the height with `box-sizing: border-box`
+- ❌ **NEVER** put `<h1>` inside the header div — use `<p>` tag for header text (h1 has browser default margins)
+- ❌ **NEVER** use font-size > 14pt for body text or > 22pt for slide headers
+- ❌ **NEVER** use `position: absolute` on header — use flexbox column layout instead
+- ❌ **NEVER** have more than 4 content items per slide (3 is safer)
+
+#### Content Budget Calculation (MUST do before writing HTML)
+
+```
+Available height = 405 - header_height - content_padding_top - content_padding_bottom - 36(bottom safe zone)
+
+Per-item height = item_padding_top + item_padding_bottom + title_font_size + gap + body_font_size × lines + margin_bottom
+
+RULE: (num_items × per_item_height) MUST be ≤ Available height
+```
+
+**Quick check: 4 items with header**
+```
+Available = 405 - 50 - 15 - 15 - 36 = 289pt
+Per item = 10 + 10 + 14 + 4 + 11×2 + 8 = 68pt
+4 × 68 = 272pt ≤ 289pt ✅
+```
+
+#### Safe Layout Templates (Complete HTML — guaranteed to pass validation)
+
+**Template A: Title/Cover Slide**
+```html
+<!DOCTYPE html>
+<html><head><style>
+html { background: #1C2951; }
+body { width: 720pt; height: 405pt; margin: 0; padding: 0; background: #1C2951; font-family: Arial, sans-serif; display: flex; }
+.cover { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40pt; box-sizing: border-box; }
+.cover p.title { color: #ffffff; font-size: 36pt; font-weight: bold; text-align: center; margin: 0 0 15pt 0; }
+.cover p.subtitle { color: #aab7c4; font-size: 18pt; text-align: center; margin: 0 0 10pt 0; }
+.cover p.author { color: #8899aa; font-size: 13pt; text-align: center; margin: 0; }
+</style></head>
+<body><div class="cover">
+  <p class="title">Presentation Title</p>
+  <p class="subtitle">Subtitle goes here</p>
+  <p class="author">Author Name | Date</p>
+</div></body></html>
+```
+
+**Template B: Header + Vertical List/TOC (max 5 items)**
+```html
+<!DOCTYPE html>
+<html><head><style>
+html { background: #ffffff; }
+body { width: 720pt; height: 405pt; margin: 0; padding: 0; background: #ffffff; font-family: Arial, sans-serif; display: flex; }
+.container { width: 100%; height: 100%; display: flex; flex-direction: column; }
+.header { background: #1C2951; color: #fff; height: 50pt; display: flex; align-items: center; padding: 0 30pt; box-sizing: border-box; }
+.header p { font-size: 22pt; font-weight: bold; margin: 0; color: #fff; }
+.content { flex: 1; padding: 15pt 25pt; display: flex; flex-direction: column; }
+.item { display: flex; align-items: center; margin-bottom: 8pt; padding: 10pt; background: #f8f9fa; border-left: 4pt solid #4285F4; border-radius: 0 4pt 4pt 0; }
+.item-num { color: #4285F4; font-size: 18pt; font-weight: bold; margin-right: 12pt; width: 30pt; }
+.item p { font-size: 13pt; margin: 0; color: #333; }
+</style></head>
+<body><div class="container">
+  <div class="header"><p>Table of Contents</p></div>
+  <div class="content">
+    <div class="item"><p class="item-num">01</p><p>First Topic</p></div>
+    <div class="item"><p class="item-num">02</p><p>Second Topic</p></div>
+    <div class="item"><p class="item-num">03</p><p>Third Topic</p></div>
+    <div class="item"><p class="item-num">04</p><p>Fourth Topic</p></div>
+  </div>
+</div></body></html>
+```
+
+**Template C: Header + Two-Column (text left + chart/image right)**
+```html
+<!DOCTYPE html>
+<html><head><style>
+html { background: #ffffff; }
+body { width: 720pt; height: 405pt; margin: 0; padding: 0; background: #ffffff; font-family: Arial, sans-serif; display: flex; }
+.container { width: 100%; height: 100%; display: flex; flex-direction: column; }
+.header { background: #1C2951; color: #fff; height: 50pt; display: flex; align-items: center; padding: 0 30pt; box-sizing: border-box; }
+.header p { font-size: 22pt; font-weight: bold; margin: 0; color: #fff; }
+.content-wrapper { flex: 1; display: flex; padding: 15pt; }
+.text-column { width: 40%; padding-right: 15pt; display: flex; flex-direction: column; }
+.chart-column { width: 60%; display: flex; align-items: center; justify-content: center; }
+.key-point { margin-bottom: 8pt; padding: 8pt; background: #f8f9fa; border-left: 3pt solid #4285F4; border-radius: 0 4pt 4pt 0; }
+.key-point h3 { font-size: 13pt; font-weight: bold; margin: 0 0 3pt 0; color: #1C2951; }
+.key-point p { font-size: 11pt; margin: 0; line-height: 1.3; color: #555; }
+.chart-placeholder { width: 100%; height: 90%; background: #f0f0f0; border: 1pt dashed #ccc; border-radius: 6pt; display: flex; align-items: center; justify-content: center; }
+.chart-placeholder p { font-size: 12pt; color: #999; margin: 0; }
+</style></head>
+<body><div class="container">
+  <div class="header"><p>Slide Title</p></div>
+  <div class="content-wrapper">
+    <div class="text-column">
+      <div class="key-point"><h3>Point One</h3><p>Description text for point one goes here</p></div>
+      <div class="key-point"><h3>Point Two</h3><p>Description text for point two goes here</p></div>
+      <div class="key-point"><h3>Point Three</h3><p>Description text for point three goes here</p></div>
+    </div>
+    <div class="chart-column">
+      <div id="chart" class="placeholder chart-placeholder"><p>Chart Area</p></div>
+    </div>
+  </div>
+</div></body></html>
+```
+
+**Template D: Header + 2×2 Grid Cards**
+```html
+<!DOCTYPE html>
+<html><head><style>
+html { background: #ffffff; }
+body { width: 720pt; height: 405pt; margin: 0; padding: 0; background: #ffffff; font-family: Arial, sans-serif; display: flex; }
+.container { width: 100%; height: 100%; display: flex; flex-direction: column; }
+.header { background: #1C2951; color: #fff; height: 50pt; display: flex; align-items: center; padding: 0 30pt; box-sizing: border-box; }
+.header p { font-size: 22pt; font-weight: bold; margin: 0; color: #fff; }
+.grid { flex: 1; padding: 12pt 20pt; display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
+.card { background: #f8f9fa; padding: 10pt; border-radius: 6pt; border-left: 4pt solid #4285F4; }
+.card h3 { font-size: 14pt; font-weight: bold; margin: 0 0 4pt 0; color: #1C2951; }
+.card p { font-size: 11pt; margin: 0; line-height: 1.3; color: #555; }
+</style></head>
+<body><div class="container">
+  <div class="header"><p>Overview</p></div>
+  <div class="grid">
+    <div class="card"><h3>Card Title 1</h3><p>Card content description here. Keep it brief — 2 lines max.</p></div>
+    <div class="card"><h3>Card Title 2</h3><p>Card content description here. Keep it brief — 2 lines max.</p></div>
+    <div class="card"><h3>Card Title 3</h3><p>Card content description here. Keep it brief — 2 lines max.</p></div>
+    <div class="card"><h3>Card Title 4</h3><p>Card content description here. Keep it brief — 2 lines max.</p></div>
+  </div>
+</div></body></html>
+```
+
+**Template E: Summary/Closing Slide**
+```html
+<!DOCTYPE html>
+<html><head><style>
+html { background: #1C2951; }
+body { width: 720pt; height: 405pt; margin: 0; padding: 0; background: #1C2951; font-family: Arial, sans-serif; display: flex; }
+.container { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40pt; box-sizing: border-box; }
+.container p.title { color: #ffffff; font-size: 32pt; font-weight: bold; text-align: center; margin: 0 0 15pt 0; }
+.container p.body { color: #aab7c4; font-size: 14pt; text-align: center; margin: 0 0 6pt 0; line-height: 1.5; }
+</style></head>
+<body><div class="container">
+  <p class="title">Key Takeaways</p>
+  <p class="body">Summary point one</p>
+  <p class="body">Summary point two</p>
+  <p class="body">Summary point three</p>
+</div></body></html>
+```
+
 ### Workflow
 1. **MANDATORY - READ ENTIRE FILE**: Read [`html2pptx.md`](html2pptx.md) completely from start to finish. **NEVER set any range limits when reading this file.** Read the full file content for detailed syntax, critical formatting rules, and best practices before proceeding with presentation creation.
-2. Create an HTML file for each slide with proper dimensions (e.g., 720pt × 405pt for 16:9)
-   - Use `<p>`, `<h1>`-`<h6>`, `<ul>`, `<ol>` for all text content
-   - Use `class="placeholder"` for areas where charts/tables will be added (render with gray background for visibility)
+2. **MANDATORY - PLAN SLIDES**: For each slide, decide:
+   - Layout type: Cover (Template A), List/TOC (Template B), Two-Column (Template C), Grid (Template D), Summary (Template E)
+   - Number of content items (3-4 max with header, 5 max for simple list)
+   - **Copy the matching Safe Layout Template above** as your starting point — do NOT design layouts from scratch
+3. **MANDATORY - CONTENT BUDGET**: Before writing any HTML, verify each slide fits:
+   - Calculate: `available = 405 - header(50) - padding_top - padding_bottom - 36`
+   - Calculate: `total = items × per_item_height`
+   - **If total > available**: reduce items or font sizes BEFORE writing HTML — do NOT attempt to fix after
+4. Create HTML files for each slide:
+   - **START from the Safe Layout Template** — modify content/colors but keep the structural CSS unchanged
+   - Use `<p>`, `<h1>`-`<h6>`, `<ul>`, `<ol>` for all text content (NEVER bare text in `<div>`)
+   - Use `class="placeholder"` for chart/table areas
    - **CRITICAL**: Rasterize gradients and icons as PNG images FIRST using Sharp, then reference in HTML
-   - **LAYOUT**: For slides with charts/tables/images, use either full-slide layout or two-column layout for better readability
-3. Create and run a JavaScript file using the [`html2pptx.js`](scripts/html2pptx.js) library to convert HTML slides to PowerPoint and save the presentation
+   - **CRITICAL**: Always use `box-sizing: border-box` on any element with explicit width/height + padding
+   - **NEVER** use `position: absolute` on headers — use flexbox column layout
+   - **NEVER** put `<h1>` inside header divs — use `<p>` with explicit font-size and margin: 0
+5. Create and run a JavaScript file using the [`html2pptx.js`](scripts/html2pptx.js) library to convert HTML slides to PowerPoint and save the presentation
    - Use the `html2pptx()` function to process each HTML file
    - Add charts and tables to placeholder areas using PptxGenJS API
    - Save the presentation using `pptx.writeFile()`
-4. **Visual validation**: Generate thumbnails and inspect for layout issues
+6. **Visual validation**: Generate thumbnails and inspect for layout issues
    - Create thumbnail grid: `python scripts/thumbnail.py output.pptx workspace/thumbnails --cols 4`
    - Read and carefully examine the thumbnail image for:
      - **Text cutoff**: Text being cut off by header bars, shapes, or slide edges

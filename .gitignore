@@ -39,6 +39,7 @@ work_dir/
 reference/
 dev_docs/
 doc/
+docs/
 test_*.*
 
 # Root-level deprecated files

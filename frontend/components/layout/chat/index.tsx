@@ -469,6 +469,10 @@ const Chat = () => {
       
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+
+        // Ignore heartbeat messages (keepalive from backend)
+        if (data.type === 'heartbeat') return;
+
         const _messages: Message[] = []
 
         if (lastType === 'response_delta' && data.type !== 'response_delta' && !!streamingString && streamingString.trim() !== '') {
