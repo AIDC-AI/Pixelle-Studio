@@ -23,12 +23,13 @@ import {
 interface IProps {
     open: boolean;
     onClose?: () => void;
+    isFirstTimeSetup?: boolean;
 }
 
 const THINKING_LEVELS = ["high", "medium", "low", "off"] as const;
 
 const SettingsModal: React.FC<IProps> = (props) => {
-    const { open, onClose } = props;
+    const { open, onClose, isFirstTimeSetup } = props;
     const { showToast } = useApp();
 
     // ===== LLM Credentials =====
@@ -223,6 +224,21 @@ const SettingsModal: React.FC<IProps> = (props) => {
                         </div>
                     ) : (
                         <div className="flex flex-col gap-4">
+                            {/* First-time setup guide banner */}
+                            {isFirstTimeSetup && (
+                                <div className="flex items-start gap-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                                    <Zap className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />
+                                    <div>
+                                        <p className="text-sm font-medium text-orange-800 mb-1">
+                                            Welcome! Let&apos;s get you set up
+                                        </p>
+                                        <p className="text-xs text-orange-600 leading-relaxed">
+                                            To start using Pixelle Studio, please configure your LLM API key below.
+                                            You can use OpenAI, Claude, DeepSeek, Qwen, or any OpenAI-compatible provider.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                             {/* Info banner */}
                             <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
                                 <ShieldCheck className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />

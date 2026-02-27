@@ -32,6 +32,7 @@ import ThinkingItem from "./items/thinkingItem";
 import ToolCallItem from "./items/toolCallItem";
 import { useApp } from "@/context";
 import LoadingSpinner from "@/components/ui/loadingSpinner";
+import WelcomePrompts, { WelcomePrompt } from "./welcomePrompts";
 
 interface IProps {
     messages?: Message[] | null
@@ -39,6 +40,7 @@ interface IProps {
     shouldScrollToBottom?: boolean
     onFilePreview?: (file: OutputFile) => void
     onOpenSettings?: () => void
+    onPromptClick?: (prompt: WelcomePrompt) => void
     streamingResponse?: string
     isLoading?: boolean
     isCodeBlock?: boolean
@@ -193,7 +195,7 @@ const MessageItem = memo<{
 MessageItem.displayName = 'MessageItem';
 
 const MessageList: React.FC<IProps> = (props) => {
-    const { messages, currentScript, onFilePreview, onOpenSettings, streamingResponse, isLoading, isCodeBlock } = props;  
+    const { messages, currentScript, onFilePreview, onOpenSettings, onPromptClick, streamingResponse, isLoading, isCodeBlock } = props;  
     
     const { activeSessionId } = useApp()
     
@@ -364,6 +366,11 @@ const MessageList: React.FC<IProps> = (props) => {
                     contain: 'layout style paint'
                 }}
             >
+                {/* Show welcome prompts when no messages */}
+                {(!messages || messages.length === 0) && !streamingResponse && !isLoading && (
+                    <WelcomePrompts onPromptClick={onPromptClick} />
+                )}
+
                 {groupedMessages.map((group, groupIndex) => {
                     // Use more stable key, based on message content instead of index
                     const key = group.type === 'system_operations' 

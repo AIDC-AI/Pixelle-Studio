@@ -157,7 +157,11 @@ const AuthPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              className={`w-full py-3 rounded-lg font-semibold text-base transition-all flex items-center justify-center gap-2 ${
+                mode === 'register'
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 shadow-lg shadow-orange-200 disabled:from-gray-400 disabled:to-gray-400 disabled:shadow-none'
+                  : 'bg-gray-900 text-white hover:bg-gray-800 disabled:bg-gray-400'
+              } disabled:cursor-not-allowed`}
             >
               {isLoading ? (
                 <>
@@ -165,21 +169,35 @@ const AuthPage = () => {
                   <span>Processing...</span>
                 </>
               ) : (
-                <span>{mode === 'login' ? 'Login' : 'Register'}</span>
+                <span>{mode === 'login' ? 'Login' : 'Create Account'}</span>
               )}
             </button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
+          {/* Divider */}
+          <div className="flex items-center gap-3 mt-6">
+            <div className="flex-1 h-px bg-gray-200"></div>
+            <span className="text-xs text-gray-400">or</span>
+            <div className="flex-1 h-px bg-gray-200"></div>
+          </div>
+
+          <div className="mt-4">
+            {mode === 'login' ? (
               <button
                 onClick={switchMode}
-                className="ml-1 text-gray-900 font-medium hover:underline"
+                className="w-full py-2.5 rounded-lg font-medium text-sm border-2 border-orange-400 text-orange-600 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 transition-all flex items-center justify-center gap-2"
               >
-                {mode === 'login' ? 'Register now' : 'Login now'}
+                <User className="w-4 h-4" />
+                <span>Create New Account</span>
               </button>
-            </p>
+            ) : (
+              <button
+                onClick={switchMode}
+                className="w-full py-2.5 rounded-lg font-medium text-sm border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all"
+              >
+                Already have an account? Login
+              </button>
+            )}
           </div>
         </div>
 

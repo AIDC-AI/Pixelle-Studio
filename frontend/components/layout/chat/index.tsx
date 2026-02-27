@@ -28,6 +28,10 @@ import { createParserState, filterCodeBlocks } from '@/utils/codeBlockFilter';
 import User from "@/components/ui/user";
 import LogoutButton from "@/components/ui/logoutButton";
 import SettingsModal from "@/components/ui/settingsModal";
+import { WelcomePrompt } from "./welcomePrompts";
+import { userAPI } from "@/lib/userApi";
+import { useRouter } from "next/navigation";
+import { LogIn } from "lucide-react";
 
 // Dynamically import large components
 const LeftPanel = lazy(() => import("../leftPanel"));
@@ -46,8 +50,11 @@ const Chat = () => {
     user,
     activeSessionId,
     setActiveSessionId,
-    // skillEditored
+    justLoggedIn,
+    setJustLoggedIn,
   } = useApp();
+
+  const router = useRouter();
 
   const {
     messages,
@@ -78,6 +85,11 @@ const Chat = () => {
 
   // Settings modal state
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [isFirstTimeSetup, setIsFirstTimeSetup] = useState<boolean>(false);
+
+  // LLM settings state
+  const [hasApiKeyConfigured, setHasApiKeyConfigured] = useState<boolean>(false);
+  const [llmSettingsChecked, setLlmSettingsChecked] = useState<boolean>(false);
 
   // WebSocket reference, used to stop inference
   const wsRef = useRef<WebSocket | null>(null);
@@ -194,6 +206,92 @@ const Chat = () => {
     setParserState(createParserState());
   }, []);
 
+  // Check LLM settings
+  const checkLLMSettings = useCallback(async () => {
+    if (!user?.uid) return;
+    try {
+      const settings = await userAPI.getLLMSettings();
+      setHasApiKeyConfigured(settings.api_key_set);
+      setLlmSettingsChecked(true);
+      return settings.api_key_set;
+    } catch (err) {
+      console.error('Failed to check LLM settings:', err);
+      setLlmSettingsChecked(true);
+      return false;
+    }
+  }, [user?.uid]);
+
+  // Post-login settings check: if just logged in and no API key, prompt settings
+  useEffect(() => {
+    if (user?.uid && justLoggedIn) {
+      setJustLoggedIn(false);
+      checkLLMSettings().then((hasKey) => {
+        if (!hasKey) {
+          setIsFirstTimeSetup(true);
+          setSettingsOpen(true);
+        }
+      });
+    } else if (user?.uid && !llmSettingsChecked) {
+      // Also check settings on initial load (existing session)
+      checkLLMSettings();
+    }
+    if (!user) {
+      setLlmSettingsChecked(false);
+      setHasApiKeyConfigured(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, justLoggedIn]);
+
+  // Handle prompt click from welcome prompts
+  const handlePromptClick = useCallback(async (prompt: WelcomePrompt) => {
+    if (!user) {
+      // Not logged in, redirect to auth
+      router.push('/auth');
+      return;
+    }
+    if (!hasApiKeyConfigured) {
+      // Logged in but no API key, open settings
+      setIsFirstTimeSetup(true);
+      setSettingsOpen(true);
+      return;
+    }
+
+    // Logged in and configured: set input and auto-submit with file if needed
+    let promptFiles: UploadFile[] = [];
+    if (prompt.hasFile && prompt.fileUrl && prompt.fileName) {
+      try {
+        // Fetch the file from public assets
+        const response = await fetch(prompt.fileUrl);
+        const blob = await response.blob();
+        const file = new File([blob], prompt.fileName, { type: blob.type });
+
+        // Upload to backend
+        const formData = new FormData();
+        formData.append('file', file);
+        const uploadRes = await fetch(`${API_BASE}/upload${user?.uid ? `?user_id=${user.uid}` : ''}`, {
+          method: 'POST',
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+
+        promptFiles = [{
+          uid: `prompt-${Date.now()}`,
+          name: prompt.fileName,
+          status: 'done' as const,
+          url: uploadData.url,
+          size: blob.size,
+          response: uploadData,
+        }];
+      } catch (err) {
+        console.error('Failed to upload example file:', err);
+      }
+    }
+
+    // Submit directly with override parameters
+    handleSubmit(prompt.prompt, promptFiles);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, hasApiKeyConfigured, router]);
+
   // Unified drag handling
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -261,22 +359,25 @@ const Chat = () => {
     forceUpdate({});
   };
 
-  const handleSubmit = async () => {
-    console.log('[DEBUG] handleSubmit called, input:', input, 'isProcessing:', isProcessing, 'user:', user);
-    if (!input.trim() || isProcessing || !user?.uid) {
-      console.log('[DEBUG] handleSubmit blocked: input empty?', !input.trim(), 'isProcessing?', isProcessing, 'no user.uid?', !user?.uid);
+  const handleSubmit = async (overrideInput?: string, overrideFiles?: UploadFile[]) => {
+    const effectiveInput = overrideInput ?? input;
+    const effectiveFileList = overrideFiles ?? fileList;
+
+    console.log('[DEBUG] handleSubmit called, input:', effectiveInput, 'isProcessing:', isProcessing, 'user:', user);
+    if (!effectiveInput.trim() || isProcessing || !user?.uid) {
+      console.log('[DEBUG] handleSubmit blocked: input empty?', !effectiveInput.trim(), 'isProcessing?', isProcessing, 'no user.uid?', !user?.uid);
       return;
     }
 
     // Check if any files are still uploading
-    const uploadingFiles = fileList.filter(f => f.status === 'uploading');
+    const uploadingFiles = effectiveFileList.filter(f => f.status === 'uploading');
     if (uploadingFiles.length > 0) {
       console.log('[DEBUG] Waiting for file upload to complete...');
       return; // Block submission, wait for upload to complete
     }
 
     // Only select files that have finished uploading (status === 'done')
-    const doneFiles = fileList.filter(f => f.status === 'done');
+    const doneFiles = effectiveFileList.filter(f => f.status === 'done');
 
     // Get directly from response to ensure data correctness
     const currentFileUrls = doneFiles
@@ -306,10 +407,10 @@ const Chat = () => {
     let session = sessions.find(s => s.id === activeSessionId)
     // If not found, create a new one
     if (!session) {
-      session = await handleNewSession(input)
+      session = await handleNewSession(effectiveInput)
 
       // Async title generation (non-blocking)
-      api.generateTitle(input, user?.uid).then(({ title }) => {
+      api.generateTitle(effectiveInput, user?.uid).then(({ title }) => {
         if (title) {
           // Backend already constrains title to 50 chars; just use it directly
           updateSessionTitle(session!.id, title.trim());
@@ -317,7 +418,7 @@ const Chat = () => {
       }).catch((err) => {
         console.error('Failed to generate title:', err);
         // Use first 20 characters of input as fallback
-        const fallbackTitle = input.length > 20 ? input.substring(0, 20) + '...' : input;
+        const fallbackTitle = effectiveInput.length > 20 ? effectiveInput.substring(0, 20) + '...' : effectiveInput;
         updateSessionTitle(session!.id, fallbackTitle);
       });
     }
@@ -327,7 +428,7 @@ const Chat = () => {
     // Save current message
     addMessages(currentSessionId, [{
       type: 'user',
-      content: input,
+      content: effectiveInput,
       outputFiles,
       timestamp: Date.now()
     }])
@@ -338,7 +439,7 @@ const Chat = () => {
     try {
       // 1. Create Chat (backend will auto-select tools)
       const { chat_id, session_id } = await api.createChat(
-        input,
+        effectiveInput,
         user.uid,
         currentFileUrls,
         currentFileNames,
@@ -842,15 +943,27 @@ const Chat = () => {
             <span className="font-semibold text-md text-gray-900 truncate">{session?.title || ''}</span>
           </div>
           <div className="absolute right-6 flex items-center gap-4">
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
-              title="LLM Settings"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-            <User />
-            <LogoutButton />
+            {user ? (
+              <>
+                <button
+                  onClick={() => setSettingsOpen(true)}
+                  className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+                  title="LLM Settings"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                <User />
+                <LogoutButton />
+              </>
+            ) : (
+              <button
+                onClick={() => router.push('/auth')}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Login</span>
+              </button>
+            )}
           </div>
         </div>
         {/* Main Content Area (Chat + Preview) */}
@@ -869,6 +982,7 @@ const Chat = () => {
                 currentScript={currentScript}
                 onFilePreview={setPreviewFile}
                 onOpenSettings={() => setSettingsOpen(true)}
+                onPromptClick={handlePromptClick}
                 streamingResponse={streamingResponse}
                 isLoading={messagesLoading}
                 isCodeBlock={parserState.inCodeBlock}
@@ -920,7 +1034,15 @@ const Chat = () => {
       {/* Settings Modal */}
       <SettingsModal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        isFirstTimeSetup={isFirstTimeSetup}
+        onClose={() => {
+          setSettingsOpen(false);
+          setIsFirstTimeSetup(false);
+          // Refetch LLM settings after modal closes (in case user saved)
+          if (user?.uid) {
+            checkLLMSettings();
+          }
+        }}
       />
     </div>
   );

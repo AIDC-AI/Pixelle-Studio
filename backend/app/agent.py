@@ -368,7 +368,17 @@ class SkillAgent:
                         logger.warning(f"[Agent] Network error ({error_type}), trying next model...")
                         last_error = e
                         break  # Break out of thinking level loop
-                    
+                    elif "429" in error_msg or "rate_limit" in error_msg or "insufficient_quota" in error_msg or "quota" in error_msg:
+                        # Rate limit / quota exhausted - try next model
+                        logger.warning(f"[Agent] Rate limit / quota exhausted ({error_type}), trying next model...")
+                        last_error = e
+                        break  # Break out of thinking level loop, try next model
+
+                    elif "403" in error_msg and ("free tier" in error_msg or "quota" in error_msg):
+                        # Free tier exhausted - try next model
+                        logger.warning(f"[Agent] Free tier / permission denied ({error_type}), trying next model...")
+                        last_error = e
+                        break  # Break out of thinking level loop, try next model
                     else:
                         # Other errors - raise directly
                         raise e

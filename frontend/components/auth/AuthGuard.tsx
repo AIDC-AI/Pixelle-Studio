@@ -31,8 +31,10 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
     useEffect(() => {
         const isAuthRoute = PUBLIC_ROUTES.includes(pathname);
-        if (!token && !isAuthRoute) {
+        const isHomePage = pathname === '/';
+        if (!token && !isAuthRoute && !isHomePage) {
             // Token doesn't exist or is invalid, and accessing protected route, redirect to auth page
+            // Allow home page without auth (to show welcome prompts)
             router.push('/auth');
         } else if (token && isAuthRoute) {
             // Token is valid and accessing auth page, redirect to home

@@ -18,7 +18,7 @@ import { UserResponse } from '@/types/user';
 import { userAPI } from '@/lib/userApi';
 import { chatStorage } from '@/lib/chatStorage';
 import { useRouter, usePathname } from 'next/navigation';
-import { MCPTool } from '@/types/server';
+
 import { Toast } from 'radix-ui';
 import { Check, Lightbulb, X } from 'lucide-react';
 
@@ -38,17 +38,8 @@ type IProps = {
     activeSessionId: string
     setActiveSessionId: Dispatch<SetStateAction<string>>
 
-    // skillEditored: boolean 
-    // setSkillEditored: Dispatch<SetStateAction<boolean>>
-
-    // currentSkillName: string | null
-    // setCurrentSkillName: Dispatch<SetStateAction<string | null>>
-
-    // mcpTools: MCPTool[] | null
-    // setMcpTools: Dispatch<SetStateAction<MCPTool[] | null>>
-
-    // isChangeSkill: boolean
-    // setIsChangeSkill: Dispatch<SetStateAction<boolean>>
+    justLoggedIn: boolean
+    setJustLoggedIn: Dispatch<SetStateAction<boolean>>
 
     login: (email: string, password: string) => Promise<void>
     register: (username: string, email: string, password: string) => Promise<boolean>
@@ -70,11 +61,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [token, setToken] = useState<string | null>(null)
 
     const [activeSessionId, setActiveSessionId] = useState<string>('');
-
-    // const [skillEditored, setSkillEditored] = useState<boolean>(false)
-    // const [currentSkillName, setCurrentSkillName] = useState<string | null>(null)
-    // const [mcpTools, setMcpTools] = useState<MCPTool[] | null>(null)
-    // const [isChangeSkill, setIsChangeSkill] = useState<boolean>(false)
+    const [justLoggedIn, setJustLoggedIn] = useState<boolean>(false);
 
     const [toastOpen, setToastOpen] = useState<boolean>(false)
     const [toastType, setToastType] = useState<ToastType>(ToastType.INFO)
@@ -88,6 +75,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 userAPI.setToken(res.token.access_token)
                 setToken(res.token.access_token)
                 setUser(res.user)
+                setJustLoggedIn(true)
                 // Switch IndexedDB to user-scoped database
                 await chatStorage.switchUser(res.user.uid)
                 // Load user-scoped active session ID
@@ -220,6 +208,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     
     useEffect(() => {
         const isAuthRoute = PUBLIC_ROUTES.includes(pathname);
+        const isHomePage = pathname === '/';
         
         if (userAPI.isAuthenticated() && user) {
             // Logged in with user info: if on auth page, redirect to home
@@ -227,8 +216,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 router.push('/')
             }
         } else if (!userAPI.isAuthenticated()) {
-            // Not logged in: if not on auth page, redirect to auth page
-            if (!isAuthRoute) {
+            // Not logged in: allow home page (to show welcome prompts)
+            // Only redirect from other protected routes
+            if (!isAuthRoute && !isHomePage) {
                 router.push('/auth')
             }
         }
@@ -244,14 +234,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 setToken,
                 activeSessionId, 
                 setActiveSessionId, 
-                // skillEditored, 
-                // setSkillEditored,
-                // currentSkillName, 
-                // setCurrentSkillName,
-                // mcpTools, 
-                // setMcpTools,
-                // isChangeSkill, 
-                // setIsChangeSkill,
+                justLoggedIn,
+                setJustLoggedIn,
                 login,
                 register,
                 logout,
