@@ -12,11 +12,13 @@
 
 'use client';
 
-import { X, FileText, Image, FileCode, File, ExternalLink, Download, Maximize2, Minimize2, RefreshCw, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { X, FileText, Image, FileCode, File, ExternalLink, Download, Maximize2, Minimize2, RefreshCw, AlertCircle, FileSpreadsheet, Presentation } from 'lucide-react';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { OutputFile } from '@/types/message';
 import { API_BASE } from '@/lib/data';
 import MarkDown from '@/components/ui/markDown';
+import DocxPreviewInline from './docxPreviewInline';
+import PptxPreviewInline from './pptxPreviewInline';
 
 // Dynamically import DataGrid (styles imported in globals.css)
 const DataGrid = lazy(() => import('react-data-grid').then(mod => ({ default: mod.DataGrid })));
@@ -235,6 +237,11 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
             case 'xls':
             case 'csv':
                 return <FileSpreadsheet className="w-4 h-4" />;
+            case 'pptx':
+            case 'ppt':
+                return <Presentation className="w-4 h-4" />;
+            case 'docx':
+            case 'doc':
             case 'txt':
             case 'md':
             case 'json':
@@ -495,6 +502,14 @@ const FilePreview: React.FC<IProps> = ({ file, onClose }) => {
                         )}
                     </div>
                 )
+            case 'docx':
+                return (
+                    <DocxPreviewInline url={fullUrl} />
+                );
+            case 'pptx':
+                return (
+                    <PptxPreviewInline url={fullUrl} />
+                );
             default:
                 return (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 text-gray-500">

@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     npm \
     git \
     curl \
+    # CJK fonts for Chinese/Japanese/Korean text rendering in PDFs and PPTs
+    fonts-noto-cjk \
+    fonts-wqy-zenhei \
     && rm -rf /var/lib/apt/lists/*
 
 # 3. Install uv package manager

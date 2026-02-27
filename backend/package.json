@@ -4,6 +4,7 @@
   "description": "Backend Node.js dependencies for skills (pptx, etc.)",
   "private": true,
   "dependencies": {
+    "docx": "^9.0.0",
     "playwright": "^1.40.0",
     "pptxgenjs": "^3.12.0",
     "react": "^18.2.0",

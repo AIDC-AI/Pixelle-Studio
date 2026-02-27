@@ -57,5 +57,5 @@ export const updateOrAddYamlField = (content: string, fieldName: string, newValu
 // Check if the file can be previewed
 export const canPreviewFile = (filename: string): boolean => {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
-    return ['html', 'htm', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'txt', 'md', 'xlsx', 'xls', 'csv'].includes(ext);
+    return ['html', 'htm', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'txt', 'md', 'xlsx', 'xls', 'csv', 'pptx', 'docx'].includes(ext);
 };

@@ -32,6 +32,12 @@ export function useChatStorage(sessionId?: string) {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  // Track the current active session ID in a ref for use in callbacks
+  const currentSessionIdRef = useRef<string | undefined>(sessionId);
+  useEffect(() => {
+    currentSessionIdRef.current = sessionId;
+  }, [sessionId]);
+
   // Load messages - first try IndexedDB, then fallback to backend
   const loadMessages = useCallback(async (sessId: string) => {
     if (!sessId) return;
@@ -77,15 +83,17 @@ export function useChatStorage(sessionId?: string) {
   // Save message (using optimistic update for streaming effect)
   const saveMessage = useCallback(async (sessId: string, msg: Message, messageId?: string) => {
     try {
-      // Optimistic update: immediately update UI
-      setMessages(prev => {
-        // if type is response_delta，update last item
-        if (prev?.length > 1 && prev?.[prev?.length - 2]?.type === 'response_delta' && msg?.type === 'response_delta') {
-          return [...prev.slice(0, prev?.length - 2), msg];
-        } else {
-          return [...prev, msg];
-        }
-      });
+      // Optimistic update: only update UI if this message belongs to the currently viewed session
+      if (sessId === currentSessionIdRef.current) {
+        setMessages(prev => {
+          // if type is response_delta，update last item
+          if (prev?.length > 1 && prev?.[prev?.length - 2]?.type === 'response_delta' && msg?.type === 'response_delta') {
+            return [...prev.slice(0, prev?.length - 2), msg];
+          } else {
+            return [...prev, msg];
+          }
+        });
+      }
 
       
       // Save to IndexedDB in background (non-blocking for UI)
@@ -102,10 +110,12 @@ export function useChatStorage(sessionId?: string) {
   // Batch save messages (using optimistic update for streaming effect)
   const saveMessages = useCallback(async (sessId: string, msgs: Message[]) => {
     try {
-      // Optimistic update: immediately update UI
-      setMessages(prev => [...prev, ...msgs]);
+      // Optimistic update: only update UI if these messages belong to the currently viewed session
+      if (sessId === currentSessionIdRef.current) {
+        setMessages(prev => [...prev, ...msgs]);
+      }
       
-      // Save to IndexedDB in background (non-blocking for UI)
+      // Always save to IndexedDB regardless of current view (non-blocking for UI)
       chatStorage.saveMessages(sessId, msgs).catch(err => {
         console.error('Failed to persist messages to storage:', err);
       });

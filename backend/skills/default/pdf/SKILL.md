@@ -120,7 +120,127 @@ if all_tables:
 
 ### reportlab - Create PDFs
 
-#### Basic PDF Creation
+> **⚠️ CRITICAL: CJK (Chinese/Japanese/Korean) Font Support**
+> 
+> The default reportlab fonts do NOT support CJK characters. If your content contains **any** Chinese, Japanese, or Korean text, you **MUST** register a CJK font first. Failing to do so will result in garbled text or missing characters in the output PDF.
+
+#### CJK Font Registration (REQUIRED for Chinese/Japanese/Korean content)
+
+**IMPORTANT: Always call `register_cjk_fonts()` before creating any PDF that may contain CJK text.**
+
+```python
+import os
+import glob
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.fonts import addMapping
+
+# --- CJK font name constant (use this everywhere in your code) ---
+CJK_FONT_NAME = "ChineseSans"  # Will be registered below
+
+def register_cjk_fonts():
+    """Register CJK fonts for reportlab. Call this ONCE before creating any PDF."""
+    global CJK_FONT_NAME
+    
+    # Try to find system CJK fonts in common locations
+    font_search_paths = [
+        # macOS
+        "/System/Library/Fonts/STHeiti Medium.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+        "/Library/Fonts/Microsoft/msyh.ttf",
+        "/Library/Fonts/Arial Unicode.ttf",
+        # Linux (Docker / Ubuntu / Debian)
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+        # Windows
+        "C:/Windows/Fonts/msyh.ttf",
+        "C:/Windows/Fonts/simsun.ttc",
+    ]
+    
+    # Also search common font directories recursively for CJK fonts
+    font_dirs = [
+        "/usr/share/fonts",
+        "/System/Library/Fonts",
+        "/Library/Fonts",
+    ]
+    for font_dir in font_dirs:
+        if os.path.isdir(font_dir):
+            for ext in ("*.ttf", "*.ttc", "*.otf"):
+                for path in glob.glob(os.path.join(font_dir, "**", ext), recursive=True):
+                    name_lower = os.path.basename(path).lower()
+                    if any(kw in name_lower for kw in ("noto", "cjk", "wqy", "hei", "song", "ming", "gothic", "ping")):
+                        font_search_paths.append(path)
+    
+    for font_path in font_search_paths:
+        if os.path.exists(font_path):
+            try:
+                pdfmetrics.registerFont(TTFont(CJK_FONT_NAME, font_path))
+                # Also register bold/italic variants using the same font
+                pdfmetrics.registerFont(TTFont(f"{CJK_FONT_NAME}-Bold", font_path))
+                addMapping(CJK_FONT_NAME, 0, 0, CJK_FONT_NAME)       # normal
+                addMapping(CJK_FONT_NAME, 1, 0, f"{CJK_FONT_NAME}-Bold")  # bold
+                addMapping(CJK_FONT_NAME, 0, 1, CJK_FONT_NAME)       # italic
+                addMapping(CJK_FONT_NAME, 1, 1, f"{CJK_FONT_NAME}-Bold")  # bold-italic
+                print(f"Registered CJK font: {font_path}")
+                return True
+            except Exception as e:
+                print(f"Failed to register font {font_path}: {e}")
+                continue
+    
+    # Fallback: use reportlab built-in CID font (less pretty but works)
+    try:
+        pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+        CJK_FONT_NAME = "STSong-Light"
+        print("Registered fallback CID font: STSong-Light")
+        return True
+    except Exception:
+        pass
+    
+    print("WARNING: No CJK fonts found. Chinese text may not render correctly.")
+    return False
+
+
+def get_cjk_styles():
+    """Get reportlab styles with CJK font applied to all text styles."""
+    styles = getSampleStyleSheet()
+    
+    # Override all standard styles with CJK font
+    for style_name in ['Normal', 'BodyText', 'Italic', 'Title', 'Heading1', 
+                        'Heading2', 'Heading3', 'Heading4', 'Heading5', 'Heading6',
+                        'Bullet', 'Definition', 'Code', 'UnorderedList', 'OrderedList']:
+        if style_name in styles:
+            styles[style_name].fontName = CJK_FONT_NAME
+    
+    return styles
+```
+
+#### Usage Example - PDF with Chinese Text
+```python
+# ALWAYS register CJK fonts first!
+register_cjk_fonts()
+
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+
+# Use CJK-enabled styles
+styles = get_cjk_styles()
+
+doc = SimpleDocTemplate("chinese_report.pdf", pagesize=A4)
+story = []
+
+story.append(Paragraph("学术论文标题", styles['Title']))
+story.append(Spacer(1, 12))
+story.append(Paragraph("这是正文内容。中文字符可以正常显示。", styles['Normal']))
+
+doc.build(story)
+```
+
+#### Basic PDF Creation (English only)
 ```python
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -144,6 +264,10 @@ c.save()
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
+
+# NOTE: If your content contains Chinese/Japanese/Korean text,
+# replace getSampleStyleSheet() with get_cjk_styles() and 
+# call register_cjk_fonts() first! See CJK section above.
 
 doc = SimpleDocTemplate("report.pdf", pagesize=letter)
 styles = getSampleStyleSheet()

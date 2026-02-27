@@ -39,6 +39,7 @@ dependencies = [
 
   # Document generation
   "python-pptx",
+  "python-docx",
   "reportlab>=4.4.9",
   "fpdf>=1.7.2",
 
@@ -48,6 +49,14 @@ dependencies = [
   "pdfplumber>=0.11.9",
   "pdf2image>=1.17.0",
   "pytesseract>=0.3.13",
+
+  # XML processing (used by OOXML skills for docx/pptx editing)
+  "defusedxml",
+  "lxml",
+  "six",
+
+  # Document text extraction
+  "markitdown[pptx]",
 
   # Image processing
   "pillow>=12.1.0",

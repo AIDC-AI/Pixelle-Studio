@@ -82,6 +82,24 @@ const Chat = () => {
   // WebSocket reference, used to stop inference
   const wsRef = useRef<WebSocket | null>(null);
 
+  // Track which session the current WebSocket belongs to
+  const wsSessionIdRef = useRef<string | null>(null);
+  // Track the active session ID in a ref for use in WebSocket callbacks
+  const activeSessionIdRef = useRef<string>(activeSessionId);
+
+  // Keep activeSessionIdRef in sync with activeSessionId
+  // Also clear streaming state when switching away from the WS session
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+    // If the user switched to a session that is NOT the one with the active WebSocket,
+    // clear the streaming display to prevent content leaking
+    if (wsSessionIdRef.current && wsSessionIdRef.current !== activeSessionId) {
+      setStreamingResponse('');
+      setCurrentScript(null);
+      setParserState(createParserState());
+    }
+  }, [activeSessionId]);
+
   // Left panel width
   const [leftPanelWidth, setLeftPanelWidth] = useState<number>(DEFAULT_LEFT_PANEL_WIDTH);
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false);
@@ -142,6 +160,10 @@ const Chat = () => {
 
   const handleChangeSession = (id: string) => {
     setPreviewFile(null)
+    // Clear streaming state when switching sessions to prevent content leaking
+    setStreamingResponse('');
+    setCurrentScript(null);
+    setParserState(createParserState());
     setTimeout(() => {
       setActiveSessionId(id)
     }, 0)
@@ -166,6 +188,7 @@ const Chat = () => {
       wsRef.current.close();
       wsRef.current = null;
     }
+    wsSessionIdRef.current = null;
     setIsProcessing(false);
     // Reset parser state
     setParserState(createParserState());
@@ -330,9 +353,15 @@ const Chat = () => {
       // 2. Connect WebSocket
       const ws = new WebSocket(api.getWebSocketUrl(chat_id));
       wsRef.current = ws;
+      wsSessionIdRef.current = currentSessionId;
+
+      // Helper: only update streaming UI state if the user is still viewing this session
+      const isActiveSession = () => activeSessionIdRef.current === currentSessionId;
 
       // Immediately show "task in progress" status hint (using streamingResponse)
-      setStreamingResponse('Task in progress, waiting for response...');
+      if (isActiveSession()) {
+        setStreamingResponse('Task in progress, waiting for response...');
+      }
 
       let lastType = ''
       let streamingString = ''
@@ -352,7 +381,9 @@ const Chat = () => {
           }
           lastType = ''
           streamingString = ''
-          setStreamingResponse('');
+          if (isActiveSession()) {
+            setStreamingResponse('');
+          }
         }
 
         if (data.type === 'response_delta') {
@@ -360,9 +391,11 @@ const Chat = () => {
           const deltaContent = data.accumulated || '';
           // Filter code blocks from the content
           const { filtered, state: newParserState } = filterCodeBlocks(deltaContent.trim(), parserState);
-          setParserState(newParserState);
-          // Update state - show filtered reasoning text
-          setStreamingResponse(filtered);
+          if (isActiveSession()) {
+            setParserState(newParserState);
+            // Update state - show filtered reasoning text
+            setStreamingResponse(filtered);
+          }
           streamingString = filtered;
         } else if (data.type === 'iteration_start') {
           // Clear "task in progress..." hint
@@ -382,7 +415,7 @@ const Chat = () => {
             iteration: data.iteration
           })
         } else if (data.type === 'script') {
-          setCurrentScript(data.content);
+          if (isActiveSession()) setCurrentScript(data.content);
           _messages.push({
             type: 'system',
             content: `📝 Generated script (iteration ${data.iteration})`,
@@ -448,8 +481,8 @@ const Chat = () => {
             outputFiles: [outputFile]
           });
 
-          // Auto-preview previewable files
-          autoPreviewFile([outputFile]);
+          // Auto-preview previewable files (only if viewing this session)
+          if (isActiveSession()) autoPreviewFile([outputFile]);
         } else if (data.type === 'execution_result') {
           // Handle execution result event
           const outputFiles: OutputFile[] = data.output_files || [];
@@ -480,14 +513,14 @@ const Chat = () => {
               outputFiles: outputFiles
             })
 
-            // Auto-preview previewable files
-            autoPreviewFile(outputFiles);
+            // Auto-preview previewable files (only if viewing this session)
+            if (isActiveSession()) autoPreviewFile(outputFiles);
           }
 
           // After code execution completes, reset tool call flag to allow subsequent streaming output
           hasToolCallsRef.current = false;
           // Reset parser state, prepare to receive new reasoning text
-          setParserState(createParserState());
+          if (isActiveSession()) setParserState(createParserState());
         } else if (data.type === 'response') {
           // Handle direct response from agent (complete response, non-streaming)
           // If there is accumulated streaming content, use it; otherwise use data.content
@@ -611,10 +644,10 @@ const Chat = () => {
           const hadCodeExecution = currentExecCount > 0;
 
           // If there is an unfinished streaming response, save it first
-          if (streamingResponse) {
+          if (streamingString && streamingString.trim()) {
             _messages.push({
               type: 'response',
-              content: streamingResponse,
+              content: streamingString.trim(),
               timestamp: Date.now()
             });
           }
@@ -634,10 +667,13 @@ const Chat = () => {
             }
           }
 
-          // Clear streaming response
-          setStreamingResponse('');
+          // Clear streaming response only if user is still viewing this session
+          if (isActiveSession()) {
+            setStreamingResponse('');
+          }
           setIsProcessing(false);
           wsRef.current = null;
+          wsSessionIdRef.current = null;
           ws.close();
         } else if (data.type === 'result') {
           // Compatible with old result messages (if any)
@@ -654,6 +690,7 @@ const Chat = () => {
           })
           setIsProcessing(false);
           wsRef.current = null;
+          wsSessionIdRef.current = null;
           ws.close();
         } else if (data.type === 'status') {
           _messages.push({
@@ -675,6 +712,7 @@ const Chat = () => {
         }])
         setIsProcessing(false);
         wsRef.current = null;
+        wsSessionIdRef.current = null;
       };
 
       ws.onclose = () => {
@@ -683,13 +721,15 @@ const Chat = () => {
         // the connection was dropped unexpectedly (server restart, timeout, etc.)
         if (!receivedFinalResult) {
           // Save any accumulated streaming response as a partial result
-          if (streamingResponse && streamingResponse.trim()) {
+          if (streamingString && streamingString.trim()) {
             addMessages(currentSessionId, [{
               type: 'response',
-              content: streamingResponse.trim(),
+              content: streamingString.trim(),
               timestamp: Date.now()
             }]);
-            setStreamingResponse('');
+            if (isActiveSession()) {
+              setStreamingResponse('');
+            }
           }
           addMessages(currentSessionId, [{
             type: 'error',
@@ -699,6 +739,7 @@ const Chat = () => {
         }
         setIsProcessing(false);
         wsRef.current = null;
+        wsSessionIdRef.current = null;
       };
 
     } catch (err) {

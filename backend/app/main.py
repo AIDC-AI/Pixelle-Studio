@@ -694,6 +694,287 @@ async def get_file(filename: str):
 
 
 # ============================================================================
+# File Preview API - Convert office documents for frontend preview
+# ============================================================================
+
+def _resolve_file_path(url_path: str) -> Path:
+    """Resolve a URL path to an actual file path on disk.
+    
+    Handles paths like:
+    - /files/1/2026-02-09/xxx.pptx  (static mount)
+    - /f/1/2026-02-09/xxx.pptx      (dynamic endpoint)
+    - http://host:port/files/...     (full URL)
+    """
+    from urllib.parse import urlparse
+    
+    # Remove scheme and host if full URL
+    if url_path.startswith('http://') or url_path.startswith('https://'):
+        parsed = urlparse(url_path)
+        url_path = parsed.path
+    
+    # Remove prefix to get relative path
+    if url_path.startswith('/files/'):
+        relative_path = url_path[7:]  # Remove /files/
+    elif url_path.startswith('/f/'):
+        relative_path = url_path[3:]  # Remove /f/
+    else:
+        relative_path = url_path.lstrip('/')
+    
+    script_root = Path(__file__).parent.parent / "scripts"
+    return script_root / relative_path
+
+
+def _find_preview_screenshots(pptx_path: Path) -> list[Path]:
+    """Find pre-generated Playwright screenshot files for a PPTX.
+    
+    During PPTX generation, html2pptx.js saves .preview.jpg alongside each
+    slide HTML file. This function finds those screenshots in the same directory.
+    """
+    pptx_dir = pptx_path.parent
+    screenshots = sorted(pptx_dir.glob("*.preview.jpg"))
+    return screenshots
+
+
+def _stitch_screenshots(screenshot_paths: list[Path], gap: int = 16) -> str:
+    """Stitch multiple slide screenshots into a single vertical long image.
+    
+    All slides are stacked vertically with a thin gap between them,
+    returned as a single base64 JPEG data URL.
+    
+    Args:
+        screenshot_paths: Ordered list of screenshot file paths.
+        gap: Pixel gap between slides (filled with light gray).
+    
+    Returns:
+        base64 data URL string (data:image/jpeg;base64,...).
+    """
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    
+    images = [Image.open(str(p)) for p in screenshot_paths]
+    
+    # Normalize all images to the same width (use the max width)
+    max_width = max(img.width for img in images)
+    normalized = []
+    for img in images:
+        if img.width != max_width:
+            # Scale proportionally to max_width
+            scale = max_width / img.width
+            new_h = int(img.height * scale)
+            img = img.resize((max_width, new_h), Image.LANCZOS)
+        normalized.append(img)
+    
+    # Calculate total height: sum of all heights + gaps between slides
+    total_height = sum(img.height for img in normalized) + gap * (len(normalized) - 1)
+    
+    # Create the stitched canvas (light gray background for gaps)
+    canvas = Image.new('RGB', (max_width, total_height), (235, 235, 235))
+    y_offset = 0
+    for img in normalized:
+        canvas.paste(img, (0, y_offset))
+        y_offset += img.height + gap
+    
+    # Encode to JPEG base64
+    buffer = BytesIO()
+    canvas.save(buffer, format='JPEG', quality=88)
+    b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+    
+    # Clean up
+    for img in images:
+        img.close()
+    canvas.close()
+    
+    return f"data:image/jpeg;base64,{b64}"
+
+
+@app.get("/api/files/pptx-preview")
+async def pptx_preview(path: str):
+    """Return PPTX preview as a single stitched image of all slides.
+    
+    Strategy (in order of preference):
+    1. Pre-generated Playwright screenshots (.preview.jpg) → stitched into one long image
+    2. python-pptx text/image extraction → fallback with per-slide navigation
+    
+    Args:
+        path: URL path to the PPTX file (e.g., /files/1/2026-02-09/xxx.pptx)
+    """
+    import base64
+    
+    file_path = _resolve_file_path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+    
+    if file_path.suffix.lower() not in ('.pptx', '.ppt'):
+        raise HTTPException(status_code=400, detail="Only .pptx/.ppt files are supported")
+    
+    # --- Strategy 1: Stitch pre-generated screenshots into one long image ---
+    screenshots = _find_preview_screenshots(file_path)
+    if screenshots:
+        log.info(f"Found {len(screenshots)} preview screenshots for {file_path.name}, stitching into single image")
+        try:
+            stitched_image = _stitch_screenshots(screenshots)
+            return {
+                "mode": "image",
+                "total_slides": len(screenshots),
+                "image": stitched_image,
+            }
+        except Exception as e:
+            log.warning(f"Failed to stitch screenshots: {e}, falling back to text mode")
+    
+    # --- Strategy 2: python-pptx text/image extraction (fallback) ---
+    try:
+        from pptx import Presentation
+        from pptx.enum.shapes import MSO_SHAPE_TYPE
+    except ImportError:
+        raise HTTPException(status_code=500, detail="python-pptx is not installed")
+    
+    try:
+        prs = Presentation(str(file_path))
+        slide_width = prs.slide_width or 9144000
+        slide_height = prs.slide_height or 6858000
+        
+        slides_data = []
+        for slide_num, slide in enumerate(prs.slides):
+            slide_content = {
+                "number": slide_num + 1,
+                "texts": [],
+                "images": [],
+                "notes": "",
+                "background_color": None,
+            }
+            _extract_shapes(slide.shapes, slide_content, slide_width, slide_height)
+            
+            try:
+                if slide.has_notes_slide:
+                    slide_content["notes"] = slide.notes_slide.notes_text_frame.text.strip()
+            except Exception:
+                pass
+            
+            slides_data.append(slide_content)
+        
+        return {
+            "mode": "text",
+            "total_slides": len(slides_data),
+            "slide_width": slide_width,
+            "slide_height": slide_height,
+            "slides": slides_data,
+            "notice": "Preview screenshots not found. Re-generate the PPTX to get pixel-perfect previews.",
+        }
+        
+    except Exception as e:
+        log.error(f"Error parsing PPTX file: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to parse PPTX: {str(e)}")
+
+
+def _extract_shapes(shapes, slide_content: dict, slide_width: int, slide_height: int):
+    """Recursively extract text and images from shapes."""
+    import base64
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+    
+    for shape in shapes:
+        if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+            try:
+                _extract_shapes(shape.shapes, slide_content, slide_width, slide_height)
+            except Exception:
+                pass
+            continue
+        
+        if shape.has_text_frame:
+            for para in shape.text_frame.paragraphs:
+                text = para.text.strip()
+                if text:
+                    font_size = None
+                    bold = False
+                    italic = False
+                    color = None
+                    
+                    if para.runs:
+                        run = para.runs[0]
+                        try:
+                            if run.font.size:
+                                font_size = round(run.font.size / 12700, 1)
+                        except Exception:
+                            pass
+                        try:
+                            bold = bool(run.font.bold)
+                        except Exception:
+                            pass
+                        try:
+                            italic = bool(run.font.italic)
+                        except Exception:
+                            pass
+                        try:
+                            if run.font.color and run.font.color.rgb:
+                                color = f"#{run.font.color.rgb}"
+                        except Exception:
+                            pass
+                    
+                    left_pct = round(shape.left / slide_width * 100, 1) if shape.left else 0
+                    top_pct = round(shape.top / slide_height * 100, 1) if shape.top else 0
+                    width_pct = round(shape.width / slide_width * 100, 1) if shape.width else 100
+                    
+                    slide_content["texts"].append({
+                        "text": text,
+                        "fontSize": font_size,
+                        "bold": bold,
+                        "italic": italic,
+                        "color": color,
+                        "left": left_pct,
+                        "top": top_pct,
+                        "width": width_pct,
+                    })
+        
+        if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+            try:
+                image = shape.image
+                img_bytes = image.blob
+                content_type = image.content_type or "image/png"
+                b64 = base64.b64encode(img_bytes).decode('utf-8')
+                
+                left_pct = round(shape.left / slide_width * 100, 1) if shape.left else 0
+                top_pct = round(shape.top / slide_height * 100, 1) if shape.top else 0
+                width_pct = round(shape.width / slide_width * 100, 1) if shape.width else 50
+                height_pct = round(shape.height / slide_height * 100, 1) if shape.height else 50
+                
+                slide_content["images"].append({
+                    "data": f"data:{content_type};base64,{b64}",
+                    "left": left_pct,
+                    "top": top_pct,
+                    "width": width_pct,
+                    "height": height_pct,
+                })
+            except Exception as e:
+                log.debug(f"Failed to extract image from shape: {e}")
+        
+        if shape.has_table:
+            table = shape.table
+            table_data = []
+            for row in table.rows:
+                row_data = []
+                for cell in row.cells:
+                    row_data.append(cell.text.strip())
+                table_data.append(row_data)
+            
+            if table_data:
+                left_pct = round(shape.left / slide_width * 100, 1) if shape.left else 0
+                top_pct = round(shape.top / slide_height * 100, 1) if shape.top else 0
+                width_pct = round(shape.width / slide_width * 100, 1) if shape.width else 100
+                
+                slide_content["texts"].append({
+                    "text": "[Table]",
+                    "fontSize": None,
+                    "bold": False,
+                    "italic": False,
+                    "color": None,
+                    "left": left_pct,
+                    "top": top_pct,
+                    "width": width_pct,
+                    "tableData": table_data,
+                })
+
+
+# ============================================================================
 # User Sessions API - Cross-browser session persistence
 # ============================================================================
 

@@ -931,6 +931,25 @@ async function html2pptx(htmlFile, pres, options = {}) {
       });
 
       slideData = await extractSlideData(page);
+
+      // Save a preview screenshot for frontend preview (pixel-perfect, zero overhead)
+      try {
+        const screenshotPath = filePath.replace(/\.html$/i, '.preview.jpg');
+        await page.screenshot({
+          path: screenshotPath,
+          type: 'jpeg',
+          quality: 90,
+          clip: {
+            x: 0,
+            y: 0,
+            width: Math.round(bodyDimensions.width),
+            height: Math.round(bodyDimensions.height),
+          },
+        });
+      } catch (ssErr) {
+        // Non-fatal: preview screenshot is optional
+        console.warn(`Warning: Could not save preview screenshot: ${ssErr.message}`);
+      }
     } finally {
       await browser.close();
     }

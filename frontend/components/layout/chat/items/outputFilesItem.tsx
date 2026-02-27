@@ -14,7 +14,7 @@
 
 import { OutputFile } from '@/types/message';
 import { canPreviewFile } from '@/utils/utils';
-import { Download, FileSpreadsheet, FileImage, FileText, File, FolderDown, Bot, Eye, FileCode } from 'lucide-react';
+import { Download, FileSpreadsheet, FileImage, FileText, File, FolderDown, Bot, Eye, FileCode, Presentation } from 'lucide-react';
 
 interface IProps {
     files: OutputFile[];
@@ -39,6 +39,9 @@ const getFileIcon = (fileName: string) => {
         case 'html':
         case 'htm':
             return <FileCode className="w-4 h-4" />;
+        case 'pptx':
+        case 'ppt':
+            return <Presentation className="w-4 h-4" />;
         case 'pdf':
         case 'doc':
         case 'docx':
@@ -81,6 +84,10 @@ const getFileTypeLabel = (fileName: string): string => {
             return 'HTML';
         case 'pdf':
             return 'PDF';
+        case 'pptx':
+            return 'PowerPoint';
+        case 'ppt':
+            return 'PPT';
         case 'doc':
         case 'docx':
             return 'Word';

@@ -13,9 +13,11 @@
 'use client';
 
 import { useState } from 'react';
-import { FileSpreadsheet, FileText, Image as ImageIcon, File } from 'lucide-react';
+import { FileSpreadsheet, FileText, Image as ImageIcon, File, Presentation } from 'lucide-react';
 import ExcelPreview from './excelPreview';
 import PdfPreview from './pdfPreview';
+import DocxPreview from './docxPreview';
+import PptxPreview from './pptxPreview';
 
 interface FilePreviewProps {
   url: string;
@@ -24,7 +26,7 @@ interface FilePreviewProps {
 
 export default function FilePreview({ url, filename }: FilePreviewProps) {
   const [showPreview, setShowPreview] = useState(false);
-  const [previewType, setPreviewType] = useState<'excel' | 'pdf' | null>(null);
+  const [previewType, setPreviewType] = useState<'excel' | 'pdf' | 'docx' | 'pptx' | null>(null);
 
   // Get file extension
   const getFileExtension = (url: string) => {
@@ -41,11 +43,15 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
   const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension);
   const isPdf = extension === 'pdf';
   const isText = ['txt', 'md', 'json', 'csv'].includes(extension);
+  const isDocx = ['docx'].includes(extension);
+  const isPptx = ['pptx'].includes(extension);
 
   // Get icon
   const getIcon = () => {
     if (isExcel) return <FileSpreadsheet className="w-5 h-5" />;
     if (isImage) return <ImageIcon className="w-5 h-5" />;
+    if (isPptx) return <Presentation className="w-5 h-5" />;
+    if (isDocx) return <FileText className="w-5 h-5" />;
     if (isPdf || isText) return <FileText className="w-5 h-5" />;
     return <File className="w-5 h-5" />;
   };
@@ -55,6 +61,8 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
     if (isExcel) return 'text-green-600 bg-green-50 border-green-200';
     if (isImage) return 'text-blue-600 bg-blue-50 border-blue-200';
     if (isPdf) return 'text-red-600 bg-red-50 border-red-200';
+    if (isPptx) return 'text-orange-600 bg-orange-50 border-orange-200';
+    if (isDocx) return 'text-blue-600 bg-blue-50 border-blue-200';
     if (isText) return 'text-gray-600 bg-gray-50 border-gray-200';
     return 'text-gray-600 bg-gray-50 border-gray-200';
   };
@@ -65,6 +73,12 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
       setShowPreview(true);
     } else if (isPdf) {
       setPreviewType('pdf');
+      setShowPreview(true);
+    } else if (isDocx) {
+      setPreviewType('docx');
+      setShowPreview(true);
+    } else if (isPptx) {
+      setPreviewType('pptx');
       setShowPreview(true);
     } else if (isImage) {
       window.open(url, '_blank');
@@ -101,6 +115,14 @@ export default function FilePreview({ url, filename }: FilePreviewProps) {
 
       {showPreview && previewType === 'pdf' && (
         <PdfPreview url={url} onClose={handleClosePreview} />
+      )}
+
+      {showPreview && previewType === 'docx' && (
+        <DocxPreview url={url} onClose={handleClosePreview} />
+      )}
+
+      {showPreview && previewType === 'pptx' && (
+        <PptxPreview url={url} onClose={handleClosePreview} />
       )}
     </>
   );
