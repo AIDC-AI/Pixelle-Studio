@@ -17,6 +17,7 @@ export interface WelcomePrompt {
     icon: React.ReactNode;
     category: string;
     description: string;
+    shortPrompt: string;
     prompt: string;
     hasFile: boolean;
     fileName?: string;
@@ -28,6 +29,7 @@ export const WELCOME_PROMPTS: WelcomePrompt[] = [
         icon: <FileSpreadsheet className="w-5 h-5" />,
         category: 'Data Analysis',
         description: 'Analyze Excel sales data with visualizations',
+        shortPrompt: '"Monthly product revenue & growth analysis"',
         prompt: 'Please analyze the monthly_product_revenue.xlsx file, calculate each product\'s average monthly revenue and growth trends, and generate professional charts including bar charts and trend lines.',
         hasFile: true,
         fileName: 'monthly_product_revenue.xlsx',
@@ -37,6 +39,7 @@ export const WELCOME_PROMPTS: WelcomePrompt[] = [
         icon: <Presentation className="w-5 h-5" />,
         category: 'PPT Design',
         description: 'Create professional presentation slides',
+        shortPrompt: '"2025 AI Trends professional PPT design"',
         prompt: 'Design a professional PPT presentation about "2025 AI Technology Trends" with a cover page, table of contents, 3 content slides with charts, and a summary page. Use modern, clean design with professional color scheme.',
         hasFile: false,
     },
@@ -44,6 +47,7 @@ export const WELCOME_PROMPTS: WelcomePrompt[] = [
         icon: <FileText className="w-5 h-5" />,
         category: 'PDF Report',
         description: 'Generate formatted PDF documents',
+        shortPrompt: '"Quarterly sales analysis report in PDF"',
         prompt: 'Generate a quarterly sales analysis report in PDF format in 1 page, including a title page, executive summary, data charts with analysis, and conclusion with recommendations. Use professional typography and layout.',
         hasFile: false,
     },
@@ -51,6 +55,7 @@ export const WELCOME_PROMPTS: WelcomePrompt[] = [
         icon: <Globe className="w-5 h-5" />,
         category: 'API Integration',
         description: 'Connect external APIs & display results',
+        shortPrompt: '"西湖→外滩驾车路线地图可视化"',
         prompt: 'Call a map API to query the driving route from West Lake (Hangzhou) to The Bund (Shanghai), and generate an HTML page displaying the route information with an interactive map visualization.',
         hasFile: false,
     },
@@ -58,6 +63,7 @@ export const WELCOME_PROMPTS: WelcomePrompt[] = [
         icon: <BarChart3 className="w-5 h-5" />,
         category: 'Chart Generation',
         description: 'Create publication-quality charts from data',
+        shortPrompt: '"多产品月度营收对比图表导出"',
         prompt: 'Based on the monthly_product_revenue.xlsx data, create a professional comparison chart showing each product\'s monthly revenue trend using both bar charts and line charts, and export as a high-resolution PNG image.',
         hasFile: true,
         fileName: 'monthly_product_revenue.xlsx',
@@ -66,11 +72,10 @@ export const WELCOME_PROMPTS: WelcomePrompt[] = [
     {
         icon: <FolderOpen className="w-5 h-5" />,
         category: 'File Processing',
-        description: 'Transform & convert files to new formats',
-        prompt: 'Read the monthly_product_revenue.xlsx file and convert the data into a beautifully formatted interactive HTML table page with sorting and filtering capabilities, styled with modern CSS.',
-        hasFile: true,
-        fileName: 'monthly_product_revenue.xlsx',
-        fileUrl: '/assets/monthly_product_revenue.xlsx',
+        description: 'Convert text content into Markdown files',
+        shortPrompt: '"Text → well-structured Markdown document"',
+        prompt: 'Convert the following text into a well-structured Markdown file with proper headings, bullet points, code blocks where appropriate, and clean formatting. The text is: "Artificial Intelligence in 2025: Key trends include multimodal models, AI agents, on-device AI, and AI governance. Major players: OpenAI, Google DeepMind, Anthropic, Meta AI. Applications span healthcare, finance, education, and creative industries."',
+        hasFile: false,
     },
 ];
 
@@ -95,7 +100,7 @@ const WelcomePrompts: React.FC<IProps> = ({ onPromptClick }) => {
                     <button
                         key={index}
                         onClick={() => onPromptClick?.(prompt)}
-                        className="group flex flex-col gap-2 p-4 rounded-xl border border-gray-100 bg-white/60 
+                        className="group flex flex-col gap-1.5 p-4 rounded-xl border border-gray-100 bg-white/60 
                             hover:bg-white hover:border-gray-200 hover:shadow-sm
                             transition-all duration-200 text-left cursor-pointer"
                     >
@@ -114,8 +119,12 @@ const WelcomePrompts: React.FC<IProps> = ({ onPromptClick }) => {
                             )}
                         </div>
                         {/* Description */}
-                        <p className="text-xs text-gray-400 group-hover:text-gray-500 leading-relaxed transition-colors line-clamp-2">
+                        <p className="text-xs text-gray-400 group-hover:text-gray-500 leading-relaxed transition-colors">
                             {prompt.description}
+                        </p>
+                        {/* Short Prompt Hint */}
+                        <p className="text-[11px] italic text-orange-300 group-hover:text-orange-400 transition-colors truncate">
+                            {prompt.shortPrompt}
                         </p>
                     </button>
                 ))}

@@ -202,18 +202,11 @@ def validate_command(command: str, user_id: Optional[str]) -> Tuple[bool, Option
     #     return False, f"Command '{cmd_name}' is not in allowed list"
     
     # 4. Check dangerous patterns (relaxed, && and || allowed)
-    dangerous_patterns = [
-        (";", "Command injection risk"),
-        # && and || are common features, allowed
-        # "|" and ">" allowed (pipes and redirects are common features)
-    ]
-    
-    for pattern, reason in dangerous_patterns:
-        if pattern in command:
-            # But allow inside strings
-            if f'"{pattern}"' in command or f"'{pattern}'" in command:
-                continue
-            return False, f"Command contains dangerous character '{pattern}' ({reason})"
+    # Only check for semicolons OUTSIDE of quoted strings.
+    # e.g. `python -c "import x; print(x)"` is safe (semicolons inside quotes)
+    # but  `ls; rm -rf /` is dangerous (semicolons outside quotes)
+    if _has_unquoted_semicolons(command):
+        return False, "Command contains unquoted ';' (command injection risk). If you need semicolons, put them inside a quoted string (e.g. python -c \"stmt1; stmt2\")."
     
     # 5. Check path arguments (if there are file paths)
     for token in tokens[1:]:
@@ -231,6 +224,39 @@ def validate_command(command: str, user_id: Optional[str]) -> Tuple[bool, Option
                 logger.warning(f"Command contains potentially invalid path: {token}")
     
     return True, None
+
+
+def _has_unquoted_semicolons(command: str) -> bool:
+    """
+    Check if command contains semicolons outside of quoted strings.
+    
+    Walks character by character, tracking whether we're inside single or
+    double quotes. Handles escaped quotes (\\\" and \\') correctly.
+    
+    Returns True if any `;` is found outside quotes — meaning it would act
+    as a shell command separator and pose an injection risk.
+    """
+    in_single = False
+    in_double = False
+    i = 0
+    while i < len(command):
+        ch = command[i]
+        
+        # Handle escape sequences (skip next character)
+        if ch == '\\' and i + 1 < len(command):
+            i += 2
+            continue
+        
+        # Toggle quote state
+        if ch == '"' and not in_single:
+            in_double = not in_double
+        elif ch == "'" and not in_double:
+            in_single = not in_single
+        elif ch == ';' and not in_single and not in_double:
+            return True
+        
+        i += 1
+    return False
 
 
 def _is_subpath(path: Path, parent: Path) -> bool:
