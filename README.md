@@ -57,15 +57,15 @@
 <tr>
 <td width="33%" align="center">
 <h3>🛡️ Rock-Solid Stability</h3>
-<p>Three-layer failover: Auth → Model → Thinking<br>— Service never stops, tasks never break</p>
+<p>Three-layer failover + WebSocket heartbeat<br>— Service never stops, long tasks never drop</p>
 </td>
 <td width="33%" align="center">
 <h3>⚡ Token-Smart Engine</h3>
 <p>Progressive skill loading saves 90%+ tokens<br>— Smart context compression, never overflow</p>
 </td>
 <td width="33%" align="center">
-<h3>🖥️ Persistent Execution</h3>
-<p>Built-in PTY terminal with variable persistence<br>— Multi-step code execution, auto-recovery</p>
+<h3>🖥️ Secure Persistent Execution</h3>
+<p>Built-in PTY terminal with smart security filtering<br>— Multi-step code execution, variable persistence</p>
 </td>
 </tr>
 </table>
@@ -78,8 +78,8 @@
 | Code Execution | ❌ Or plugin-dependent | ✅ Built-in persistent terminal, multi-step |
 | Custom Skills | ❌ | ✅ Natural language to define Skills, zero-code |
 | External Tools (MCP) | ❌ Closed ecosystem | ✅ Open protocol, plug & play |
-| Context Management | ❌ Passive truncation | ✅ Smart compression, auto-managed |
-| Multi-Model Failover | ❌ Single model | ✅ Three-layer failover mechanism |
+| Context Management | ❌ Passive truncation | ✅ Smart compression with rich history reconstruction |
+| Multi-Model Failover | ❌ Single model | ✅ Three-layer failover + WebSocket heartbeat |
 | Token Consumption | 🔴 Full context loading | 🟢 Progressive on-demand loading |
 
 ---
@@ -104,12 +104,12 @@ Fully bilingual — the same natural language experience works seamlessly in Chi
 
 ### 2️⃣ Deep Research + PPT Generation
 
-> 💬 *"Please help me do some in-depth research on what good food and fun things to do in Zhengzhou. Return the result with a PPT."*
+> 💬 *"Design a professional PPT presentation about "2025 AI Technology Trends" with a cover page, table of contents, 3 content slides with charts, and a summary page. Use modern, clean design with professional color scheme."*
 
 Agent combines multiple Skills → web search → content scraping → structured analysis → auto-generates PPT
 
 <p align="center">
-  <img src="assets/deep-research with ppt generation.png" alt="Deep Research + PPT Generation" width="100%">
+  <img src="assets/ppt-gen1.png" alt="Deep Research + PPT Generation" width="100%">
 </p>
 
 ### 3️⃣ Excel Data Analysis & Report Generation
@@ -152,23 +152,23 @@ Don't just use built-in skills — create your own to teach the Agent your uniqu
 
 ```
                           ┌──────────────────────────┐
-                          │     Frontend (Next.js)    │
-                          │  Chat + Skills + Preview  │
+                          │     Frontend (Next.js)   │
+                          │  Chat + Skills + Preview │
                           └────────────┬─────────────┘
                                        │ WebSocket
                           ┌────────────▼─────────────┐
-                          │    Backend (FastAPI)       │
-                          │      SkillAgent Core       │
+                          │    Backend (FastAPI)     │
+                          │      SkillAgent Core     │
                           └────────────┬─────────────┘
                                        │
              ┌────────────┬────────────┼────────────┬────────────┐
              ▼            ▼            ▼            ▼            ▼
-      ┌────────────┐┌──────────┐┌──────────┐┌──────────┐┌──────────┐
-      │  9 Built-in ││ PTY      ││  Skill   ││ MCP      ││ Context  │
-      │  Tools      ││ Terminal ││  System  ││ Tools    ││ Manager  │
-      │ read/write  ││Persistent││Progressive││External ││  Auto    │
-      │ exec/shell  ││ Sessions ││ Loading  ││Integration│ Compaction│
-      └────────────┘└──────────┘└──────────┘└──────────┘└──────────┘
+      ┌─────────────┐┌──────────┐┌───────────┐┌───────────┐┌──────────┐
+      │  9 Built-in ││    PTY   ││  Skill    ││   MCP     ││ Context  │
+      │  Tools      ││ Terminal ││  System   ││   Tools   ││ Manager  │
+      │ read/write  ││Persistent││Progressive││ External  ││  Auto    │
+      │ exec/shell  ││ Sessions ││ Loading   ││Integration││Compaction│
+      └─────────────┘└──────────┘└───────────┘└───────────┘└──────────┘
 ```
 
 ### Technical Deep Dive
@@ -207,13 +207,14 @@ shell_exec("print(df.describe())", shell_type="python")  # df still exists!
 **Advantages**:
 - ✅ Variable Persistence — State maintained across calls
 - ✅ Multi-language — Bash / Python / IPython
+- ✅ Smart Security — Blocks dangerous commands while allowing legitimate patterns (e.g. `python -c "stmt1; stmt2"`)
 - ✅ Auto-recovery — Automatic restart on session crash
 - ✅ Auto-cleanup — Idle sessions automatically recycled
 
 </details>
 
 <details>
-<summary><b>🛡️ Three-Layer Failover — Service That Never Stops</b></summary>
+<summary><b>🛡️ Three-Layer Failover + WebSocket Heartbeat — Service That Never Stops</b></summary>
 
 <br>
 
@@ -222,9 +223,12 @@ Request failed?
   ├─ Layer 1: Auth Failover     → Switch API Key / Base URL
   ├─ Layer 2: Model Failover    → Switch to fallback model (gpt-4o → gpt-4o-mini → ...)
   └─ Layer 3: Thinking Failover → Downgrade thinking depth
+
+Long-running task?
+  └─ WebSocket Heartbeat        → Periodic pings keep the connection alive
 ```
 
-Even if the primary model faces rate limits, timeouts, or quota exhaustion, the system automatically switches to backup plans, keeping tasks uninterrupted.
+Even if the primary model faces rate limits, timeouts, or quota exhaustion, the system automatically switches to backup plans. For long-running tasks like PPT generation, WebSocket heartbeat keeps the connection alive — no more "no signal" drops.
 
 </details>
 
@@ -235,6 +239,7 @@ Even if the primary model faces rate limits, timeouts, or quota exhaustion, the 
 
 - **Context Window Guard** — Real-time token usage monitoring with automatic threshold alerts
 - **Auto-Compaction** — When context reaches ~70% usage, automatically generates a summary to compress history
+- **Rich History Reconstruction** — Multi-turn conversations retain tool calls, code execution, and file outputs for coherent context
 - **Multi-model Aware** — Auto-detects model context window sizes (GPT-4o 128K / Claude 200K / Gemini 1M)
 
 </details>
@@ -364,7 +369,7 @@ Pixelle Studio provides the Agent with **9 ready-to-use tools**:
 
 | Tool | Function | Description |
 |------|----------|-------------|
-| `shell_exec` | Persistent terminal | Multi-step execution with variable persistence |
+| `shell_exec` | Persistent terminal | Multi-step execution with variable persistence & smart security |
 | `exec` | Command execution | One-shot commands / background tasks |
 | `read_file` | Read files | Supports skill files and user files |
 | `write_file` | Write files | Create scripts / config files |

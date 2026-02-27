@@ -57,15 +57,15 @@
 <tr>
 <td width="33%" align="center">
 <h3>🛡️ 三重容错稳定运行</h3>
-<p>Auth → Model → Thinking 三层 Failover<br>—— 服务永不中断，任务永不丢失</p>
+<p>三层 Failover + WebSocket 心跳<br>—— 服务永不中断，长任务不掉线</p>
 </td>
 <td width="33%" align="center">
 <h3>⚡ 智能省 Token</h3>
 <p>渐进式技能加载节省 90%+ Token<br>—— 智能上下文压缩，永不溢出</p>
 </td>
 <td width="33%" align="center">
-<h3>🖥️ 持久化代码执行</h3>
-<p>内置 PTY 终端，变量跨调用保持<br>—— 多步执行，崩溃自动恢复</p>
+<h3>🖥️ 安全持久化执行</h3>
+<p>内置 PTY 终端 + 智能安全过滤<br>—— 多步执行，变量跨调用保持</p>
 </td>
 </tr>
 </table>
@@ -78,8 +78,8 @@
 | 代码执行 | ❌ 或需要插件 | ✅ 内置持久化终端，多步执行 |
 | 自定义技能 | ❌ | ✅ 自然语言描述即可，零代码定义 Skill |
 | 外部工具 (MCP) | ❌ 封闭生态 | ✅ 开放协议，按需接入 |
-| 上下文管理 | ❌ 被动截断 | ✅ 智能压缩，自动管理 |
-| 多模型容错 | ❌ 单模型 | ✅ 三层 Failover 机制 |
+| 上下文管理 | ❌ 被动截断 | ✅ 智能压缩 + 丰富历史重建 |
+| 多模型容错 | ❌ 单模型 | ✅ 三层 Failover + WebSocket 心跳 |
 | Token 消耗 | 🔴 全量加载 | 🟢 渐进式按需加载 |
 
 ---
@@ -105,12 +105,12 @@ Agent 自动加载地图技能 → 调用高德/Bing 地图 API → 规划路线
 
 ### 2️⃣ 深度研究 + PPT 生成
 
-> 💬 *"请帮我做一个关于郑州美食和好玩的地方的深度研究，结果用 PPT 呈现。"*
+> 💬 *"设计一份关于“2025年人工智能技术趋势”的专业PPT演示文稿，包含封面、目录、3张带图表的正文幻灯片和总结页。采用现代简洁的设计和专业的配色方案。"*
 
 Agent 自动组合多个 Skill → 网络搜索 → 内容抓取 → 结构化分析 → 自动生成 PPT
 
 <p align="center">
-  <img src="assets/deep-research with ppt generation.png" alt="深度研究 + PPT 生成" width="100%">
+  <img src="assets/ppt-gen1.png" alt="深度研究 + PPT 生成" width="100%">
 </p>
 
 ### 3️⃣ Excel 数据分析与报表生成
@@ -153,13 +153,13 @@ Agent 直接编写 HTML/CSS/JS → 生成可运行的游戏文件 → 内置预�
 
 ```
                           ┌──────────────────────────┐
-                          │     Frontend (Next.js)    │
-                          │  Chat + Skills + Preview  │
+                          │     Frontend (Next.js)   │
+                          │  Chat + Skills + Preview │
                           └────────────┬─────────────┘
                                        │ WebSocket
                           ┌────────────▼─────────────┐
-                          │    Backend (FastAPI)       │
-                          │      SkillAgent Core       │
+                          │    Backend (FastAPI)     │
+                          │      SkillAgent Core     │
                           └────────────┬─────────────┘
                                        │
              ┌────────────┬────────────┼────────────┬────────────┐
@@ -207,13 +207,14 @@ shell_exec("print(df.describe())", shell_type="python")  # df 仍然存在！
 **优势**：
 - ✅ 变量持久化 — 跨调用保持状态
 - ✅ 多语言支持 — Bash / Python / IPython
+- ✅ 智能安全过滤 — 拦截危险命令，同时允许合法模式（如 `python -c "stmt1; stmt2"`）
 - ✅ 错误自恢复 — 会话崩溃自动重启
 - ✅ 自动清理 — 空闲超时自动回收
 
 </details>
 
 <details>
-<summary><b>🛡️ 三层容错机制 — 永不中断的服务</b></summary>
+<summary><b>🛡️ 三层容错 + WebSocket 心跳 — 永不中断的服务</b></summary>
 
 <br>
 
@@ -222,9 +223,12 @@ shell_exec("print(df.describe())", shell_type="python")  # df 仍然存在！
   ├─ 第 1 层: Auth Failover    → 切换 API Key / Base URL
   ├─ 第 2 层: Model Failover   → 切换备用模型 (gpt-4o → gpt-4o-mini → ...)
   └─ 第 3 层: Thinking Failover → 降级思维深度
+
+长时间任务？
+  └─ WebSocket 心跳             → 定时 ping 保持连接存活
 ```
 
-即使主模型遇到限流/超时/配额耗尽，系统也能自动切换备用方案，确保任务不中断。
+即使主模型遇到限流/超时/配额耗尽，系统也能自动切换备用方案。对于 PPT 生成等长时间任务，WebSocket 心跳保持连接存活，不再出现"无信号"断连。
 
 </details>
 
@@ -235,6 +239,7 @@ shell_exec("print(df.describe())", shell_type="python")  # df 仍然存在！
 
 - **Context Window Guard** — 实时监控 token 使用率，预警阈值自动触发
 - **Auto-Compaction** — 当上下文接近 70% 使用率时，自动生成摘要压缩历史消息
+- **丰富历史重建** — 多轮对话中保留工具调用、代码执行、文件输出等详细信息，上下文更连贯
 - **多模型适配** — 自动识别模型上下文窗口大小 (GPT-4o 128K / Claude 200K / Gemini 1M)
 
 </details>
@@ -364,7 +369,7 @@ Pixelle Studio 为 Agent 提供了 **9 个开箱即用的工具**：
 
 | 工具 | 功能 | 说明 |
 |------|------|------|
-| `shell_exec` | 持久化终端 | 变量保持的多步执行 |
+| `shell_exec` | 持久化终端 | 变量保持的多步执行 + 智能安全过滤 |
 | `exec` | 命令执行 | 一次性命令 / 后台任务 |
 | `read_file` | 读取文件 | 支持技能文件和用户文件 |
 | `write_file` | 写入文件 | 创建脚本 / 配置文件 |
