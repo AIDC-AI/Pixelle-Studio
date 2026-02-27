@@ -116,13 +116,16 @@ kill_backend() {
 }
 
 # ============================================================
-# Load backend .env helper
+# Load .env helper
+# Priority: root .env > backend/.env (for backward compatibility)
 # ============================================================
 load_backend_env() {
-    cd "$BACKEND_DIR"
-    if [ -f ".env" ]; then
-        echo -e "${CYAN}Loading .env variables${NC}"
-        export $(grep -v '^#' .env | grep -v '^$' | xargs)
+    if [ -f "$ROOT_DIR/.env" ]; then
+        echo -e "${CYAN}Loading .env from project root${NC}"
+        export $(grep -v '^#' "$ROOT_DIR/.env" | grep -v '^$' | xargs)
+    elif [ -f "$BACKEND_DIR/.env" ]; then
+        echo -e "${CYAN}Loading .env from backend/${NC}"
+        export $(grep -v '^#' "$BACKEND_DIR/.env" | grep -v '^$' | xargs)
     fi
 }
 

@@ -10,56 +10,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-'''
-Author: ai-business-hql ai.bussiness.hql@gmail.com
-Date: 2025-12-22 11:11:34
-LastEditors: ai-business-hql ai.bussiness.hql@gmail.com
-LastEditTime: 2025-12-22 14:57:28
-FilePath: /mcp-workflow/backend/app/tool_search/selector.py
-Description: Default configuration
-'''
 from typing import List, Dict, Any
-#from app.tool_search.search_agent import SearchAgent
 import json
-
-
-
-
-async def select_tools(user_message: str,
-                 all_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Select relevant tools based on user message.
-    
-    Args:
-        user_message: The user's request
-        all_tools: List of all available tools
-        
-    Returns:
-        List of selected tools
-        
-    Current Strategy:
-        - Simple: Return all tools (phase 1)
-        - Future: Use LLM or keyword matching to intelligently select tools
-    """
-    # Phase 1: Simple implementation - return all tools
-    print(
-        f"[Tool Search] Selecting tools for message: '{user_message[:50]}...'")
-    print(f"[Tool Search] Available tools: {len(all_tools)}")
-    print(f"[Tool Search] Strategy: Return all tools (simple)")
-    # Filter out default mock tools if we have real MCP tools
-    mcp_tools = [t for t in all_tools if 'server_url' in t]
-    search_agent = SearchAgent.instance
-    if mcp_tools:
-        # Prefer MCP tools over mock tools
-        selected_tools = await search_agent.search_tools(user_message=user_message, all_mcp_tools=all_tools)
-        print(f"[Tool Search] Selected {len(selected_tools)} MCP tools")
-    else:
-        # Fallback to all tools including mocks
-        selected_tools = all_tools
-        print(
-            f"[Tool Search] Selected {len(selected_tools)} tools (including mocks)")
-
-    return selected_tools
 
 
 def format_tools_for_llm(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

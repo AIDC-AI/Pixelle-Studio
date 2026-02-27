@@ -130,33 +130,6 @@ class AuthStore:
             store.profiles.append(profile)
         return store
     
-    @classmethod
-    def from_env(cls) -> "AuthStore":
-        """Create default configuration from environment variables"""
-        import os
-        store = cls()
-        
-        # Primary API Key (from environment variables)
-        api_key = os.getenv("OPENAI_API_KEY")
-        base_url = os.getenv("OPENAI_BASE_URL")
-        
-        if api_key:
-            store.add_profile(AuthProfile(
-                id="openai-primary",
-                provider="openai",
-                api_key=api_key,
-                base_url=base_url
-            ))
-        
-        # Backup API Key (if configured)
-        backup_key = os.getenv("OPENAI_API_KEY_BACKUP")
-        if backup_key:
-            store.add_profile(AuthProfile(
-                id="openai-backup",
-                provider="openai",
-                api_key=backup_key,
-                base_url=base_url
-            ))
-        
-        return store
+    # NOTE: from_env() was removed – LLM credentials are now configured
+    # per-user through the web UI Settings panel, not via environment variables.
 

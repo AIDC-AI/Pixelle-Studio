@@ -31,12 +31,16 @@ class LLMMode(Enum):
 
 
 class AihubLLM:
+    """
+    Generic OpenAI-compatible LLM wrapper.
+    NOTE: api_key and base_url are required parameters. Environment variable
+    fallback (OPENAI_API_KEY / OPENAI_BASE_URL) has been removed — LLM
+    credentials are now configured per-user via the web UI Settings panel.
+    """
 
     def __init__(self, model, api_key: str = None, base_url: str = None, mode=LLMMode.SYNC, stream: bool = True):
         if api_key is None:
-            api_key = os.getenv("OPENAI_API_KEY", None)
-        if base_url is None:
-            base_url = os.getenv("OPENAI_BASE_URL", None)
+            logger.warning("[AihubLLM] No api_key provided – caller should pass user-configured credentials")
         if mode == LLMMode.SYNC:
             self.client = OpenAI(api_key=api_key, base_url=base_url)
         else:

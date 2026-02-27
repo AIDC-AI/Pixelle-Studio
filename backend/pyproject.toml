@@ -62,9 +62,6 @@ dependencies = [
   "pillow>=12.1.0",
   "matplotlib>=3.10.8",
 
-  # Tool search / embedding
-  "sentence-transformers>=5.2.0",
-
   # Shell session
   "pexpect>=4.9.0",
 

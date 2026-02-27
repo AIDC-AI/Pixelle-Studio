@@ -18,9 +18,9 @@ This module provides:
 2. Script generation based on SKILL.md guidance
 3. Support for both pure Python execution and MCP tool calls
 
-LLM Configuration:
-- OPENAI_API_KEY, OPENAI_BASE_URL: Automatically read from environment variables by OpenAI SDK
-- OPENAI_MODEL: Model name, default gpt-4o
+NOTE: The main Agent flow (SkillAgent) does NOT use this module.
+      LLM credentials are configured per-user via the web UI Settings.
+      The functions here are legacy code kept for backward compatibility.
 """
 
 import logging
@@ -50,8 +50,7 @@ def _log_llm_usage(response, call_type: str, model: str):
     except Exception as e:
         logger.debug(f"Failed to log LLM usage: {e}")
 
-# LLM Configuration - read from environment variables, supports custom configuration
-
+# System-level default model (can be overridden per-user in Settings UI)
 DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 
 def build_skills_system_prompt(skills_meta: str, skill_content: Optional[str] = None) -> str:
@@ -108,8 +107,11 @@ When generating Python code:
 
 async def generate_workflow_script(user_prompt: str, tools: list, config_to_use: MCPServerConfig = None) -> str:
     """
-    Generates a Python script based on the user prompt and available tools.
+    [LEGACY] Generates a Python script based on the user prompt and available tools.
+    NOTE: This function relies on OPENAI_API_KEY env var. The main Agent flow
+    uses user-configured keys from the Settings UI instead.
     """
+    logger.warning("[LEGACY] generate_workflow_script called – uses env-var API key, not user Settings")
     client = AsyncOpenAI()
 
     from app.tool_search.selector import format_tools_for_llm
@@ -239,7 +241,9 @@ async def generate_script_with_skill(
     mcp_tools: List[Dict] = None
 ) -> str:
     """
-    Generate a Python script using skill guidance.
+    [LEGACY] Generate a Python script using skill guidance.
+    NOTE: This function relies on OPENAI_API_KEY env var. The main Agent flow
+    uses user-configured keys from the Settings UI instead.
     
     Args:
         user_message: User's original request
@@ -252,6 +256,7 @@ async def generate_script_with_skill(
     Returns:
         Generated Python script
     """
+    logger.warning("[LEGACY] generate_script_with_skill called – uses env-var API key, not user Settings")
     client = AsyncOpenAI()
     skill_loader = get_skill_loader()
     
